@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState, type FormEvent } from "react";
-import { BrandLockup } from "@/components/brand/wordmark";
+import { LoginShell } from "@/components/auth/login-shell";
 
 export default function ResetPasswordPage() {
   return (
@@ -46,19 +46,8 @@ function ResetPasswordForm() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
-      <div className="w-full max-w-[28rem]">
-        <header className="rise-in mb-7 text-center">
-          <h1 className="flex justify-center">
-            <BrandLockup size="lg" />
-          </h1>
-          <p className="mt-2 text-[13px] text-muted-foreground">Choose a new password for this workspace.</p>
-        </header>
-        <form onSubmit={onSubmit} className="rise-in panel relative p-5">
-          <span className="reg reg-tl" aria-hidden />
-          <span className="reg reg-tr" aria-hidden />
-          <span className="reg reg-bl" aria-hidden />
-          <span className="reg reg-br" aria-hidden />
+    <LoginShell heading="Choose a new password" lede="This password is for the Workers Mail workspace, not your IMAP host.">
+        <form onSubmit={onSubmit}>
           {!token && (
             <p className="mb-3 text-[13px] text-[var(--danger)]">This reset link is missing its token.</p>
           )}
@@ -98,7 +87,6 @@ function ResetPasswordForm() {
             {pending ? "Saving" : "Save password"}
           </button>
         </form>
-      </div>
-    </main>
+    </LoginShell>
   );
 }

@@ -1,14 +1,21 @@
 "use client";
 
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
 import {
   ImapAccountFields,
   type ImapProvider,
 } from "@/components/mail/imap-account-fields";
 import { type ServerSettings } from "@/components/mail/server-settings-fields";
 import { hostsForEasyProvider, tlsForImapPort, tlsForSmtpPort } from "@/lib/transport/presets";
-import { BrandLockup } from "@/components/brand/wordmark";
+import { LoginShell } from "@/components/auth/login-shell";
+import { MailIcon } from "@/components/mail/icons";
+import {
+  forgetSavedProfile,
+  readSavedProfiles,
+  rememberSavedProfile,
+  type SavedProfile,
+} from "@/lib/auth/saved-profiles";
 
 type Props = {
   setupNeeded: boolean;
@@ -20,38 +27,37 @@ type Stage = "idle" | "verifying" | "connected";
 export function AuthScreen({ setupNeeded, encryptionReady }: Props) {
   const [mode, setMode] = useState<"signin" | "connect">("connect");
 
+  useEffect(() => {
+    if (readSavedProfiles().length > 0) setMode("signin");
+  }, []);
+  const heading =
+    mode === "connect" ? "Add a mailbox" : setupNeeded ? "Create a workspace" : "Sign in";
+  const lede =
+    mode === "connect"
+      ? setupNeeded
+        ? "Google, Microsoft, or any host that speaks IMAP."
+        : "Add Google, Microsoft, or IMAP — then sign in to save it."
+      : setupNeeded
+        ? "This Worker has no account yet. The password you set is for this workspace."
+        : "Use the email and password for this workspace.";
+
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
-      <div className={`w-full ${mode === "connect" ? "max-w-[32rem]" : "max-w-[28rem]"}`}>
-        <header className="rise-in mb-7 text-center">
-          <h1 className="flex justify-center">
-            <BrandLockup size="lg" />
-          </h1>
-          <p className="mt-2 text-[13px] text-muted-foreground">
-            {mode === "connect"
-              ? setupNeeded
-                ? "Add Google, Microsoft, or any IMAP mailbox."
-                : "Add Google, Microsoft, or IMAP — then sign in to save it."
-              : "Sign in with your mailbox email and password."}
-          </p>
-        </header>
-
-        <div className="rise-in mb-4 flex gap-1 border border-border bg-card p-1" style={{ borderRadius: 4 }}>
-          <Tab active={mode === "connect"} onClick={() => setMode("connect")}>
-            Add a mailbox
-          </Tab>
-          <Tab active={mode === "signin"} onClick={() => setMode("signin")}>
-            {setupNeeded ? "Workspace only" : "Sign in"}
-          </Tab>
-        </div>
-
-        {mode === "connect" ? (
-          <ConnectForm setupNeeded={setupNeeded} encryptionReady={encryptionReady} />
-        ) : (
-          <SignInForm setupNeeded={setupNeeded} />
-        )}
+    <LoginShell heading={heading} lede={lede}>
+      <div className="mb-5 flex gap-1 border border-border bg-card p-1" style={{ borderRadius: 4 }}>
+        <Tab active={mode === "connect"} onClick={() => setMode("connect")}>
+          Add a mailbox
+        </Tab>
+        <Tab active={mode === "signin"} onClick={() => setMode("signin")}>
+          {setupNeeded ? "Workspace only" : "Sign in"}
+        </Tab>
       </div>
-    </main>
+
+      {mode === "connect" ? (
+        <ConnectForm setupNeeded={setupNeeded} encryptionReady={encryptionReady} />
+      ) : (
+        <SignInForm setupNeeded={setupNeeded} />
+      )}
+    </LoginShell>
   );
 }
 
@@ -89,6 +95,21 @@ function SignInForm({ setupNeeded }: { setupNeeded: boolean }) {
   const [challenge, setChallenge] = useState("");
   const [code, setCode] = useState("");
   const [recovery, setRecovery] = useState(false);
+  const [remember, setRemember] = useState(true);
+  const [profiles, setProfiles] = useState<SavedProfile[]>([]);
+  const [picked, setPicked] = useState<string | null>(null);
+  const [another, setAnother] = useState(false);
+
+  useEffect(() => {
+    setProfiles(readSavedProfiles());
+  }, []);
+
+  function finish(signedInEmail: string) {
+    if (remember) setProfiles(rememberSavedProfile(signedInEmail));
+    else setProfiles(forgetSavedProfile(signedInEmail));
+    router.replace("/mail");
+    router.refresh();
+  }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -96,11 +117,12 @@ function SignInForm({ setupNeeded }: { setupNeeded: boolean }) {
     setError(null);
 
     const form = new FormData(event.currentTarget);
+    const submittedEmail = String(form.get("email") ?? "").trim().toLowerCase();
     const response = await fetch(setupNeeded ? "/api/auth/register" : "/api/auth/login", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        email: form.get("email"),
+        email: submittedEmail,
         password: form.get("password"),
         name: form.get("name"),
       }),
@@ -120,14 +142,13 @@ function SignInForm({ setupNeeded }: { setupNeeded: boolean }) {
 
     if (payload.requiresTwoFactor && payload.challenge) {
       setChallenge(payload.challenge);
-      setEmail(String(form.get("email") ?? ""));
+      setEmail(submittedEmail);
       setStep("totp");
       setPending(false);
       return;
     }
 
-    router.replace("/mail");
-    router.refresh();
+    finish(submittedEmail);
   }
 
   async function verifyTwoFactor(event: FormEvent<HTMLFormElement>) {
@@ -145,8 +166,7 @@ function SignInForm({ setupNeeded }: { setupNeeded: boolean }) {
       setPending(false);
       return;
     }
-    router.replace("/mail");
-    router.refresh();
+    finish(email);
   }
 
   async function requestReset(event: FormEvent<HTMLFormElement>) {
@@ -165,11 +185,7 @@ function SignInForm({ setupNeeded }: { setupNeeded: boolean }) {
 
   if (step === "forgot" || step === "forgot-sent") {
     return (
-      <form onSubmit={requestReset} className="rise-in panel relative p-5">
-        <span className="reg reg-tl" aria-hidden />
-        <span className="reg reg-tr" aria-hidden />
-        <span className="reg reg-bl" aria-hidden />
-        <span className="reg reg-br" aria-hidden />
+      <form onSubmit={requestReset}>
         {step === "forgot-sent" ? (
           <p className="text-[13px] text-[var(--ink)]">
             If that account exists, a reset link is on its way. Check the inbox for this address.
@@ -187,7 +203,7 @@ function SignInForm({ setupNeeded }: { setupNeeded: boolean }) {
                 required
                 autoComplete="username"
                 className="field"
-                defaultValue={email}
+                defaultValue={email || picked || ""}
               />
             </Field>
             {error && <ErrorNote>{error}</ErrorNote>}
@@ -212,11 +228,7 @@ function SignInForm({ setupNeeded }: { setupNeeded: boolean }) {
 
   if (step === "totp") {
     return (
-      <form onSubmit={verifyTwoFactor} className="rise-in panel relative p-5">
-        <span className="reg reg-tl" aria-hidden />
-        <span className="reg reg-tr" aria-hidden />
-        <span className="reg reg-bl" aria-hidden />
-        <span className="reg reg-br" aria-hidden />
+      <form onSubmit={verifyTwoFactor}>
         <p className="mb-4 text-[13px] text-muted-foreground">
           {recovery
             ? "Enter one of your recovery codes."
@@ -263,33 +275,83 @@ function SignInForm({ setupNeeded }: { setupNeeded: boolean }) {
     );
   }
 
+  const showPicker = !setupNeeded && profiles.length > 0 && !another && !picked;
+
+  if (showPicker) {
+    return (
+      <div>
+        <ul className="login-profiles">
+          {profiles.map((profile, index) => (
+            <li key={profile.email}>
+              <button
+                type="button"
+                className="login-profile"
+                onClick={() => {
+                  setPicked(profile.email);
+                  setEmail(profile.email);
+                  setError(null);
+                }}
+              >
+                <span className="login-profile-mark">
+                  <MailIcon name="mailbox" />
+                </span>
+                <span className="login-profile-email">{profile.email}</span>
+                {index === 0 ? <span className="login-last-used">Last used</span> : null}
+              </button>
+            </li>
+          ))}
+        </ul>
+        <p className="login-or">or</p>
+        <button
+          type="button"
+          className="login-another"
+          onClick={() => {
+            setAnother(true);
+            setPicked(null);
+            setEmail("");
+          }}
+        >
+          Sign in with another email →
+        </button>
+      </div>
+    );
+  }
+
+  const lockedEmail = picked;
+
   return (
-    <form
-      onSubmit={onSubmit}
-      className="rise-in panel relative p-5"
-    >
-      <span className="reg reg-tl" aria-hidden />
-      <span className="reg reg-tr" aria-hidden />
-      <span className="reg reg-bl" aria-hidden />
-      <span className="reg reg-br" aria-hidden />
+    <form onSubmit={onSubmit}>
       {setupNeeded && (
         <Field label="Your name" htmlFor="name">
           <input id="name" name="name" className="field" autoComplete="name" />
         </Field>
       )}
 
-      <Field label="Email" htmlFor="email">
-        <input
-          id="email"
-          name="email"
-          type="email"
-          required
-          autoComplete="username"
-          className="field"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-        />
-      </Field>
+      {lockedEmail ? (
+        <div className="mb-3.5">
+          <p className="label">Email</p>
+          <div className="login-locked-email">
+            <span className="login-profile-mark">
+              <MailIcon name="mailbox" />
+            </span>
+            <span className="min-w-0 truncate">{lockedEmail}</span>
+          </div>
+          <input type="hidden" name="email" value={lockedEmail} />
+        </div>
+      ) : (
+        <Field label="Email" htmlFor="email">
+          <input
+            id="email"
+            name="email"
+            type="email"
+            required
+            autoComplete="username"
+            className="field"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+          />
+        </Field>
+      )}
 
       <Field
         label="Password"
@@ -304,26 +366,53 @@ function SignInForm({ setupNeeded }: { setupNeeded: boolean }) {
           minLength={setupNeeded ? 10 : undefined}
           autoComplete={setupNeeded ? "new-password" : "current-password"}
           className="field"
+          autoFocus={Boolean(lockedEmail)}
         />
       </Field>
 
+      <label className="login-remember">
+        <input
+          type="checkbox"
+          checked={remember}
+          onChange={(event) => setRemember(event.target.checked)}
+        />
+        Remember this email on this device
+      </label>
+
       {error && <ErrorNote>{error}</ErrorNote>}
 
-      <button type="submit" className="btn btn-primary mt-1 w-full" disabled={pending}>
+      <button type="submit" className="btn btn-primary mt-3 w-full" disabled={pending}>
         {pending ? "Working" : setupNeeded ? "Create account" : "Sign in"}
       </button>
-      {!setupNeeded && (
-        <button
-          type="button"
-          className="mt-3 w-full text-center text-[13px] text-muted-foreground hover:underline"
-          onClick={() => {
-            setStep("forgot");
-            setError(null);
-          }}
-        >
-          Forgot password
-        </button>
-      )}
+
+      <div className="mt-3 flex flex-col gap-2">
+        {lockedEmail || another ? (
+          <button
+            type="button"
+            className="w-full text-center text-[13px] text-muted-foreground hover:underline"
+            onClick={() => {
+              setPicked(null);
+              setAnother(false);
+              setEmail("");
+              setError(null);
+            }}
+          >
+            ← View saved profiles
+          </button>
+        ) : null}
+        {!setupNeeded && (
+          <button
+            type="button"
+            className="w-full text-center text-[13px] text-muted-foreground hover:underline"
+            onClick={() => {
+              setStep("forgot");
+              setError(null);
+            }}
+          >
+            Forgot password
+          </button>
+        )}
+      </div>
     </form>
   );
 }
@@ -381,7 +470,8 @@ function ConnectForm({
     }
   }
 
-  async function finish() {
+  function rememberThenGo(email: string) {
+    rememberSavedProfile(email);
     setStage("connected");
     setTimeout(() => {
       router.replace("/mail");
@@ -411,7 +501,7 @@ function ConnectForm({
           const payload = (await response.json().catch(() => ({}))) as { error?: string };
           throw new Error(payload.error ?? "That mailbox could not be connected.");
         }
-        await finish();
+        rememberThenGo(address);
         return;
       }
 
@@ -436,7 +526,7 @@ function ConnectForm({
       }
 
       await createMailbox();
-      await finish();
+      rememberThenGo(workspaceEmail || address);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "That mailbox could not be connected.");
       setStage("idle");
@@ -459,7 +549,7 @@ function ConnectForm({
         throw new Error(payload.error ?? "That code was not recognised.");
       }
       await createMailbox();
-      await finish();
+      rememberThenGo(workspaceEmail || address);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "That code was not recognised.");
       setStage("idle");
@@ -468,11 +558,7 @@ function ConnectForm({
 
   if (!encryptionReady) {
     return (
-      <div className="rise-in panel relative p-5">
-        <span className="reg reg-tl" aria-hidden />
-        <span className="reg reg-tr" aria-hidden />
-        <span className="reg reg-bl" aria-hidden />
-        <span className="reg reg-br" aria-hidden />
+      <div>
         <p className="text-[13px] text-[var(--ink)]">
           Set the <code className="font-mono text-xs">MAIL_ENCRYPTION_KEY</code> secret
           before connecting a mailbox.
@@ -490,11 +576,7 @@ function ConnectForm({
 
   if (totp) {
     return (
-      <form onSubmit={verifyTwoFactor} className="rise-in panel relative p-5">
-        <span className="reg reg-tl" aria-hidden />
-        <span className="reg reg-tr" aria-hidden />
-        <span className="reg reg-bl" aria-hidden />
-        <span className="reg reg-br" aria-hidden />
+      <form onSubmit={verifyTwoFactor}>
         <p className="mb-4 text-[13px] text-muted-foreground">
           Enter the six-digit code from your authenticator, then the mailbox will be added.
         </p>
@@ -522,11 +604,7 @@ function ConnectForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="rise-in panel relative p-5">
-      <span className="reg reg-tl" aria-hidden />
-      <span className="reg reg-tr" aria-hidden />
-      <span className="reg reg-bl" aria-hidden />
-      <span className="reg reg-br" aria-hidden />
+    <form onSubmit={onSubmit}>
       <ImapAccountFields
         provider={provider}
         address={address}
@@ -554,7 +632,7 @@ function ConnectForm({
       </div>
 
       {!setupNeeded && (
-        <div className="mb-3.5 border border-border bg-background p-3" style={{ borderRadius: 4 }}>
+        <div className="mb-3.5 border border-border bg-card p-3" style={{ borderRadius: 4 }}>
           <p className="mb-3 text-[13px] text-muted-foreground">
             Sign in to this workspace to save the mailbox.
           </p>
