@@ -941,6 +941,119 @@ html[data-scheme="dark"] .message-body[data-kind="plain"] {
   backdrop-filter: blur(12px);
 }
 
+.brand-home {
+  display: inline-flex;
+  align-items: center;
+  color: var(--foreground);
+  border-radius: 6px;
+}
+
+.brand-lockup {
+  display: block;
+  height: 22px;
+  width: auto;
+  overflow: visible;
+  color: var(--foreground);
+}
+
+.brand-lockup[data-size="lg"] {
+  height: 36px;
+}
+
+.brand-lockup .brand-badge,
+.brand-lockup .brand-badge-frame,
+.brand-lockup .brand-mark-badge {
+  display: none;
+}
+
+.brand-lockup .brand-mark-flat {
+  display: inline;
+}
+
+html:is(
+    [data-palette="meridian"],
+    [data-palette="harbor"],
+    [data-palette="grove"],
+    [data-palette="ember"],
+    [data-palette="dusk"]
+  )
+  .brand-lockup
+  .brand-badge-violet,
+html:is(
+    [data-palette="meridian"],
+    [data-palette="harbor"],
+    [data-palette="grove"],
+    [data-palette="ember"],
+    [data-palette="dusk"]
+  )
+  .brand-lockup
+  .brand-badge-frame,
+html:is(
+    [data-palette="meridian"],
+    [data-palette="harbor"],
+    [data-palette="grove"],
+    [data-palette="ember"],
+    [data-palette="dusk"]
+  )
+  .brand-lockup
+  .brand-mark-badge {
+  display: inline;
+}
+
+html:is(
+    [data-palette="meridian"],
+    [data-palette="harbor"],
+    [data-palette="grove"],
+    [data-palette="ember"],
+    [data-palette="dusk"]
+  )
+  .brand-lockup
+  .brand-mark-flat {
+  display: none;
+}
+
+html:is(
+    [data-palette="meridian"],
+    [data-palette="harbor"],
+    [data-palette="grove"],
+    [data-palette="ember"],
+    [data-palette="dusk"]
+  )
+  .brand-lockup
+  .brand-letters {
+  transform: translate(3px, 0);
+}
+
+html[data-scheme="dark"][data-palette="ink"] .brand-lockup .brand-badge-ink,
+html[data-scheme="dark"][data-palette="ink"] .brand-lockup .brand-badge-frame,
+html[data-scheme="dark"][data-palette="ink"] .brand-lockup .brand-mark-badge {
+  display: inline;
+}
+
+html[data-scheme="dark"][data-palette="ink"] .brand-lockup .brand-mark-flat {
+  display: none;
+}
+
+html[data-scheme="dark"][data-palette="ink"] .brand-lockup .brand-letters {
+  transform: translate(3px, 0);
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-scheme="system"][data-palette="ink"] .brand-lockup .brand-badge-ink,
+  html[data-scheme="system"][data-palette="ink"] .brand-lockup .brand-badge-frame,
+  html[data-scheme="system"][data-palette="ink"] .brand-lockup .brand-mark-badge {
+    display: inline;
+  }
+
+  html[data-scheme="system"][data-palette="ink"] .brand-lockup .brand-mark-flat {
+    display: none;
+  }
+
+  html[data-scheme="system"][data-palette="ink"] .brand-lockup .brand-letters {
+    transform: translate(3px, 0);
+  }
+}
+
 .avatar-btn {
   display: inline-flex;
   align-items: center;

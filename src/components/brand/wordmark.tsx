@@ -1,9 +1,16 @@
+import { useId } from "react";
+
 type Props = {
   size?: "sm" | "lg";
 };
 
 /** Wordmark lockup. Flat on Ink light; charcoal badge in Ink dark; violet badge on colour palettes. */
 export function BrandLockup({ size = "sm" }: Props) {
+  const uid = useId().replace(/:/g, "");
+  const gradInk = `${uid}-ink`;
+  const gradViolet = `${uid}-violet`;
+  const clip = `${uid}-clip`;
+
   return (
     <svg
       className="brand-lockup"
@@ -15,31 +22,31 @@ export function BrandLockup({ size = "sm" }: Props) {
       focusable="false"
     >
       <defs>
-        <linearGradient id="brand-grad-ink" x1="23" y1="0.358" x2="23" y2="44.358" gradientUnits="userSpaceOnUse">
+        <linearGradient id={gradInk} x1="23" y1="0.358" x2="23" y2="44.358" gradientUnits="userSpaceOnUse">
           <stop stopColor="#2B2D2F" />
           <stop offset="1" stopColor="#131517" />
         </linearGradient>
-        <linearGradient id="brand-grad-violet" x1="23" y1="0.358" x2="23" y2="44.358" gradientUnits="userSpaceOnUse">
+        <linearGradient id={gradViolet} x1="23" y1="0.358" x2="23" y2="44.358" gradientUnits="userSpaceOnUse">
           <stop stopColor="#8A50FF" />
           <stop offset="0.389" stopColor="#763CF3" />
         </linearGradient>
-        <clipPath id="brand-clip">
+        <clipPath id={clip}>
           <rect x="1" y="0.358" width="44" height="44" rx="9.5" />
         </clipPath>
       </defs>
 
-      <g className="brand-badge brand-badge-ink" clipPath="url(#brand-clip)">
+      <g className="brand-badge brand-badge-ink" clipPath={`url(#${clip})`}>
         <path
           d="M1.917 9.858C1.917 5.118 5.76 1.275 10.5 1.275h25c4.74 0 8.583 3.843 8.583 8.583v25c0 4.74-3.843 8.583-8.583 8.583h-25c-4.74 0-8.583-3.843-8.583-8.583v-25Z"
           fill="#1F2123"
         />
         <path
           d="M1.917 9.858C1.917 5.118 5.76 1.275 10.5 1.275h25c4.74 0 8.583 3.843 8.583 8.583v25c0 4.74-3.843 8.583-8.583 8.583h-25c-4.74 0-8.583-3.843-8.583-8.583v-25Z"
-          stroke="url(#brand-grad-ink)"
+          stroke={`url(#${gradInk})`}
           strokeWidth="1.833"
         />
       </g>
-      <g className="brand-badge brand-badge-violet" clipPath="url(#brand-clip)">
+      <g className="brand-badge brand-badge-violet" clipPath={`url(#${clip})`}>
         <rect x="1.917" y="1.275" width="42.167" height="42.167" rx="8.583" fill="#8046FD" />
         <rect
           x="1.917"
@@ -47,7 +54,7 @@ export function BrandLockup({ size = "sm" }: Props) {
           width="42.167"
           height="42.167"
           rx="8.583"
-          stroke="url(#brand-grad-violet)"
+          stroke={`url(#${gradViolet})`}
           strokeWidth="1.833"
         />
       </g>

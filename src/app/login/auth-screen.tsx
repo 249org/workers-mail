@@ -7,6 +7,7 @@ import {
   type ServerSettings,
 } from "@/components/mail/server-settings-fields";
 import { tlsForImapPort, tlsForSmtpPort } from "@/lib/transport/presets";
+import { BrandLockup } from "@/components/brand/wordmark";
 
 type Props = {
   setupNeeded: boolean;
