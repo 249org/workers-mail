@@ -959,6 +959,10 @@ html[data-scheme="dark"] .message-body[data-kind="plain"] {
   height: 36px;
 }
 
+.brand-lockup .brand-letters {
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
 .brand-lockup .brand-badge,
 .brand-lockup .brand-badge-frame,
 .brand-lockup .brand-mark-badge {
