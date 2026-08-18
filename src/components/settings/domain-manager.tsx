@@ -77,12 +77,12 @@ export function DomainManager({
   }
 
   return (
-    <div className="mt-6">
-      <div className="panel p-4">
+    <div>
+      <div className="border-b border-border px-8 py-5">
         <label className="label" htmlFor="domain-name">
           Add a domain
         </label>
-        <div className="flex gap-2">
+        <div className="mt-2 flex gap-2">
           <input
             id="domain-name"
             className="field"
@@ -99,15 +99,15 @@ export function DomainManager({
             Add
           </button>
         </div>
-        {error && <p className="mt-2 text-sm text-[var(--danger)]">{error}</p>}
+        {error && <p className="mt-2 text-[13px] text-[var(--danger)]">{error}</p>}
       </div>
 
       {domains.length === 0 ? (
-        <p className="list-frame mt-4 p-6 text-center text-[13px] text-muted-foreground">
+        <p className="px-8 py-10 text-center text-[13px] text-muted-foreground">
           No domains connected yet.
         </p>
       ) : (
-        <div className="mt-4 space-y-4">
+        <div>
           {domains.map((domain) => (
             <DomainCard
               key={domain.id}
@@ -141,7 +141,7 @@ function DomainCard({
   const [showRuleForm, setShowRuleForm] = useState(false);
 
   return (
-    <section className="panel p-4">
+    <section className="settings-block">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold">{domain.name}</h2>

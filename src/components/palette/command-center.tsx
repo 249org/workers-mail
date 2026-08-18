@@ -7,8 +7,16 @@ import { useAppearanceStore } from "@/lib/appearance-store";
 import { appearanceCommands, settingsCommands } from "@/lib/palette/catalog";
 import { usePaletteStore } from "@/lib/palette/store";
 import { useHotkeys } from "@/lib/keyboard/use-hotkeys";
+import { useShortcutStore } from "@/lib/keyboard/store";
+import { primaryCombo } from "@/lib/keyboard/bindings";
 import { CommandPalette } from "./command-palette";
 import { ShortcutHelp } from "@/components/mail/shortcut-help";
+import { OnboardingTour } from "@/components/mail/onboarding-tour";
+import { KeyCaps, useIsMac } from "@/components/mail/key-caps";
+import { useOnboardingStore } from "@/lib/onboarding-store";
+import { TUTORIAL_EVERY_LOAD } from "@/lib/onboarding";
+
+let shownThisRuntime = false;
 
 type Props = {
   mailboxes: PublicMailbox[];
@@ -16,18 +24,30 @@ type Props = {
 
 export function CommandCenter({ mailboxes }: Props) {
   const router = useRouter();
+  const isMac = useIsMac();
   const open = usePaletteStore((state) => state.open);
   const query = usePaletteStore((state) => state.query);
   const mailbox = usePaletteStore((state) => state.mailbox);
   const extras = usePaletteStore((state) => state.extras);
   const helpOpen = usePaletteStore((state) => state.helpOpen);
+  const tourOpen = useOnboardingStore((state) => state.open);
   const prefs = useAppearanceStore((state) => state.prefs);
   const setPrefs = useAppearanceStore((state) => state.setPrefs);
-  const hydrate = useAppearanceStore((state) => state.hydrate);
+  const hydrateAppearance = useAppearanceStore((state) => state.hydrate);
+  const hydrateShortcuts = useShortcutStore((state) => state.hydrate);
+  const shortcuts = useShortcutStore((state) => state.shortcuts);
 
   useEffect(() => {
-    void hydrate();
-  }, [hydrate]);
+    void hydrateAppearance();
+    void hydrateShortcuts();
+  }, [hydrateAppearance, hydrateShortcuts]);
+
+  useEffect(() => {
+    if (!TUTORIAL_EVERY_LOAD) return;
+    if (shownThisRuntime) return;
+    shownThisRuntime = true;
+    useOnboardingStore.getState().openTour();
+  }, []);
 
   useHotkeys("global", {
     palette: () => usePaletteStore.getState().openPalette(),
@@ -52,16 +72,18 @@ export function CommandCenter({ mailboxes }: Props) {
     });
   }, [prefs, setPrefs, extras, router]);
 
+  const paletteCombo = primaryCombo("palette", shortcuts);
+
   return (
     <>
       <button
         type="button"
         className="btn btn-quiet !px-2"
         onClick={() => usePaletteStore.getState().openPalette()}
-        title="Command palette (⌘K)"
+        title="Command palette"
         aria-label="Open command palette"
       >
-        <span className="kbd">⌘K</span>
+        {paletteCombo ? <KeyCaps combo={paletteCombo} isMac={isMac} /> : <span className="kbd">⌘K</span>}
       </button>
       <CommandPalette
         open={open}
@@ -72,9 +94,10 @@ export function CommandCenter({ mailboxes }: Props) {
         onClose={() => usePaletteStore.getState().closePalette()}
       />
       <ShortcutHelp
-        open={helpOpen}
+        open={helpOpen && !tourOpen}
         onClose={() => usePaletteStore.getState().setHelpOpen(false)}
       />
+      <OnboardingTour open={tourOpen} onClose={() => useOnboardingStore.getState().closeTour()} />
     </>
   );
 }

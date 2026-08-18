@@ -6,7 +6,7 @@ import { domains } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { formatBytes, formatRelative } from "@/lib/format";
 import { HealthPanel } from "@/components/settings/health-panel";
-import { PageHeader } from "@/components/settings/page-header";
+import { PageHeader, SettingsBody } from "@/components/settings/page-header";
 
 export default async function SettingsOverviewPage() {
   const { user, db } = await requireUser();
@@ -32,58 +32,68 @@ export default async function SettingsOverviewPage() {
   );
 
   return (
-    <div>
-      <PageHeader title="Overview">
-        This deployment runs on your Cloudflare account.
-      </PageHeader>
+    <>
+      <PageHeader title="Overview">This deployment runs on your Cloudflare account.</PageHeader>
+      <SettingsBody flush>
+        <div className="stat-strip settings-flush">
+          <Stat label="Domains" value={String(domainRows.length)} />
+          <Stat label="Mailboxes" value={String(mailboxes.length)} />
+          <Stat label="Stored" value={formatBytes(totals.bytes)} hint={`${totals.messages} messages`} />
+        </div>
 
-      <div className="stat-strip relative">
-        <span className="reg reg-tl" aria-hidden />
-        <span className="reg reg-tr" aria-hidden />
-        <span className="reg reg-bl" aria-hidden />
-        <span className="reg reg-br" aria-hidden />
-        <Stat label="Domains" value={String(domainRows.length)} />
-        <Stat label="Mailboxes" value={String(mailboxes.length)} />
-        <Stat label="Stored" value={formatBytes(totals.bytes)} hint={`${totals.messages} messages`} />
-      </div>
-
-      <section className="mt-8">
-        <h2 className="section-title">Mailboxes</h2>
-        {usage.length === 0 ? (
-          <p className="list-frame mt-3 p-4 text-[13px] text-muted-foreground">
-            No mailboxes yet.{" "}
-            <Link href="/settings/mailboxes/new" className="text-[var(--accent)] hover:underline">
-              Add one
-            </Link>
-            .
-          </p>
-        ) : (
-          <ul className="list-frame mt-3">
-            {usage.map(({ mailbox, stats }) => (
-              <li key={mailbox.id} className="flex items-center justify-between gap-4 p-4">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{mailbox.address}</p>
-                  <p className="text-xs text-[var(--ink-muted)]">
-                    {mailbox.type === "native" ? "Cloudflare domain" : "External IMAP"} ·{" "}
-                    {stats.messages} messages · {formatBytes(stats.bytes)}
-                    {mailbox.type === "external_imap" &&
-                      ` · synced ${formatRelative(mailbox.lastSyncedAt)}`}
-                  </p>
+        <section>
+          <h2 className="settings-section-label">Mailboxes</h2>
+          {usage.length === 0 ? (
+            <p className="px-8 py-6 text-[13px] text-muted-foreground">
+              No mailboxes yet.{" "}
+              <Link href="/settings/mailboxes/new" className="hover:underline" style={{ color: "var(--primary)" }}>
+                Add one
+              </Link>
+              .
+            </p>
+          ) : (
+            <div className="settings-ledger">
+              <div className="settings-ledger-head" aria-hidden>
+                <span>Address</span>
+                <span>Kind</span>
+                <span>Mail</span>
+                <span className="max-md:hidden">Size</span>
+                <span />
+              </div>
+              {usage.map(({ mailbox, stats }) => (
+                <div key={mailbox.id} className="settings-ledger-row">
+                  <div className="min-w-0">
+                    <p className="truncate text-[13px] font-medium">{mailbox.address}</p>
+                    <p className="truncate text-[13px] text-muted-foreground">
+                      {mailbox.type === "external_imap"
+                        ? `Synced ${formatRelative(mailbox.lastSyncedAt)}`
+                        : "Cloudflare domain"}
+                    </p>
+                  </div>
+                  <span className="text-[13px] text-muted-foreground">
+                    {mailbox.type === "native" ? "Domain" : "IMAP"}
+                  </span>
+                  <span className="text-[13px] text-muted-foreground">{stats.messages}</span>
+                  <span className="text-[13px] text-muted-foreground max-md:hidden">
+                    {formatBytes(stats.bytes)}
+                  </span>
+                  <div className="flex justify-end">
+                    <Link href={`/mail/${mailbox.id}`} className="btn btn-ghost !h-8 !px-3">
+                      Open
+                    </Link>
+                  </div>
                 </div>
-                <Link href={`/mail/${mailbox.id}`} className="btn btn-ghost shrink-0 !py-1.5 text-xs">
-                  Open
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+              ))}
+            </div>
+          )}
+        </section>
 
-      <section className="mt-8">
-        <h2 className="section-title">System checks</h2>
-        <HealthPanel />
-      </section>
-    </div>
+        <section>
+          <h2 className="settings-section-label">System checks</h2>
+          <HealthPanel />
+        </section>
+      </SettingsBody>
+    </>
   );
 }
 
@@ -92,7 +102,7 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
     <div>
       <p className="label mb-1">{label}</p>
       <p className="font-serif text-[30px] leading-none tracking-tight">{value}</p>
-      {hint && <p className="mt-1.5 text-[12px] text-muted-foreground">{hint}</p>}
+      {hint ? <p className="mt-1.5 text-[13px] text-muted-foreground">{hint}</p> : null}
     </div>
   );
 }

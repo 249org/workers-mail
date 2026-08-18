@@ -10,6 +10,7 @@ import {
 import type { PaletteCommand } from "@/components/palette/command-palette";
 import { SETTINGS_PAGES } from "@/components/settings/settings-nav";
 import { usePaletteStore } from "@/lib/palette/store";
+import { useOnboardingStore } from "@/lib/onboarding-store";
 
 export function appearanceCommands(
   prefs: AppearancePrefs,
@@ -76,6 +77,13 @@ export function settingsCommands(
       group: "Application",
       keywords: ["hotkeys", "cheatsheet", "bindings"],
       run: () => usePaletteStore.getState().setHelpOpen(true),
+    },
+    {
+      id: "tour",
+      label: "Show keyboard tour",
+      group: "Application",
+      keywords: ["tutorial", "onboarding", "help", "learn"],
+      run: () => useOnboardingStore.getState().openTour(),
     },
     {
       id: "signout",

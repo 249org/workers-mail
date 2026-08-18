@@ -56,8 +56,8 @@ export function ApiKeyManager() {
   }
 
   return (
-    <div className="mt-6">
-      <div className="panel p-4">
+    <div>
+      <div className="border-b border-border px-8 py-5">
         <label className="label" htmlFor="key-name">
           New key
         </label>
@@ -112,23 +112,25 @@ export function ApiKeyManager() {
       </div>
 
       {keys.length > 0 && (
-        <ul className="list-frame mt-4">
+        <ul className="settings-ledger settings-ledger-keys">
           {keys.map((key) => (
-            <li key={key.id} className="flex items-center justify-between gap-4 p-4">
+            <li key={key.id} className="settings-ledger-row">
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{key.name}</p>
-                <p className="text-xs text-[var(--ink-muted)]">
+                <p className="truncate text-[13px] font-medium">{key.name}</p>
+                <p className="text-[13px] text-muted-foreground">
                   <code className="font-mono">{key.prefix}…</code> · {key.scopes.join(", ")} · last
                   used {formatRelative(key.lastUsedAt)}
                 </p>
               </div>
+              <div className="flex justify-end">
               <button
                 type="button"
-                className="btn btn-danger shrink-0 !py-1.5 text-xs"
+                className="btn btn-danger !h-8 !px-3"
                 onClick={() => void revoke(key.id)}
               >
                 Revoke
               </button>
+              </div>
             </li>
           ))}
         </ul>

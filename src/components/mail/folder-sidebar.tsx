@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { PublicMailbox } from "@/lib/mail/mailboxes";
 import { navigateMailFolder, useMailStore } from "@/lib/mail/view-store";
 import { formatRelative } from "@/lib/format";
+import { ChromeButton } from "./chrome-button";
 import { folderIconName, MailIcon } from "./icons";
 import type { StreamState } from "./use-mail-stream";
 
@@ -12,7 +13,6 @@ type Props = {
   mailboxes: PublicMailbox[];
   streamState: StreamState;
   collapsed: boolean;
-  onToggleCollapsed: () => void;
   onCompose: () => void;
   onSync: () => void;
   onOpenPalette: () => void;
@@ -23,7 +23,6 @@ export function FolderSidebar({
   mailboxes,
   streamState,
   collapsed,
-  onToggleCollapsed,
   onCompose,
   onSync,
   onOpenPalette,
@@ -39,66 +38,65 @@ export function FolderSidebar({
       className={`flex shrink-0 flex-col border-r border-border bg-card ${collapsed ? "w-14" : "w-56"}`}
       data-collapsed={collapsed ? "true" : undefined}
     >
-      <div className={`flex flex-col gap-2 pt-3 pb-2 ${collapsed ? "items-center px-1.5" : "px-3"}`}>
-        <button
-          type="button"
-          className="btn btn-quiet btn-icon"
-          onClick={onToggleCollapsed}
-          aria-pressed={collapsed}
-          aria-label={collapsed ? "Expand folder sidebar" : "Collapse folder sidebar"}
-          title={collapsed ? "Expand sidebar ([)" : "Collapse sidebar ([)"}
-        >
-          <MailIcon name="sidebar" />
-        </button>
+      <div className={`pane-toolbar border-b border-border ${collapsed ? "justify-center" : ""}`}>
+        {collapsed ? (
+          <button
+            type="button"
+            className="tip btn btn-primary btn-icon"
+            onClick={onCompose}
+            aria-label="Compose"
+            data-tip="Compose (C)"
+          >
+            <MailIcon name="compose" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="btn btn-primary w-full min-w-0"
+            onClick={onCompose}
+            aria-label="Compose"
+          >
+            <MailIcon name="compose" />
+            Compose
+            <span
+              className="kbd"
+              style={{
+                background: "transparent",
+                color: "inherit",
+                borderColor: "color-mix(in srgb, white 32%, transparent)",
+                opacity: 0.85,
+              }}
+            >
+              C
+            </span>
+          </button>
+        )}
+      </div>
 
-        <button
-          type="button"
-          className={collapsed ? "btn btn-primary btn-icon" : "btn btn-primary w-full"}
-          onClick={onCompose}
-          aria-label="Compose"
-          title="Compose (C)"
-        >
-          <MailIcon name="compose" />
-          {!collapsed && (
-            <>
-              Compose
-              <span
-                className="kbd"
-                style={{
-                  background: "transparent",
-                  color: "inherit",
-                  borderColor: "color-mix(in srgb, white 32%, transparent)",
-                  opacity: 0.85,
-                }}
-              >
-                C
-              </span>
-            </>
-          )}
-        </button>
+      <div className={`flex flex-col gap-2 py-2 ${collapsed ? "items-center px-2" : "px-2"}`}>
         <button
           type="button"
           className={
             collapsed
-              ? "btn btn-ghost btn-icon"
+              ? "tip btn btn-ghost btn-icon"
               : "field flex items-center justify-between"
           }
           onClick={onOpenPalette}
           aria-label="Search"
-          title="Search (⌘K)"
+          data-tip={collapsed ? "Search (⌘K)" : undefined}
         >
           {collapsed ? (
             <MailIcon name="search" />
           ) : (
             <>
-              <span className="text-[var(--ink-faint)]">Search</span>
+              <span className="text-muted-foreground">Search</span>
               <span className="kbd">⌘K</span>
             </>
           )}
         </button>
       </div>
 
-      <nav className={`scroll-thin min-h-0 flex-1 overflow-y-auto py-2 ${collapsed ? "px-1.5" : "px-3"}`}>
+      <nav className={`scroll-thin min-h-0 flex-1 overflow-y-auto py-2 ${collapsed ? "px-2" : "px-2"}`}>
         {folders.map((folder) => {
           const active = folder.id === activeFolderId;
           const unread = folder.unread > 0 ? (folder.unread > 99 ? "99+" : String(folder.unread)) : null;
@@ -149,7 +147,7 @@ export function FolderSidebar({
         )}
       </nav>
 
-      <div className={`border-t border-border py-3 text-[13px] text-muted-foreground ${collapsed ? "px-1.5" : "px-3"}`}>
+      <div className={`border-t border-border py-3 text-[13px] text-muted-foreground ${collapsed ? "px-2" : "px-3"}`}>
         <div className={`flex items-center gap-3 ${collapsed ? "flex-col" : "justify-between"}`}>
           <span
             className="flex min-w-0 items-center gap-2"
@@ -169,25 +167,29 @@ export function FolderSidebar({
             )}
           </span>
           {mailbox.type === "external_imap" && (
-            <button
-              type="button"
-              onClick={onSync}
-              disabled={syncing}
-              className={
-                collapsed
-                  ? "btn btn-quiet btn-icon disabled:opacity-50"
-                  : "shrink-0 text-primary disabled:opacity-50"
-              }
-              aria-label={syncing ? "Syncing" : "Sync"}
-              title={syncing ? "Syncing" : "Sync now (⇧R)"}
-            >
-              {collapsed ? <MailIcon name="sync" /> : syncing ? "Syncing" : "Sync"}
-            </button>
+            collapsed ? (
+              <ChromeButton
+                icon="sync"
+                label={syncing ? "Syncing" : "Sync now"}
+                hint="⇧R"
+                disabled={syncing}
+                onClick={onSync}
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={onSync}
+                disabled={syncing}
+                className="shrink-0 text-primary disabled:opacity-50"
+              >
+                {syncing ? "Syncing" : "Sync"}
+              </button>
+            )
           )}
         </div>
 
         {!collapsed && mailbox.type === "external_imap" && (
-          <p className="mt-1.5 truncate text-[var(--ink-faint)]">
+          <p className="mt-1.5 truncate text-muted-foreground">
             Synced {formatRelative(lastSyncedAt)}
           </p>
         )}

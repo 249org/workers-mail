@@ -17,11 +17,11 @@ colors:
   warning: "#D97706"
   highlight: "#C45C3E"
   highlight-subtle: "#FBF0EC"
-  background-dark: "#111113"
-  foreground-dark: "#F0F0EE"
-  card-dark: "#1C1C1F"
-  primary-dark: "#5B78F5"
-  highlight-dark: "#E07A5F"
+  background-dark: "#17171A"
+  foreground-dark: "#EEEDE8"
+  card-dark: "#202024"
+  primary-dark: "#3B5BDB"
+  highlight-dark: "#D4785C"
 typography:
   display:
     fontFamily: "Newsreader, Georgia, serif"
@@ -88,13 +88,15 @@ Operate mode: three-pane mail, settings as a ruled document, login as a framed s
 
 Meridian is the default. Primary is interactive: buttons, selected nav, unread dots, focus. Accent-subtle tints selected and active rows. Accent-wash is hover on ghost controls and stat cells. Highlight is for icon wells, required asterisks, and identity initials — never routine status. Status stays success / warning / destructive. Extra hues exist only as operator-chosen templates in Settings → Appearance, never as one-off component colours.
 
+Dark is night paper of the same pigment, not a neon invert. Canvas and card step apart; hairlines and muted type are mixed from night ink so panes still read. Primary stays the light ink (white text on the pill). Ink is the exception: gold becomes the action colour after dark, because a black pill vanishes on charcoal.
+
 ## Typography
 
 UI and body: Geist Sans, 13px, antialiased, `rlig` + `calt` + tabular nums. Page titles: Newsreader 28px, tracking-tight — settings headers and login wordmark only, never row labels or buttons. Eyebrows and field labels: Geist Mono 10px, uppercase, tracking 0.14–0.16em, muted. Section titles 14px semibold. Stat numerals 30px Newsreader.
 
 ## Layout
 
-8px grid. App chrome `px-8`. Settings content max 64rem with a 11rem side nav. Mail is three hairline-split panes; the page never scrolls — panes do. The folder rail collapses to a 56px icon strip (`[`). The message list can hide so the reader fills the remaining width (`]`, Enter). Stats sit in a ruled strip of cells (borders on children, no outer double line). Empty states are centered, with a highlight-subtle icon well.
+8px grid. App chrome `px-8`. Mail is three hairline-split panes; the page never scrolls — panes do. Each pane starts with a 56px toolbar so search and reading actions sit on one axis. The folder rail collapses to a 56px icon strip (`[`) — that control lives on the list, to the left of search; Compose fills the sidebar toolbar. The message list can hide so the reader fills the remaining width (`]`, Enter) — that control lives on the reader. Settings is an index and a spread: a paper rail of destinations with a live one-line status, and a full-height card page for the open topic. The spread head holds the Newsreader title; the body is a ruled ledger or form that fills the pane. Stats sit in a ruled strip of cells (borders on children, no outer double line). Empty states are centered, with a highlight-subtle icon well.
 
 ## Elevation & Depth
 
@@ -111,6 +113,8 @@ Panel radius 4px. Inputs `rounded-lg` (8px), height 40px. Buttons `rounded-full`
 - **Lists:** `list-frame` — hairline outer, hairline between rows, no card radius stack.
 - **Selected row / nav:** accent-subtle fill, primary text. No 2px accent bar.
 - **Palette:** unanimated. Hairline panel, shadow allowed because it floats. ⌘K is the control surface for appearance (light, dark, system, colour templates), every settings page, and mail actions.
+- **Tour:** framed sheet over the workspace, registration marks, a three-pane sketch. Skip is always visible. Keyboard actions inside the tour do not animate.
+- **Shortcut settings:** ruled list-frame rows. Click a binding to listen; primary ring while recording.
 
 ## Do's and Don'ts
 

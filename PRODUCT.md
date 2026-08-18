@@ -20,11 +20,11 @@ The mailbox runs entirely on the operator's Cloudflare account (D1, R2, Durable 
 
 ## Operating Context
 
-Desktop web, keyboard-first (j/k, ⌘K, g then i/t/d/a, `[` sidebar, `]` full-width reader). ⌘K runs appearance, settings, and mail actions without leaving the current page. Used many times a day; list navigation and archive must feel instant. First-run is connecting a real mailbox (email + IMAP/SMTP hosts typed by hand + webmail password). Light and dark follow the OS, or an explicit Light / Dark choice from Appearance or ⌘K.
+Desktop web, keyboard-first (j/k, ⌘K, g then i/t/d/a, `[` sidebar, `]` full-width reader). ⌘K runs appearance, settings, and mail actions without leaving the current page. Used many times a day; list navigation and archive must feel instant. First-run is connecting a real mailbox (email + IMAP/SMTP hosts typed by hand + webmail password), then a short keyboard tour. Shortcuts are listed and reassigned in Settings → Shortcuts. Light and dark follow the OS, or an explicit Light / Dark choice from Appearance or ⌘K.
 
 ## Capabilities and Constraints
 
-- Settings: domains, mailboxes, contacts, API keys, appearance (saved colour templates).
+- Settings: domains, mailboxes, contacts, API keys, appearance (saved colour templates), keyboard shortcuts (reassignable).
 - IMAP/SMTP over `cloudflare:sockets`; port 25 blocked; passwords encrypted with `MAIL_ENCRYPTION_KEY`.
 - Workers Paid required (Durable Objects, Queues).
 - Visual world is brief-pinned: Meridian (hairline panels vs pill controls; Geist Sans / Geist Mono / Newsreader; terracotta highlight, slate-blue primary).

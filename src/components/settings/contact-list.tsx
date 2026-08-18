@@ -27,42 +27,51 @@ export function ContactList({ contacts }: { contacts: Contact[] }) {
   }, [contacts, query]);
 
   return (
-    <div className="mt-6">
-      <input
-        type="search"
-        className="field"
-        placeholder="Filter by name or address"
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-      />
+    <div>
+      <div className="border-b border-border px-8 py-4">
+        <input
+          type="search"
+          className="field"
+          placeholder="Filter by name or address"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+      </div>
 
       {filtered.length === 0 ? (
-        <p className="list-frame mt-4 p-6 text-center text-[13px] text-muted-foreground">
+        <p className="px-8 py-10 text-center text-[13px] text-muted-foreground">
           {contacts.length === 0 ? "No contacts collected yet." : "Nothing matched that filter."}
         </p>
       ) : (
-        <ul className="list-frame mt-4">
+        <div className="settings-ledger settings-ledger-contacts">
+          <div className="settings-ledger-head" aria-hidden>
+            <span>Person</span>
+            <span className="max-md:hidden">Address</span>
+            <span>Seen</span>
+            <span />
+          </div>
           {filtered.map((contact) => (
-            <li key={contact.id} className="flex items-center justify-between gap-4 p-4">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{contact.name ?? contact.email}</p>
-                <p className="truncate text-xs text-[var(--ink-muted)]">
-                  {contact.email} · seen {formatRelative(contact.lastSeenAt)}
-                </p>
+            <div key={contact.id} className="settings-ledger-row">
+              <p className="truncate text-[13px] font-medium">{contact.name ?? contact.email}</p>
+              <p className="truncate text-[13px] text-muted-foreground max-md:hidden">
+                {contact.email}
+              </p>
+              <p className="text-[13px] text-muted-foreground">{formatRelative(contact.lastSeenAt)}</p>
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  className="btn btn-danger !h-8 !px-3"
+                  onClick={async () => {
+                    await fetch(`/api/contacts?id=${contact.id}`, { method: "DELETE" });
+                    router.refresh();
+                  }}
+                >
+                  Remove
+                </button>
               </div>
-              <button
-                type="button"
-                className="btn btn-danger shrink-0 !py-1.5 text-xs"
-                onClick={async () => {
-                  await fetch(`/api/contacts?id=${contact.id}`, { method: "DELETE" });
-                  router.refresh();
-                }}
-              >
-                Remove
-              </button>
-            </li>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
     </div>
   );

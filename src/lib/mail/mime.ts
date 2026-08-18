@@ -1,5 +1,6 @@
 import PostalMime, { type Address, type Attachment } from "postal-mime";
 import type { Addr } from "@/lib/db/schema";
+import { decodeEntities } from "./text";
 
 export type ParsedAttachment = {
   filename: string;
@@ -33,7 +34,7 @@ export async function parseMime(raw: ArrayBuffer | Uint8Array | string): Promise
     messageId: cleanMessageId(email.messageId),
     inReplyTo: cleanMessageId(email.inReplyTo),
     references: parseReferences(email.references),
-    subject: email.subject?.trim() ?? "",
+    subject: decodeEntities(email.subject?.trim() ?? ""),
     from,
     to: toAddrList(email.to),
     cc: toAddrList(email.cc),
@@ -52,20 +53,15 @@ export function buildSnippet(text: string, limit = 220): string {
 }
 
 export function stripHtml(html: string): string {
-  return html
+  const stripped = html
     .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, " ")
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/(p|div|tr|li|h[1-6])>/gi, "\n")
     .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
     .replace(/[ \t]+/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+  return decodeEntities(stripped);
 }
 
 export function cleanMessageId(value: string | null | undefined): string | undefined {

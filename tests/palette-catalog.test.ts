@@ -28,6 +28,8 @@ describe("palette catalog", () => {
     const hrefs: string[] = [];
     const commands = settingsCommands((href) => hrefs.push(href), () => undefined);
     expect(commands.some((command) => command.label === "Open appearance settings")).toBe(true);
+    expect(commands.some((command) => command.label === "Open shortcut settings")).toBe(true);
+    expect(commands.some((command) => command.label === "Show keyboard tour")).toBe(true);
     expect(commands.some((command) => command.label === "Add mailbox")).toBe(true);
     expect(commands.some((command) => command.label === "Open API keys")).toBe(true);
     commands.find((command) => command.id === "settings-/settings/domains")?.run();

@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/auth/server";
 import { domains, routingRules } from "@/lib/db/schema";
 import { listMailboxes, publicMailbox } from "@/lib/mail/mailboxes";
 import { DomainManager } from "@/components/settings/domain-manager";
-import { PageHeader } from "@/components/settings/page-header";
+import { PageHeader, SettingsBody } from "@/components/settings/page-header";
 
 export default async function DomainsPage() {
   const { user, db } = await requireUser();
@@ -25,13 +25,13 @@ export default async function DomainsPage() {
   const mailboxes = await listMailboxes(db, user.id);
 
   return (
-    <div>
+    <>
       <PageHeader title="Domains">
         Connect a domain you already run on Cloudflare. Verification enables Email Routing and
         points your addresses at this Worker.
       </PageHeader>
-
-      <DomainManager
+      <SettingsBody flush>
+        <DomainManager
         domains={domainRows.map((domain) => ({
           id: domain.id,
           name: domain.name,
@@ -54,6 +54,7 @@ export default async function DomainsPage() {
         }))}
         mailboxes={mailboxes.map(publicMailbox)}
       />
-    </div>
+      </SettingsBody>
+    </>
   );
 }

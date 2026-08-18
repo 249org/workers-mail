@@ -52,7 +52,7 @@ export function AppearanceForm() {
           Same drawing — hairline panels, pill buttons. Only the inks change. Saved to this
           workspace.
         </p>
-        <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+        <ul className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {PALETTES.map((palette) => {
             const active = prefs.palette === palette.id;
             return (

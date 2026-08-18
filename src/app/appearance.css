@@ -11,6 +11,18 @@ html:not([data-scheme]) {
   color-scheme: light dark;
 }
 
+/* Night paper for each template. Same pigment as light — not a neon invert.
+   Applied by the dark/system rules at the bottom of this file. */
+:root,
+html[data-palette="meridian"] {
+  --night-background: #17171a;
+  --night-foreground: #eeede8;
+  --night-card: #202024;
+  --night-primary: #3b5bdb;
+  --night-primary-foreground: #ffffff;
+  --night-highlight: #d4785c;
+}
+
 html[data-scheme="light"]:not([data-palette]),
 html[data-palette="meridian"][data-scheme="light"] {
   --background: #f9f9f8;
@@ -37,32 +49,6 @@ html[data-palette="meridian"][data-scheme="light"] {
   --shadow-pop: 0 8px 32px rgb(0 0 0 / 0.08);
 }
 
-html[data-scheme="dark"]:not([data-palette]),
-html[data-palette="meridian"][data-scheme="dark"] {
-  --background: #111113;
-  --foreground: #f0f0ee;
-  --card: #1c1c1f;
-  --primary: #5b78f5;
-  --primary-foreground: #ffffff;
-  --secondary: #252528;
-  --muted: #252528;
-  --muted-foreground: #8a8a90;
-  --accent-wash: #2a2a2e;
-  --accent-subtle: #1a1f3d;
-  --border: #2e2e32;
-  --input: #2e2e32;
-  --ring: #5b78f5;
-  --destructive: #f87171;
-  --success: #34d399;
-  --warning: #fbbf24;
-  --highlight: #e07a5f;
-  --highlight-subtle: #2a1814;
-  --border-strong: #3a3a40;
-  --ink-faint: #7a7a80;
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
-  --shadow-pop: 0 8px 32px rgb(0 0 0 / 0.45);
-}
-
 html[data-palette="harbor"] {
   --background: #f4f7f6;
   --foreground: #14221f;
@@ -86,6 +72,12 @@ html[data-palette="harbor"] {
   --ink-faint: #7a8d88;
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.04);
   --shadow-pop: 0 8px 32px rgb(0 0 0 / 0.08);
+  --night-background: #121918;
+  --night-foreground: #e8efed;
+  --night-card: #1a2422;
+  --night-primary: #0f766e;
+  --night-primary-foreground: #ffffff;
+  --night-highlight: #d09060;
 }
 
 html[data-palette="grove"] {
@@ -111,6 +103,12 @@ html[data-palette="grove"] {
   --ink-faint: #7d8878;
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.04);
   --shadow-pop: 0 8px 32px rgb(0 0 0 / 0.08);
+  --night-background: #141712;
+  --night-foreground: #e8eee4;
+  --night-card: #1c221a;
+  --night-primary: #2f6b4f;
+  --night-primary-foreground: #ffffff;
+  --night-highlight: #c9864a;
 }
 
 html[data-palette="ember"] {
@@ -136,6 +134,12 @@ html[data-palette="ember"] {
   --ink-faint: #8a7468;
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.04);
   --shadow-pop: 0 8px 32px rgb(0 0 0 / 0.08);
+  --night-background: #1a1512;
+  --night-foreground: #f3ebe4;
+  --night-card: #241c18;
+  --night-primary: #c2410c;
+  --night-primary-foreground: #ffffff;
+  --night-highlight: #d47850;
 }
 
 html[data-palette="ink"] {
@@ -161,6 +165,12 @@ html[data-palette="ink"] {
   --ink-faint: #71717a;
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.04);
   --shadow-pop: 0 8px 32px rgb(0 0 0 / 0.08);
+  --night-background: #131312;
+  --night-foreground: #f0efea;
+  --night-card: #1c1c1b;
+  --night-primary: #c4a35a;
+  --night-primary-foreground: #1a1610;
+  --night-highlight: #c4a35a;
 }
 
 html[data-palette="dusk"] {
@@ -186,256 +196,66 @@ html[data-palette="dusk"] {
   --ink-faint: #8a8496;
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.04);
   --shadow-pop: 0 8px 32px rgb(0 0 0 / 0.08);
+  --night-background: #16141c;
+  --night-foreground: #eeebf4;
+  --night-card: #1e1c26;
+  --night-primary: #4f46e5;
+  --night-primary-foreground: #ffffff;
+  --night-highlight: #d4785c;
 }
 
-html[data-palette="harbor"][data-scheme="dark"] {
-  --background: #0e1615;
-  --foreground: #e6eeec;
-  --card: #17211f;
-  --primary: #2dd4bf;
-  --primary-foreground: #042f2e;
-  --secondary: #1c2a27;
-  --muted: #1c2a27;
-  --muted-foreground: #8aa39c;
-  --accent-wash: #22332f;
-  --accent-subtle: #14302c;
-  --border: #2a3a37;
-  --input: #2a3a37;
-  --ring: #2dd4bf;
-  --destructive: #f87171;
-  --success: #34d399;
-  --warning: #fbbf24;
-  --highlight: #e09a6a;
-  --highlight-subtle: #2a1c14;
-  --border-strong: #3a4c48;
-  --ink-faint: #6f8882;
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
-  --shadow-pop: 0 8px 32px rgb(0 0 0 / 0.45);
-}
-
-html[data-palette="grove"][data-scheme="dark"] {
-  --background: #121611;
-  --foreground: #e8eee4;
-  --card: #1b2119;
-  --primary: #5dab7f;
-  --primary-foreground: #0b1a12;
-  --secondary: #232a20;
-  --muted: #232a20;
-  --muted-foreground: #93a08c;
-  --accent-wash: #2a3326;
-  --accent-subtle: #1a2a20;
-  --border: #2c3528;
-  --input: #2c3528;
-  --ring: #5dab7f;
-  --destructive: #f87171;
-  --success: #4ade80;
-  --warning: #fbbf24;
-  --highlight: #d4a05a;
-  --highlight-subtle: #2a1e12;
-  --border-strong: #3c4636;
-  --ink-faint: #7a8774;
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
-  --shadow-pop: 0 8px 32px rgb(0 0 0 / 0.45);
-}
-
-html[data-palette="ember"][data-scheme="dark"] {
-  --background: #140e0c;
-  --foreground: #f3e8e0;
-  --card: #1f1613;
-  --primary: #fb923c;
-  --primary-foreground: #1c0f08;
-  --secondary: #2a1c16;
-  --muted: #2a1c16;
-  --muted-foreground: #c4a090;
-  --accent-wash: #33241c;
-  --accent-subtle: #3a1d12;
-  --border: #3a2a22;
-  --input: #3a2a22;
-  --ring: #fb923c;
-  --destructive: #f87171;
-  --success: #34d399;
-  --warning: #fbbf24;
-  --highlight: #fdba74;
-  --highlight-subtle: #2c1810;
-  --border-strong: #4a382e;
-  --ink-faint: #9a7c6c;
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
-  --shadow-pop: 0 8px 32px rgb(0 0 0 / 0.45);
-}
-
-html[data-palette="ink"][data-scheme="dark"] {
-  --background: #09090b;
-  --foreground: #fafaf9;
-  --card: #18181b;
-  --primary: #fafaf9;
-  --primary-foreground: #18181b;
-  --secondary: #27272a;
-  --muted: #27272a;
-  --muted-foreground: #a1a1aa;
-  --accent-wash: #2e2e32;
-  --accent-subtle: #27272a;
-  --border: #3f3f46;
-  --input: #3f3f46;
-  --ring: #fafaf9;
-  --destructive: #f87171;
-  --success: #34d399;
-  --warning: #fbbf24;
-  --highlight: #fbbf24;
-  --highlight-subtle: #2a2110;
-  --border-strong: #52525b;
-  --ink-faint: #71717a;
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
-  --shadow-pop: 0 8px 32px rgb(0 0 0 / 0.45);
-}
-
-html[data-palette="dusk"][data-scheme="dark"] {
-  --background: #12111a;
-  --foreground: #eeedf6;
-  --card: #1c1a24;
-  --primary: #818cf8;
-  --primary-foreground: #1e1b4b;
-  --secondary: #262430;
-  --muted: #262430;
-  --muted-foreground: #a39cb8;
-  --accent-wash: #2e2b3a;
-  --accent-subtle: #221f38;
-  --border: #322f3e;
-  --input: #322f3e;
-  --ring: #818cf8;
-  --destructive: #f87171;
-  --success: #34d399;
-  --warning: #fbbf24;
-  --highlight: #e07a5f;
-  --highlight-subtle: #2a1814;
-  --border-strong: #423e50;
-  --ink-faint: #8a8496;
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
-  --shadow-pop: 0 8px 32px rgb(0 0 0 / 0.45);
+/* Night apply: tinted paper, one-step card, hairlines mixed from ink so they read.
+   Status stays deep (not Tailwind-400 candy). Ink is the exception — gold becomes
+   the action colour because a black pill vanishes on charcoal. */
+html[data-scheme="dark"] {
+  --background: var(--night-background);
+  --foreground: var(--night-foreground);
+  --card: var(--night-card);
+  --primary: var(--night-primary);
+  --primary-foreground: var(--night-primary-foreground);
+  --secondary: color-mix(in srgb, var(--night-foreground) 7%, var(--night-card));
+  --muted: color-mix(in srgb, var(--night-foreground) 7%, var(--night-card));
+  --muted-foreground: color-mix(in srgb, var(--night-foreground) 64%, var(--night-card));
+  --accent-wash: color-mix(in srgb, var(--night-foreground) 9%, var(--night-card));
+  --accent-subtle: color-mix(in srgb, var(--night-primary) 20%, var(--night-card));
+  --border: color-mix(in srgb, var(--night-foreground) 16%, var(--night-card));
+  --input: color-mix(in srgb, var(--night-foreground) 16%, var(--night-card));
+  --ring: var(--night-primary);
+  --destructive: #e05656;
+  --success: #4aad88;
+  --warning: #c9953a;
+  --highlight: var(--night-highlight);
+  --highlight-subtle: color-mix(in srgb, var(--night-highlight) 22%, var(--night-card));
+  --border-strong: color-mix(in srgb, var(--night-foreground) 24%, var(--night-card));
+  --ink-faint: color-mix(in srgb, var(--night-foreground) 52%, var(--night-card));
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.24);
+  --shadow-pop: 0 12px 40px rgb(0 0 0 / 0.32);
 }
 
 @media (prefers-color-scheme: dark) {
-  html[data-palette="harbor"]:not([data-scheme="light"]) {
-    --background: #0e1615;
-    --foreground: #e6eeec;
-    --card: #17211f;
-    --primary: #2dd4bf;
-    --primary-foreground: #042f2e;
-    --secondary: #1c2a27;
-    --muted: #1c2a27;
-    --muted-foreground: #8aa39c;
-    --accent-wash: #22332f;
-    --accent-subtle: #14302c;
-    --border: #2a3a37;
-    --input: #2a3a37;
-    --ring: #2dd4bf;
-    --destructive: #f87171;
-    --success: #34d399;
-    --warning: #fbbf24;
-    --highlight: #e09a6a;
-    --highlight-subtle: #2a1c14;
-    --border-strong: #3a4c48;
-    --ink-faint: #6f8882;
-    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
-    --shadow-pop: 0 8px 32px rgb(0 0 0 / 0.45);
-  }
-
-  html[data-palette="grove"]:not([data-scheme="light"]) {
-    --background: #121611;
-    --foreground: #e8eee4;
-    --card: #1b2119;
-    --primary: #5dab7f;
-    --primary-foreground: #0b1a12;
-    --secondary: #232a20;
-    --muted: #232a20;
-    --muted-foreground: #93a08c;
-    --accent-wash: #2a3326;
-    --accent-subtle: #1a2a20;
-    --border: #2c3528;
-    --input: #2c3528;
-    --ring: #5dab7f;
-    --destructive: #f87171;
-    --success: #4ade80;
-    --warning: #fbbf24;
-    --highlight: #d4a05a;
-    --highlight-subtle: #2a1e12;
-    --border-strong: #3c4636;
-    --ink-faint: #7a8774;
-    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
-    --shadow-pop: 0 8px 32px rgb(0 0 0 / 0.45);
-  }
-
-  html[data-palette="ember"]:not([data-scheme="light"]) {
-    --background: #140e0c;
-    --foreground: #f3e8e0;
-    --card: #1f1613;
-    --primary: #fb923c;
-    --primary-foreground: #1c0f08;
-    --secondary: #2a1c16;
-    --muted: #2a1c16;
-    --muted-foreground: #c4a090;
-    --accent-wash: #33241c;
-    --accent-subtle: #3a1d12;
-    --border: #3a2a22;
-    --input: #3a2a22;
-    --ring: #fb923c;
-    --destructive: #f87171;
-    --success: #34d399;
-    --warning: #fbbf24;
-    --highlight: #fdba74;
-    --highlight-subtle: #2c1810;
-    --border-strong: #4a382e;
-    --ink-faint: #9a7c6c;
-    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
-    --shadow-pop: 0 8px 32px rgb(0 0 0 / 0.45);
-  }
-
-  html[data-palette="ink"]:not([data-scheme="light"]) {
-    --background: #09090b;
-    --foreground: #fafaf9;
-    --card: #18181b;
-    --primary: #fafaf9;
-    --primary-foreground: #18181b;
-    --secondary: #27272a;
-    --muted: #27272a;
-    --muted-foreground: #a1a1aa;
-    --accent-wash: #2e2e32;
-    --accent-subtle: #27272a;
-    --border: #3f3f46;
-    --input: #3f3f46;
-    --ring: #fafaf9;
-    --destructive: #f87171;
-    --success: #34d399;
-    --warning: #fbbf24;
-    --highlight: #fbbf24;
-    --highlight-subtle: #2a2110;
-    --border-strong: #52525b;
-    --ink-faint: #71717a;
-    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
-    --shadow-pop: 0 8px 32px rgb(0 0 0 / 0.45);
-  }
-
-  html[data-palette="dusk"]:not([data-scheme="light"]) {
-    --background: #12111a;
-    --foreground: #eeedf6;
-    --card: #1c1a24;
-    --primary: #818cf8;
-    --primary-foreground: #1e1b4b;
-    --secondary: #262430;
-    --muted: #262430;
-    --muted-foreground: #a39cb8;
-    --accent-wash: #2e2b3a;
-    --accent-subtle: #221f38;
-    --border: #322f3e;
-    --input: #322f3e;
-    --ring: #818cf8;
-    --destructive: #f87171;
-    --success: #34d399;
-    --warning: #fbbf24;
-    --highlight: #e07a5f;
-    --highlight-subtle: #2a1814;
-    --border-strong: #423e50;
-    --ink-faint: #8a8496;
-    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
-    --shadow-pop: 0 8px 32px rgb(0 0 0 / 0.45);
+  html[data-scheme="system"],
+  html:not([data-scheme]) {
+    --background: var(--night-background);
+    --foreground: var(--night-foreground);
+    --card: var(--night-card);
+    --primary: var(--night-primary);
+    --primary-foreground: var(--night-primary-foreground);
+    --secondary: color-mix(in srgb, var(--night-foreground) 7%, var(--night-card));
+    --muted: color-mix(in srgb, var(--night-foreground) 7%, var(--night-card));
+    --muted-foreground: color-mix(in srgb, var(--night-foreground) 64%, var(--night-card));
+    --accent-wash: color-mix(in srgb, var(--night-foreground) 9%, var(--night-card));
+    --accent-subtle: color-mix(in srgb, var(--night-primary) 20%, var(--night-card));
+    --border: color-mix(in srgb, var(--night-foreground) 16%, var(--night-card));
+    --input: color-mix(in srgb, var(--night-foreground) 16%, var(--night-card));
+    --ring: var(--night-primary);
+    --destructive: #e05656;
+    --success: #4aad88;
+    --warning: #c9953a;
+    --highlight: var(--night-highlight);
+    --highlight-subtle: color-mix(in srgb, var(--night-highlight) 22%, var(--night-card));
+    --border-strong: color-mix(in srgb, var(--night-foreground) 24%, var(--night-card));
+    --ink-faint: color-mix(in srgb, var(--night-foreground) 52%, var(--night-card));
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.24);
+    --shadow-pop: 0 12px 40px rgb(0 0 0 / 0.32);
   }
 }

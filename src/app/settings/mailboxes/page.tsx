@@ -2,14 +2,14 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth/server";
 import { listMailboxes, publicMailbox } from "@/lib/mail/mailboxes";
 import { MailboxList } from "@/components/settings/mailbox-list";
-import { PageHeader } from "@/components/settings/page-header";
+import { PageHeader, SettingsBody } from "@/components/settings/page-header";
 
 export default async function MailboxesPage() {
   const { user, db } = await requireUser();
   const mailboxes = await listMailboxes(db, user.id);
 
   return (
-    <div>
+    <>
       <PageHeader
         title="Mailboxes"
         action={
@@ -20,8 +20,9 @@ export default async function MailboxesPage() {
       >
         Addresses on your own domains, plus any external accounts you read over IMAP.
       </PageHeader>
-
-      <MailboxList mailboxes={mailboxes.map(publicMailbox)} />
-    </div>
+      <SettingsBody flush>
+        <MailboxList mailboxes={mailboxes.map(publicMailbox)} />
+      </SettingsBody>
+    </>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatKeys, SHORTCUTS } from "@/lib/keyboard/shortcuts";
+import { formatComboHint, formatKeys, SHORTCUTS } from "@/lib/keyboard/shortcuts";
 import { internals } from "@/lib/keyboard/use-hotkeys";
 
 const { comboFor, isSequencePrefix } = internals;
@@ -92,5 +92,13 @@ describe("formatKeys", () => {
   it("maps named keys to symbols", () => {
     expect(formatKeys("escape", true)).toEqual(["Esc"]);
     expect(formatKeys("mod+enter", true)).toEqual(["⌘", "↵"]);
+  });
+});
+
+describe("formatComboHint", () => {
+  it("joins mac chords without a separator", () => {
+    expect(formatComboHint("mod+k", true)).toBe("⌘K");
+    expect(formatComboHint("mod+k", false)).toBe("Ctrl+K");
+    expect(formatComboHint("g i", true)).toBe("G I");
   });
 });

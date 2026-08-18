@@ -1,16 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { formatKeys, SHORTCUT_GROUPS, SHORTCUTS } from "@/lib/keyboard/shortcuts";
+import { SHORTCUT_GROUPS } from "@/lib/keyboard/shortcuts";
+import { useShortcutStore } from "@/lib/keyboard/store";
 import { useHotkeys } from "@/lib/keyboard/use-hotkeys";
+import { KeyCaps, useIsMac } from "@/components/mail/key-caps";
 
 export function ShortcutHelp({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [isMac, setIsMac] = useState(true);
+  const isMac = useIsMac();
+  const shortcuts = useShortcutStore((state) => state.shortcuts);
   const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setIsMac(navigator.platform.toLowerCase().includes("mac"));
-  }, []);
 
   useEffect(() => {
     if (!open) {
@@ -54,7 +53,7 @@ export function ShortcutHelp({ open, onClose }: { open: boolean; onClose: () => 
 
         <div className="scroll-thin grid min-h-0 flex-1 gap-x-8 gap-y-5 overflow-y-auto p-5 sm:grid-cols-2">
           {SHORTCUT_GROUPS.map((group) => {
-            const rows = SHORTCUTS.filter((shortcut) => shortcut.group === group);
+            const rows = shortcuts.filter((shortcut) => shortcut.group === group);
             if (rows.length === 0) return null;
 
             return (
@@ -70,15 +69,13 @@ export function ShortcutHelp({ open, onClose }: { open: boolean; onClose: () => 
                         {shortcut.label}
                       </span>
                       <span className="flex shrink-0 items-center gap-1">
-                        {shortcut.keys.slice(0, 1).map((combo) => (
-                          <span key={combo} className="flex items-center gap-0.5">
-                            {formatKeys(combo, isMac).map((key, index) => (
-                              <span key={`${combo}-${index}`} className="kbd">
-                                {key}
-                              </span>
-                            ))}
-                          </span>
-                        ))}
+                        {shortcut.keys.length === 0 ? (
+                          <span className="text-[13px] text-muted-foreground">Unbound</span>
+                        ) : (
+                          shortcut.keys.slice(0, 1).map((combo) => (
+                            <KeyCaps key={combo} combo={combo} isMac={isMac} />
+                          ))
+                        )}
                       </span>
                     </li>
                   ))}

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useId, useRef } from "react";
-import { SHORTCUTS, type Scope, type ShortcutAction } from "./shortcuts";
+import { getActiveShortcuts } from "./bindings";
+import type { Scope, ShortcutAction } from "./shortcuts";
 
 export type Handlers = Partial<Record<ShortcutAction, (event: KeyboardEvent) => void>>;
 
@@ -14,13 +15,20 @@ type Registration = {
   order: number;
 };
 
-const SEQUENCE_WINDOW_MS = 700;
+export const SEQUENCE_WINDOW_MS = 700;
 const registry = new Map<string, Registration>();
 
 let counter = 0;
 let listening = false;
 let pendingPrefix: string | null = null;
 let pendingTimer: ReturnType<typeof setTimeout> | null = null;
+let capture: ((event: KeyboardEvent) => boolean) | null = null;
+
+/** While a rebind field is listening, swallow keys before shortcuts fire. */
+export function setKeyCapture(handler: ((event: KeyboardEvent) => boolean) | null): void {
+  capture = handler;
+  clearPending();
+}
 
 /**
  * Binds a scope's worth of shortcut handlers. Registrations form a stack: the most
@@ -61,6 +69,7 @@ function startListening(): void {
 
 function dispatch(event: KeyboardEvent): void {
   if (event.defaultPrevented || event.isComposing || event.repeat) return;
+  if (capture?.(event)) return;
 
   const typing = isTextEntry(event.target);
   const combo = comboFor(event);
@@ -86,7 +95,7 @@ function dispatch(event: KeyboardEvent): void {
 }
 
 function handle(combo: string, event: KeyboardEvent, typing: boolean): boolean {
-  const matches = SHORTCUTS.filter((shortcut) => shortcut.keys.includes(combo));
+  const matches = getActiveShortcuts().filter((shortcut) => shortcut.keys.includes(combo));
   if (matches.length === 0) return false;
 
   const usable = matches.filter(
@@ -112,6 +121,10 @@ function handle(combo: string, event: KeyboardEvent, typing: boolean): boolean {
   return false;
 }
 
+export function comboFromEvent(event: KeyboardEvent): string | null {
+  return comboFor(event);
+}
+
 function comboFor(event: KeyboardEvent): string | null {
   const key = event.key;
   if (!key || key === "Shift" || key === "Control" || key === "Alt" || key === "Meta") {
@@ -133,7 +146,7 @@ function comboFor(event: KeyboardEvent): string | null {
 }
 
 function isSequencePrefix(combo: string): boolean {
-  return SHORTCUTS.some((shortcut) =>
+  return getActiveShortcuts().some((shortcut) =>
     shortcut.keys.some((keys) => keys.includes(" ") && keys.split(" ")[0] === combo),
   );
 }

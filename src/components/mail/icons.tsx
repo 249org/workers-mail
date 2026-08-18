@@ -17,7 +17,10 @@ export type IconName =
   | "sync"
   | "seen"
   | "unseen"
-  | "star";
+  | "star"
+  | "reply"
+  | "replyAll"
+  | "forward";
 
 const PATHS: Record<IconName, ReactNode> = {
   inbox: (
@@ -119,6 +122,25 @@ const PATHS: Record<IconName, ReactNode> = {
   ),
   star: (
     <path d="M12 4.2l2.2 5.1 5.5.5-4.2 3.7 1.2 5.4L12 16.3 7.3 18.9l1.2-5.4-4.2-3.7 5.5-.5z" />
+  ),
+  reply: (
+    <>
+      <path d="M9 14 4 9l5-5" />
+      <path d="M4 9h10a6 6 0 0 1 6 6v1" />
+    </>
+  ),
+  replyAll: (
+    <>
+      <path d="M11 14 6 9l5-5" />
+      <path d="M7 14 2 9l5-5" />
+      <path d="M6 9h8a6 6 0 0 1 6 6v1" />
+    </>
+  ),
+  forward: (
+    <>
+      <path d="M15 14l5-5-5-5" />
+      <path d="M20 9H10a6 6 0 0 0-6 6v1" />
+    </>
   ),
 };
 

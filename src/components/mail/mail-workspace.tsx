@@ -11,7 +11,11 @@ import { navigateMailFolder, useMailStore, type FolderSummary } from "@/lib/mail
 import { readMailLayout, writeMailLayout, type MailLayout } from "@/lib/mail/layout-prefs";
 import { usePaletteStore } from "@/lib/palette/store";
 import { useHotkeys } from "@/lib/keyboard/use-hotkeys";
+import { useShortcutStore } from "@/lib/keyboard/store";
+import { primaryCombo } from "@/lib/keyboard/bindings";
+import { formatComboHint } from "@/lib/keyboard/shortcuts";
 import type { PaletteCommand } from "@/components/palette/command-palette";
+import { useIsMac } from "./key-caps";
 import { ComposeDialog, type ComposeDraft } from "./compose-dialog";
 import { FolderSidebar } from "./folder-sidebar";
 import { MessageList } from "./message-list";
@@ -65,6 +69,12 @@ export function MailWorkspace({
   const search = useMailStore((state) => state.search);
   const fetchPage = useMailStore((state) => state.fetchPage);
   const refreshFolders = useMailStore((state) => state.refreshFolders);
+  const isMac = useIsMac();
+  const shortcuts = useShortcutStore((state) => state.shortcuts);
+  const hintFor = (action: "compose" | "archive" | "trash" | "syncNow" | "toggleSidebar" | "toggleList") => {
+    const combo = primaryCombo(action, shortcuts);
+    return combo ? formatComboHint(combo, isMac) : undefined;
+  };
 
   useEffect(() => {
     hydrate({
@@ -325,14 +335,14 @@ export function MailWorkspace({
 
   const commands = useMemo<PaletteCommand[]>(
     () => [
-      { id: "compose", label: "Compose message", hint: "C", group: "Actions", keywords: ["new", "write"], run: () => setCompose(EMPTY_DRAFT) },
-      { id: "archive", label: "Archive selected", hint: "E", group: "Actions", run: archive },
-      { id: "trash", label: "Move selected to trash", hint: "#", group: "Actions", run: trash },
-      { id: "sync", label: "Sync now", hint: "⇧R", group: "Actions", keywords: ["refresh", "imap"], run: () => void syncNow() },
+      { id: "compose", label: "Compose message", hint: hintFor("compose"), group: "Actions", keywords: ["new", "write"], run: () => setCompose(EMPTY_DRAFT) },
+      { id: "archive", label: "Archive selected", hint: hintFor("archive"), group: "Actions", run: archive },
+      { id: "trash", label: "Move selected to trash", hint: hintFor("trash"), group: "Actions", run: trash },
+      { id: "sync", label: "Sync now", hint: hintFor("syncNow"), group: "Actions", keywords: ["refresh", "imap"], run: () => void syncNow() },
       {
         id: "sidebar",
         label: layout.sidebarCollapsed ? "Expand folder sidebar" : "Collapse folder sidebar",
-        hint: "[",
+        hint: hintFor("toggleSidebar"),
         group: "Application",
         keywords: ["rail", "folders", "nav"],
         run: toggleSidebar,
@@ -340,13 +350,13 @@ export function MailWorkspace({
       {
         id: "reader",
         label: layout.listHidden ? "Show message list" : "Read full width",
-        hint: "]",
+        hint: hintFor("toggleList"),
         group: "Application",
         keywords: ["focus", "wide", "list"],
         run: toggleList,
       },
     ],
-    [archive, trash, syncNow, layout.sidebarCollapsed, layout.listHidden, toggleSidebar, toggleList],
+    [archive, trash, syncNow, layout.sidebarCollapsed, layout.listHidden, toggleSidebar, toggleList, shortcuts, isMac],
   );
 
   useEffect(() => {
@@ -366,7 +376,6 @@ export function MailWorkspace({
         mailboxes={mailboxes}
         streamState={streamState}
         collapsed={layout.sidebarCollapsed}
-        onToggleCollapsed={toggleSidebar}
         onCompose={() => {
           setComposeMailboxId(mailbox.id);
           setCompose(EMPTY_DRAFT);
@@ -378,7 +387,8 @@ export function MailWorkspace({
       <MessageList
         hidden={layout.listHidden && Boolean(selectedId)}
         searchRef={searchRef}
-        onHideList={() => setListHidden(true)}
+        sidebarCollapsed={layout.sidebarCollapsed}
+        onToggleSidebar={toggleSidebar}
         onOpenSearch={() => {
           /* focus alone is enough; the palette stays a deliberate ⌘K action */
         }}

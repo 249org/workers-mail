@@ -90,28 +90,38 @@ export const SHORTCUT_GROUPS = [
 
 /** Renders a combo for display, using platform-appropriate modifier glyphs. */
 export function formatKeys(combo: string, isMac: boolean): string[] {
-  if (combo.includes(" ")) return combo.split(" ").map((key) => key.toUpperCase());
+  if (combo.includes(" ")) return combo.split(" ").map((key) => formatKeyPart(key, isMac));
 
-  return combo.split("+").map((part) => {
-    switch (part) {
-      case "mod":
-        return isMac ? "⌘" : "Ctrl";
-      case "shift":
-        return isMac ? "⇧" : "Shift";
-      case "alt":
-        return isMac ? "⌥" : "Alt";
-      case "enter":
-        return "↵";
-      case "escape":
-        return "Esc";
-      case "arrowup":
-        return "↑";
-      case "arrowdown":
-        return "↓";
-      case "backspace":
-        return "⌫";
-      default:
-        return part.toUpperCase();
-    }
-  });
+  return combo.split("+").map((part) => formatKeyPart(part, isMac));
+}
+
+/** Compact hint for the command palette: `⌘K`, `Ctrl+K`, `G I`. */
+export function formatComboHint(combo: string, isMac: boolean): string {
+  const keys = formatKeys(combo, isMac);
+  if (combo.includes(" ")) return keys.join(" ");
+  if (!isMac && keys.length > 1) return keys.join("+");
+  return keys.join("");
+}
+
+function formatKeyPart(part: string, isMac: boolean): string {
+  switch (part) {
+    case "mod":
+      return isMac ? "⌘" : "Ctrl";
+    case "shift":
+      return isMac ? "⇧" : "Shift";
+    case "alt":
+      return isMac ? "⌥" : "Alt";
+    case "enter":
+      return "↵";
+    case "escape":
+      return "Esc";
+    case "arrowup":
+      return "↑";
+    case "arrowdown":
+      return "↓";
+    case "backspace":
+      return "⌫";
+    default:
+      return part.toUpperCase();
+  }
 }

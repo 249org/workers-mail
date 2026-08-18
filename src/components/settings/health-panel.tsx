@@ -24,21 +24,21 @@ export function HealthPanel() {
   }, []);
 
   if (!checks) {
-    return <p className="list-frame mt-3 p-4 text-[13px] text-muted-foreground">Running checks…</p>;
+    return <p className="px-8 py-5 text-[13px] text-muted-foreground">Running checks…</p>;
   }
 
   return (
-    <ul className="list-frame mt-3">
+    <ul className="settings-checks">
       {checks.map((check) => (
-        <li key={check.name} className="flex items-start gap-3 p-4">
+        <li key={check.name} className="settings-ledger-row">
           <span
             aria-hidden
-            className="mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full"
+            className="inline-block h-2 w-2 shrink-0 rounded-full"
             style={{ background: check.ok ? "var(--success)" : "var(--warning)" }}
           />
           <div className="min-w-0">
-            <p className="text-sm font-medium">{check.name}</p>
-            <p className="text-xs text-[var(--ink-muted)]">{check.detail}</p>
+            <p className="text-[13px] font-medium">{check.name}</p>
+            <p className="text-[13px] text-muted-foreground">{check.detail}</p>
           </div>
         </li>
       ))}

@@ -5,16 +5,23 @@ import { displayName } from "@/lib/mail/address";
 import type { MessageSummary } from "@/lib/mail/queries";
 import { navigateMailFolder, useMailStore, type FolderSummary } from "@/lib/mail/view-store";
 import { formatMessageDate } from "@/lib/format";
-import { MailIcon, type IconName } from "./icons";
+import { ChromeButton } from "./chrome-button";
 
 type Props = {
   onOpenSearch: () => void;
   searchRef: React.RefObject<HTMLInputElement | null>;
   hidden?: boolean;
-  onHideList?: () => void;
+  sidebarCollapsed: boolean;
+  onToggleSidebar: () => void;
 };
 
-export function MessageList({ onOpenSearch, searchRef, hidden, onHideList }: Props) {
+export function MessageList({
+  onOpenSearch,
+  searchRef,
+  hidden,
+  sidebarCollapsed,
+  onToggleSidebar,
+}: Props) {
   const messages = useMailStore((state) => state.messages);
   const selectedId = useMailStore((state) => state.selectedId);
   const checked = useMailStore((state) => state.checked);
@@ -48,34 +55,28 @@ export function MessageList({ onOpenSearch, searchRef, hidden, onHideList }: Pro
         hidden ? "hidden" : ""
       }`}
     >
-      <div className="shrink-0 border-b border-[var(--border)] p-2.5">
-        <div className="flex items-center gap-1.5">
-          <div className="relative min-w-0 flex-1">
-            <input
-              ref={searchRef}
-              type="search"
-              value={search}
-              placeholder="Search, or try from:sam is:unread"
-              onChange={(event) => setSearch(event.target.value)}
-              onFocus={onOpenSearch}
-              className="field pr-12"
-              aria-label="Search messages"
-            />
-            <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2">
-              <span className="kbd">/</span>
-            </span>
-          </div>
-          {selectedId && onHideList && (
-            <button
-              type="button"
-              className="btn btn-quiet btn-icon shrink-0"
-              onClick={onHideList}
-              aria-label="Read full width"
-              title="Read full width (])"
-            >
-              <MailIcon name="expand" />
-            </button>
-          )}
+      <div className="pane-toolbar border-b border-border">
+        <ChromeButton
+          icon="sidebar"
+          label={sidebarCollapsed ? "Expand folder sidebar" : "Collapse folder sidebar"}
+          hint="["
+          pressed={sidebarCollapsed}
+          onClick={onToggleSidebar}
+        />
+        <div className="relative min-w-0 flex-1">
+          <input
+            ref={searchRef}
+            type="search"
+            value={search}
+            placeholder="Search, or try from:sam is:unread"
+            onChange={(event) => setSearch(event.target.value)}
+            onFocus={onOpenSearch}
+            className="field pr-12"
+            aria-label="Search messages"
+          />
+          <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2">
+            <span className="kbd">/</span>
+          </span>
         </div>
       </div>
 
@@ -271,41 +272,11 @@ function BulkBar({ count, onToggleAll }: { count: number; onToggleAll: () => voi
         {count} selected
       </button>
       <div className="ml-auto flex items-center">
-        <IconAction icon="seen" label="Mark read" onClick={() => markRead(ids, true)} />
-        <IconAction icon="unseen" label="Mark unread" hint="U" onClick={() => markRead(ids, false)} />
-        <IconAction icon="star" label="Star" hint="S" onClick={() => star(ids, true)} />
-        <IconAction icon="trash" label="Move to trash" hint="#" danger onClick={() => trash(ids)} end />
+        <ChromeButton icon="seen" label="Mark read" onClick={() => markRead(ids, true)} />
+        <ChromeButton icon="unseen" label="Mark unread" hint="U" onClick={() => markRead(ids, false)} />
+        <ChromeButton icon="star" label="Star" hint="S" onClick={() => star(ids, true)} />
+        <ChromeButton icon="trash" label="Move to trash" hint="#" danger end onClick={() => trash(ids)} />
       </div>
     </div>
-  );
-}
-
-function IconAction({
-  icon,
-  label,
-  hint,
-  danger,
-  end,
-  onClick,
-}: {
-  icon: IconName;
-  label: string;
-  hint?: string;
-  danger?: boolean;
-  end?: boolean;
-  onClick: () => void;
-}) {
-  const tip = hint ? `${label} (${hint})` : label;
-  return (
-    <button
-      type="button"
-      className={`tip btn btn-quiet btn-icon ${end ? "tip-end" : ""}`}
-      style={danger ? { color: "var(--danger)" } : undefined}
-      data-tip={tip}
-      aria-label={tip}
-      onClick={onClick}
-    >
-      <MailIcon name={icon} />
-    </button>
   );
 }

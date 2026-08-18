@@ -2,6 +2,7 @@ import { and, desc, eq, gte, inArray, lt, lte, or, sql, type AnyColumn, type SQL
 import type { Database } from "@/lib/db";
 import { attachments, folders, messages, type Addr } from "@/lib/db/schema";
 import { parseSearch } from "./search";
+import { decodeEntities } from "./text";
 
 export type MessageSummary = {
   id: string;
@@ -263,10 +264,10 @@ function toSummary(row: typeof messages.$inferSelect, threadCount: number): Mess
   return {
     id: row.id,
     threadId: row.threadId,
-    subject: row.subject,
+    subject: decodeEntities(row.subject),
     from: row.fromName ? { name: row.fromName, address: row.fromAddress } : { address: row.fromAddress },
     to: row.toAddresses ?? [],
-    snippet: row.snippet,
+    snippet: decodeEntities(row.snippet),
     sentAt: row.sentAt,
     seen: row.seen,
     flagged: row.flagged,
