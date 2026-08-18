@@ -1877,7 +1877,29 @@ html[data-palette="ink"] .login-scene {
 
 .login-pane-inner {
   width: 100%;
-  max-width: 36rem;
+  max-width: 22.5rem;
+}
+
+/* Cloudflare login rule: bound the column, then every control is 100% of it.
+   Never size fields and buttons independently, and never stretch them across the pane. */
+.login-pane-inner .field,
+.login-pane-inner .kind-choice,
+.login-pane-inner .oauth-stack,
+.login-pane-inner .login-profile,
+.login-pane-inner .login-locked-email,
+.login-pane-inner .login-another,
+.login-pane-inner .btn:not(.btn-icon) {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.login-pane-inner .btn:not(.btn-icon) {
+  display: flex;
+}
+
+.login-pane-inner .flex.gap-2:has(> .btn) {
+  width: 100%;
+  flex-direction: column;
 }
 
 .login-pane-title {

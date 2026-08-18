@@ -104,6 +104,8 @@ UI chrome: Geist Sans, 13px, antialiased, `rlig` + `calt` + tabular nums. Page t
 
 8px grid. App chrome `px-8`. Mail is three hairline-split panes; the page never scrolls — panes do. Each pane starts with a 56px toolbar so search and reading actions sit on one axis. The folder rail collapses to a 56px icon strip (`[`) — that control lives on the list, to the left of search; Compose fills the sidebar toolbar. The message list can hide so the reader fills the remaining width (`]`, Enter) — that control lives on the reader. Only the 56px reader toolbar sticks; the letterhead (Newsreader subject, byline, date) scrolls away. The letter itself is a centered 42rem sheet, not edge-to-edge UI text. Settings is an index and a spread: a paper rail of destinations with a live one-line status, and a full-height card page for the open topic. The spread head holds the Newsreader title; the body is a ruled ledger or form that fills the pane. Stats sit in a ruled strip of cells (borders on children, no outer double line). Empty states are centered, with a highlight-subtle icon well.
 
+Auth (login / first-run) follows the Cloudflare dashboard login: a split page, then a **centered 22.5rem (360px) column**. Inside that column every field, OAuth control, and button is `width: 100%` and shares the same left/right edge. Do not stretch controls across the half-page pane, and do not size the primary button independently of the inputs.
+
 ## Elevation & Depth
 
 No drop shadows on content panels. Shadows only on floating chrome: compose modal, command palette, toasts (`0 8px 32px rgba(0,0,0,0.08)`). Sticky message header and compose footer may use `bg-card/90` + `backdrop-blur-md`. No gradients. No glass elsewhere.
@@ -114,8 +116,8 @@ Panel radius 4px. Inputs `rounded-lg` (8px), height 40px. Buttons `rounded-full`
 
 ## Components
 
-- **Buttons:** pills. Primary filled; ghost hairline + card fill; quiet transparent; danger text. Press `scale(0.97)` at 130ms.
-- **Fields:** transparent fill, hairline border, focus primary + 3px ring at 15% primary.
+- **Buttons:** pills. Primary filled; ghost hairline + card fill; quiet transparent; danger text. Press `scale(0.97)` at 130ms. In a form column, every non-icon button is `width: 100%` of that column — same edges as the fields, never independently sized.
+- **Fields:** transparent fill, hairline border, focus primary + 3px ring at 15% primary. Auth fields live in a 22.5rem column (Cloudflare dashboard login). Inside the column they are 100% width. Never stretch them across the split pane.
 - **Lists:** `list-frame` — hairline outer, hairline between rows, no card radius stack.
 - **Selected row / nav:** accent-subtle fill, primary text. No 2px accent bar.
 - **Palette:** unanimated. Hairline panel, shadow allowed because it floats. ⌘K is the control surface for appearance (light, dark, system, colour templates), every settings page, and mail actions.
@@ -127,4 +129,4 @@ Panel radius 4px. Inputs `rounded-lg` (8px), height 40px. Buttons `rounded-full`
 
 Do group with a hairline. Do use terracotta only for milestones and wells. Do keep keyboard actions instant.
 
-Don't put every region in a rounded-2xl floating card. Don't use primary for everything. Don't animate j/k, archive, or ⌘K. Don't use Inter-on-white-card, purple SaaS palettes, or glass everywhere.
+Don't put every region in a rounded-2xl floating card. Don't use primary for everything. Don't animate j/k, archive, or ⌘K. Don't use Inter-on-white-card, purple SaaS palettes, or glass everywhere. Don't size a Sign in button or field independently of the form column, and don't expand that column past 22.5rem to fill empty pane space.
