@@ -20,6 +20,7 @@ import { ComposeDialog, type ComposeDraft } from "./compose-dialog";
 import { FolderSidebar } from "./folder-sidebar";
 import { MessageList } from "./message-list";
 import { MessageView } from "./message-view";
+import { MailIcon } from "./icons";
 import { useMailStream } from "./use-mail-stream";
 
 type Props = {
@@ -419,9 +420,12 @@ export function MailWorkspace({
           onToggleList={toggleList}
         />
       ) : (
-        <section className="hidden flex-1 items-center justify-center bg-card md:flex">
+        <section className="hidden flex-1 flex-col items-center justify-center gap-3 bg-card px-8 text-center md:flex">
+          <span className="icon-well" aria-hidden>
+            <MailIcon name="inbox" />
+          </span>
           <p className="text-[13px] text-muted-foreground">
-            Nothing selected. Press <span className="kbd">J</span> to start reading.
+            Press <span className="kbd">J</span> to open a message.
           </p>
         </section>
       )}

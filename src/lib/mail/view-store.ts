@@ -163,7 +163,7 @@ export const useMailStore = create<State & Actions>((set, get) => ({
       cursor: cached?.cursor ?? input.cursor,
       checked: changedView ? new Set() : current.checked,
       loaded: mailboxChanged ? new Map() : current.loaded,
-      selectedId: cached?.selectedId ?? input.selectedId ?? input.messages[0]?.id ?? null,
+      selectedId: cached ? cached.selectedId : (input.selectedId ?? null),
     });
   },
 
@@ -237,8 +237,7 @@ export const useMailStore = create<State & Actions>((set, get) => ({
       set((state) => {
         if (state.folderId !== requestedFolder || state.search !== requestedSearch) return state;
         const messages = options.append ? [...state.messages, ...page.items] : page.items;
-        const stillPresent = messages.some((message) => message.id === state.selectedId);
-        const selectedId = stillPresent ? state.selectedId : (messages[0]?.id ?? null);
+        const selectedId = keepSelection(messages, state.selectedId);
         folderPages.set(folderKey(state.mailboxId, state.folderId, state.search), {
           messages,
           cursor: page.nextCursor,
@@ -388,7 +387,7 @@ export const useMailStore = create<State & Actions>((set, get) => ({
       folderId,
       messages: cached?.messages ?? [],
       cursor: cached?.cursor ?? null,
-      selectedId: cached?.selectedId ?? cached?.messages[0]?.id ?? null,
+      selectedId: cached ? cached.selectedId : null,
       checked: new Set(),
       loading: !cached,
     });
@@ -467,6 +466,13 @@ function reinsert(messages: MessageSummary[], removed: RemovedRow[]): MessageSum
     restored.splice(Math.min(entry.index, restored.length), 0, entry.message);
   }
   return restored;
+}
+
+/** Preserve an explicit empty cursor. Only fall back to the first row if a selection vanished. */
+function keepSelection(messages: MessageSummary[], selectedId: string | null): string | null {
+  if (!selectedId) return null;
+  if (messages.some((message) => message.id === selectedId)) return selectedId;
+  return messages[0]?.id ?? null;
 }
 
 /** Keeps the cursor on a neighbouring row instead of jumping to the top of the list. */
