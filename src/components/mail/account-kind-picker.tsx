@@ -39,7 +39,7 @@ export function AccountKindPicker({ value, onChange, allowNative = false }: Prop
         <KindChoice
           selected={value === "other"}
           label="Other IMAP"
-          blurb="Host and port typed by hand"
+          blurb="Looked up from DNS — not guessed"
           onClick={() => onChange("other")}
           mark={<ImapMark />}
         />

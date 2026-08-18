@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AccountKindPicker,
   type AccountKind,
@@ -9,6 +9,8 @@ import {
   ServerSettingsFields,
   type ServerSettings,
 } from "@/components/mail/server-settings-fields";
+import { isEmailAddress } from "@/lib/mail/address";
+import type { DiscoverResult } from "@/lib/transport/autodiscover";
 import {
   easyProvider,
   hostsForEasyProvider,
@@ -72,38 +74,112 @@ export function LinkInboxWizard({
   const [servers, setServers] = useState<ServerSettings>(
     initialKind === "other" ? EMPTY_SERVERS : hostsForEasyProvider(initialKind),
   );
-  const [advanced, setAdvanced] = useState(initialKind === "other");
+  const [advanced, setAdvanced] = useState(false);
+  const [serversEdited, setServersEdited] = useState(false);
+  const [discovering, setDiscovering] = useState(false);
+  const [discovery, setDiscovery] = useState<DiscoverResult | null>(null);
 
   function pick(next: AccountKind) {
     if (next === "native") return;
     setKind(next);
+    setDiscovery(null);
+    setServersEdited(false);
+    setAdvanced(false);
     if (next === "other") {
       setServers(EMPTY_SERVERS);
-      setAdvanced(true);
     } else {
       setServers(hostsForEasyProvider(next));
-      setAdvanced(false);
     }
   }
 
-  function submit() {
+  useEffect(() => {
+    if (kind !== "other" || serversEdited || !isEmailAddress(address)) {
+      setDiscovering(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      setDiscovering(true);
+      void (async () => {
+        try {
+          const response = await fetch(
+            `/api/mailboxes/discover?address=${encodeURIComponent(address)}`,
+            { signal: controller.signal },
+          );
+          const result = (await response.json()) as DiscoverResult;
+          if (controller.signal.aborted || serversEdited) return;
+          setDiscovery(result);
+          if (result.found) {
+            setServers({
+              imapHost: result.imapHost,
+              imapPort: result.imapPort,
+              smtpHost: result.smtpHost,
+              smtpPort: result.smtpPort,
+            });
+            setAdvanced(false);
+          } else {
+            setAdvanced(true);
+          }
+        } catch (error) {
+          if (controller.signal.aborted) return;
+          setDiscovery({
+            found: false,
+            detail: error instanceof Error ? error.message : "Lookup failed.",
+          });
+          setAdvanced(true);
+        } finally {
+          if (!controller.signal.aborted) setDiscovering(false);
+        }
+      })();
+    }, 400);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [address, kind, serversEdited]);
+
+  async function submit() {
     const secret = password.replace(/\s+/g, "");
+    let next = servers;
+    if (kind === "other" && (!next.imapHost || !next.smtpHost) && isEmailAddress(address)) {
+      setDiscovering(true);
+      try {
+        const response = await fetch(
+          `/api/mailboxes/discover?address=${encodeURIComponent(address)}`,
+        );
+        const result = (await response.json()) as DiscoverResult;
+        setDiscovery(result);
+        if (result.found) {
+          next = {
+            imapHost: result.imapHost,
+            imapPort: result.imapPort,
+            smtpHost: result.smtpHost,
+            smtpPort: result.smtpPort,
+          };
+          setServers(next);
+        }
+      } finally {
+        setDiscovering(false);
+      }
+    }
     onSubmit({
       kind,
       address,
       password: secret,
       displayName,
       imap: {
-        host: servers.imapHost,
-        port: servers.imapPort,
-        tls: tlsForImapPort(servers.imapPort),
+        host: next.imapHost,
+        port: next.imapPort,
+        tls: tlsForImapPort(next.imapPort),
         username: address,
         password: secret,
       },
       smtp: {
-        host: servers.smtpHost,
-        port: servers.smtpPort,
-        tls: tlsForSmtpPort(servers.smtpPort),
+        host: next.smtpHost,
+        port: next.smtpPort,
+        tls: tlsForSmtpPort(next.smtpPort),
         username: address,
         password: secret,
       },
@@ -128,13 +204,11 @@ export function LinkInboxWizard({
     );
   }
 
-  const easy = kind === "other" ? null : easyProvider(kind);
-
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        submit();
+        void submit();
       }}
     >
       {kind !== "other" ? (
@@ -156,8 +230,15 @@ export function LinkInboxWizard({
               type="email"
               required
               autoComplete="username"
+              placeholder="you@your-domain.com"
               value={address}
-              onChange={(event) => setAddress(event.target.value)}
+              onChange={(event) => {
+                setAddress(event.target.value);
+                if (!serversEdited) {
+                  setServers(EMPTY_SERVERS);
+                  setDiscovery(null);
+                }
+              }}
             />
           </Field>
           <Field label="Mailbox password" htmlFor="imap-password" hint="The password you use for webmail.">
@@ -179,11 +260,22 @@ export function LinkInboxWizard({
               onChange={(event) => setDisplayName(event.target.value)}
             />
           </Field>
+          <DiscoverStatus
+            address={address}
+            discovering={discovering}
+            discovery={discovery}
+          />
           {advanced ? (
-            <ServerSettingsFields value={servers} onChange={setServers} />
+            <ServerSettingsFields
+              value={servers}
+              onChange={(next) => {
+                setServersEdited(true);
+                setServers(next);
+              }}
+            />
           ) : (
             <button type="button" className="text-[12px] text-muted-foreground hover:underline" onClick={() => setAdvanced(true)}>
-              Show server settings
+              Edit server settings
             </button>
           )}
         </div>
@@ -205,9 +297,16 @@ export function LinkInboxWizard({
         <button
           type="submit"
           className="btn btn-primary"
-          disabled={submitting || !address || !password || !servers.imapHost || !servers.smtpHost}
+          disabled={
+            submitting ||
+            discovering ||
+            !address ||
+            !password ||
+            !servers.imapHost ||
+            !servers.smtpHost
+          }
         >
-          {submitting ? "Connecting" : submitLabel}
+          {submitting ? "Connecting" : discovering ? "Looking up host" : submitLabel}
         </button>
       </div>
     </form>
@@ -294,6 +393,35 @@ function EasyLink({
       </Field>
     </div>
   );
+}
+
+function DiscoverStatus({
+  address,
+  discovering,
+  discovery,
+}: {
+  address: string;
+  discovering: boolean;
+  discovery: DiscoverResult | null;
+}) {
+  const domain = address.split("@")[1]?.trim().toLowerCase() ?? "";
+  if (discovering) {
+    return (
+      <p className="text-[12px] text-muted-foreground">
+        Looking up the mail host{domain ? ` for ${domain}` : ""}…
+      </p>
+    );
+  }
+  if (!discovery) return null;
+  if (discovery.found) {
+    return (
+      <p className="text-[12px] text-muted-foreground">
+        {discovery.imapHost}:{discovery.imapPort} · {discovery.smtpHost}:{discovery.smtpPort}
+        <span className="mt-0.5 block">{discovery.detail}</span>
+      </p>
+    );
+  }
+  return <p className="text-[12px] text-muted-foreground">{discovery.detail}</p>;
 }
 
 function Field({

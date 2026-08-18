@@ -162,7 +162,7 @@ export function FirstRun({ encryptionReady }: { encryptionReady: boolean }) {
       heading={heading}
       lede={
         kind === "other"
-          ? "The password for this mailbox. Not the Workers Mail password you just chose."
+          ? "The password for this mailbox. The host is looked up from DNS — we will not guess it."
           : "Google and Microsoft block the usual password. Continue, copy the app password, paste it here."
       }
     >

@@ -10,6 +10,7 @@ import {
   listMailboxes,
   publicMailbox,
 } from "@/lib/mail/mailboxes";
+import { applyDiscoveredHosts } from "@/lib/transport/autodiscover";
 import { TransportConfigError, validateImapSettings, validateSmtpSettings } from "@/lib/transport/validate";
 
 type CreateBody = {
@@ -54,17 +55,18 @@ export async function POST(request: Request): Promise<Response> {
     };
 
     if (body.type === "external_imap") {
+      const filled = await applyDiscoveredHosts(address, body.imap ?? {}, body.smtp ?? {});
       const imap = validateImapSettings({
-        host: body.imap?.host,
-        port: body.imap?.port,
-        tls: body.imap?.tls,
-        username: body.imap?.username || address,
+        host: filled.imap.host,
+        port: filled.imap.port,
+        tls: filled.imap.tls,
+        username: filled.imap.username || address,
       });
       const smtp = validateSmtpSettings({
-        host: body.smtp?.host,
-        port: body.smtp?.port,
-        tls: body.smtp?.tls,
-        username: body.smtp?.username || imap.username,
+        host: filled.smtp.host,
+        port: filled.smtp.port,
+        tls: filled.smtp.tls,
+        username: filled.smtp.username || imap.username,
       });
       if (!body.imap?.password) throw new ApiError(400, "An IMAP password is required.");
 

@@ -13,6 +13,7 @@ import { clientKey, rateLimit } from "@/lib/rate-limit";
 import { smtpCredentials } from "@/lib/transport/credentials";
 import { testImapConnection } from "@/lib/transport/imap";
 import { sendViaSmtp, testSmtpConnection } from "@/lib/transport/smtp";
+import { applyDiscoveredHosts } from "@/lib/transport/autodiscover";
 import {
   TransportConfigError,
   validateImapSettings,
@@ -234,17 +235,18 @@ export async function handleSetup(request: Request, env: CloudflareEnv): Promise
       throw new ApiError(503, "Set the MAIL_ENCRYPTION_KEY secret before connecting a mailbox.");
     }
 
+    const filled = await applyDiscoveredHosts(address, body.imap ?? {}, body.smtp ?? {});
     const imap = validateImapSettings({
-      host: body.imap?.host,
-      port: body.imap?.port,
-      tls: body.imap?.tls,
-      username: body.imap?.username || address,
+      host: filled.imap.host,
+      port: filled.imap.port,
+      tls: filled.imap.tls,
+      username: filled.imap.username || address,
     });
     const smtp = validateSmtpSettings({
-      host: body.smtp?.host,
-      port: body.smtp?.port,
-      tls: body.smtp?.tls,
-      username: body.smtp?.username || imap.username,
+      host: filled.smtp.host,
+      port: filled.smtp.port,
+      tls: filled.smtp.tls,
+      username: filled.smtp.username || imap.username,
     });
 
     // Prove the credentials work before anything is persisted.

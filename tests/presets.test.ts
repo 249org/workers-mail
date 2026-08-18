@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hostsForEasyProvider, presetById, presetFor } from "@/lib/transport/presets";
+import { hostsForEasyProvider, presetById, presetFor, providerForMxHost } from "@/lib/transport/presets";
 
 describe("presetFor", () => {
   it("matches consumer domains", () => {
@@ -9,6 +9,12 @@ describe("presetFor", () => {
 
   it("does not guess imap.{domain} for custom domains", () => {
     expect(presetFor("hello@mena-speakers.com")).toBeNull();
+  });
+});
+
+describe("providerForMxHost", () => {
+  it("maps an observed one.com MX to published IMAP hosts", () => {
+    expect(providerForMxHost("mx1.pub.mailpod9-cph3.one.com")?.imapHost).toBe("imap.one.com");
   });
 });
 

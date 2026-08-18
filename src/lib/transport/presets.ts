@@ -9,13 +9,18 @@ export type ProviderPreset = {
   note?: string;
 };
 
-type NamedProvider = ProviderPreset & { domains: string[] };
+type NamedProvider = ProviderPreset & {
+  domains: string[];
+  /** MX hostname equals a suffix or ends with `.${suffix}` — observed DNS, not a guess. */
+  mxSuffixes: string[];
+};
 
 const NAMED_PROVIDERS: NamedProvider[] = [
   {
     id: "one.com",
     name: "one.com",
     domains: ["one.com"],
+    mxSuffixes: ["one.com"],
     imapHost: "imap.one.com",
     imapPort: 993,
     smtpHost: "send.one.com",
@@ -26,6 +31,7 @@ const NAMED_PROVIDERS: NamedProvider[] = [
     id: "gmail",
     name: "Gmail",
     domains: ["gmail.com", "googlemail.com"],
+    mxSuffixes: ["google.com", "googlemail.com"],
     imapHost: "imap.gmail.com",
     imapPort: 993,
     smtpHost: "smtp.gmail.com",
@@ -36,6 +42,7 @@ const NAMED_PROVIDERS: NamedProvider[] = [
     id: "outlook",
     name: "Outlook",
     domains: ["outlook.com", "hotmail.com", "live.com"],
+    mxSuffixes: ["outlook.com", "office365.com", "hotmail.com", "live.com"],
     imapHost: "outlook.office365.com",
     imapPort: 993,
     smtpHost: "smtp.office365.com",
@@ -46,6 +53,7 @@ const NAMED_PROVIDERS: NamedProvider[] = [
     id: "yahoo",
     name: "Yahoo",
     domains: ["yahoo.com"],
+    mxSuffixes: ["yahoo.com", "yahoodns.net"],
     imapHost: "imap.mail.yahoo.com",
     imapPort: 993,
     smtpHost: "smtp.mail.yahoo.com",
@@ -56,6 +64,7 @@ const NAMED_PROVIDERS: NamedProvider[] = [
     id: "fastmail",
     name: "Fastmail",
     domains: ["fastmail.com"],
+    mxSuffixes: ["fastmail.com", "messagingengine.com"],
     imapHost: "imap.fastmail.com",
     imapPort: 993,
     smtpHost: "smtp.fastmail.com",
@@ -66,6 +75,7 @@ const NAMED_PROVIDERS: NamedProvider[] = [
     id: "icloud",
     name: "iCloud",
     domains: ["icloud.com", "me.com"],
+    mxSuffixes: ["icloud.com", "me.com"],
     imapHost: "imap.mail.me.com",
     imapPort: 993,
     smtpHost: "smtp.mail.me.com",
@@ -76,6 +86,7 @@ const NAMED_PROVIDERS: NamedProvider[] = [
     id: "zoho",
     name: "Zoho",
     domains: ["zoho.com"],
+    mxSuffixes: ["zoho.com", "zoho.eu", "zoho.in"],
     imapHost: "imap.zoho.com",
     imapPort: 993,
     smtpHost: "smtp.zoho.com",
@@ -163,13 +174,23 @@ export function presetById(id: string): ProviderPreset | null {
 }
 
 /**
- * Known consumer domains only. Custom domains (one.com, cPanel, Google Workspace)
- * must be chosen by the user — guessing `imap.{domain}` is usually wrong.
+ * Consumer mailbox domains only (`gmail.com`, `one.com`, …). Custom domains are
+ * resolved from MX / autoconfig — never by guessing `imap.{domain}`.
  */
 export function presetFor(address: string): ProviderPreset | null {
   const domain = address.split("@")[1]?.trim().toLowerCase();
   if (!domain) return null;
   const match = NAMED_PROVIDERS.find((provider) => provider.domains.includes(domain));
+  return match ? presetById(match.id) : null;
+}
+
+/** Match an observed MX hostname to a provider whose published IMAP hosts we already know. */
+export function providerForMxHost(mxHost: string): ProviderPreset | null {
+  const host = mxHost.replace(/\.$/, "").trim().toLowerCase();
+  if (!host) return null;
+  const match = NAMED_PROVIDERS.find((provider) =>
+    provider.mxSuffixes.some((suffix) => host === suffix || host.endsWith(`.${suffix}`)),
+  );
   return match ? presetById(match.id) : null;
 }
 
