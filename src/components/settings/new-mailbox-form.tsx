@@ -3,25 +3,32 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
+  AccountKindPicker,
+  type AccountKind,
+} from "@/components/mail/account-kind-picker";
+import {
   ImapAccountFields,
   type ConnectionCheck,
-  type ImapProvider,
 } from "@/components/mail/imap-account-fields";
 import { type ServerSettings } from "@/components/mail/server-settings-fields";
 import { hostsForEasyProvider, tlsForImapPort, tlsForSmtpPort } from "@/lib/transport/presets";
 
 type DomainOption = { id: string; name: string; status: string };
 
+const EMPTY_SERVERS: ServerSettings = {
+  imapHost: "",
+  imapPort: 993,
+  smtpHost: "",
+  smtpPort: 587,
+};
+
 export function NewMailboxForm({ domains }: { domains: DomainOption[] }) {
   const router = useRouter();
-  const [kind, setKind] = useState<"native" | "imap">(
-    domains.length > 0 ? "native" : "imap",
-  );
+  const [kind, setKind] = useState<AccountKind>("gmail");
   const [localPart, setLocalPart] = useState("");
   const [domainName, setDomainName] = useState(domains[0]?.name ?? "");
   const [displayName, setDisplayName] = useState("");
 
-  const [provider, setProvider] = useState<ImapProvider>("gmail");
   const [address, setAddress] = useState("");
   const [password, setPassword] = useState("");
   const [servers, setServers] = useState<ServerSettings>(hostsForEasyProvider("gmail"));
@@ -31,6 +38,17 @@ export function NewMailboxForm({ domains }: { domains: DomainOption[] }) {
   );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<"test" | "save" | null>(null);
+
+  function selectKind(next: AccountKind) {
+    setKind(next);
+    setChecks(null);
+    setError(null);
+    if (next === "gmail" || next === "outlook") {
+      setServers(hostsForEasyProvider(next));
+    } else if (next === "other") {
+      setServers(EMPTY_SERVERS);
+    }
+  }
 
   function imapPayload() {
     return {
@@ -106,102 +124,100 @@ export function NewMailboxForm({ domains }: { domains: DomainOption[] }) {
     router.refresh();
   }
 
+  const imapKind = kind === "gmail" || kind === "outlook" || kind === "other";
+
   return (
     <div className="mt-6">
-      <div className="flex flex-wrap gap-2">
-        <TabButton active={kind === "native"} onClick={() => setKind("native")}>
-          Domain mailbox
-        </TabButton>
-        <TabButton active={kind === "imap"} onClick={() => setKind("imap")}>
-          Google, Microsoft, or IMAP
-        </TabButton>
-      </div>
+      <div className="panel p-5">
+        <AccountKindPicker value={kind} onChange={selectKind} allowNative />
 
-      <div className="panel mt-4 p-5">
-        {kind === "native" ? (
-          domains.length === 0 ? (
-            <p className="text-sm text-[var(--ink-muted)]">
-              Connect a domain first, then you can create addresses on it.
-            </p>
+        <div className="mt-5">
+          {kind === "native" ? (
+            domains.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Connect a domain first, then you can create addresses on it.
+              </p>
+            ) : (
+              <>
+                <label className="label" htmlFor="local-part">
+                  Address
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    id="local-part"
+                    className="field"
+                    placeholder="hello"
+                    value={localPart}
+                    onChange={(event) => setLocalPart(event.target.value)}
+                  />
+                  <span className="text-sm text-muted-foreground">@</span>
+                  <select
+                    className="field"
+                    value={domainName}
+                    onChange={(event) => setDomainName(event.target.value)}
+                  >
+                    {domains.map((domain) => (
+                      <option key={domain.id} value={domain.name}>
+                        {domain.name}
+                        {domain.status !== "verified" ? " (unverified)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="mt-4">
+                  <label className="label" htmlFor="display-name">
+                    Display name
+                  </label>
+                  <input
+                    id="display-name"
+                    className="field"
+                    placeholder="Support"
+                    value={displayName}
+                    onChange={(event) => setDisplayName(event.target.value)}
+                  />
+                </div>
+              </>
+            )
           ) : (
             <>
-              <label className="label" htmlFor="local-part">
-                Address
-              </label>
-              <div className="flex items-center gap-2">
-                <input
-                  id="local-part"
-                  className="field"
-                  placeholder="hello"
-                  value={localPart}
-                  onChange={(event) => setLocalPart(event.target.value)}
-                />
-                <span className="text-sm text-[var(--ink-muted)]">@</span>
-                <select
-                  className="field"
-                  value={domainName}
-                  onChange={(event) => setDomainName(event.target.value)}
-                >
-                  {domains.map((domain) => (
-                    <option key={domain.id} value={domain.name}>
-                      {domain.name}
-                      {domain.status !== "verified" ? " (unverified)" : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <ImapAccountFields
+                provider={kind}
+                address={address}
+                password={password}
+                servers={servers}
+                checks={checks}
+                showChooser={false}
+                onProviderChange={(next, nextServers) => {
+                  setKind(next);
+                  setServers(nextServers);
+                  setChecks(null);
+                }}
+                onAddressChange={setAddress}
+                onPasswordChange={setPassword}
+                onServersChange={setServers}
+              />
 
               <div className="mt-4">
-                <label className="label" htmlFor="display-name">
+                <label className="label" htmlFor="imap-display-name">
                   Display name
                 </label>
                 <input
-                  id="display-name"
+                  id="imap-display-name"
                   className="field"
-                  placeholder="Support"
+                  placeholder="You"
                   value={displayName}
                   onChange={(event) => setDisplayName(event.target.value)}
                 />
               </div>
             </>
-          )
-        ) : (
-          <>
-            <ImapAccountFields
-              provider={provider}
-              address={address}
-              password={password}
-              servers={servers}
-              checks={checks}
-              onProviderChange={(next, nextServers) => {
-                setProvider(next);
-                setServers(nextServers);
-                setChecks(null);
-              }}
-              onAddressChange={setAddress}
-              onPasswordChange={setPassword}
-              onServersChange={setServers}
-            />
-
-            <div className="mt-4">
-              <label className="label" htmlFor="imap-display-name">
-                Display name
-              </label>
-              <input
-                id="imap-display-name"
-                className="field"
-                placeholder="You"
-                value={displayName}
-                onChange={(event) => setDisplayName(event.target.value)}
-              />
-            </div>
-          </>
-        )}
+          )}
+        </div>
 
         {error && <p className="mt-4 text-sm text-[var(--danger)]">{error}</p>}
 
         <div className="mt-5 flex gap-2">
-          {kind === "imap" && (
+          {imapKind && (
             <button
               type="button"
               className="btn btn-ghost"
@@ -227,30 +243,5 @@ export function NewMailboxForm({ domains }: { domains: DomainOption[] }) {
         </div>
       </div>
     </div>
-  );
-}
-
-function TabButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="rounded-full px-3 py-1.5 text-[13px]"
-      style={{
-        background: active ? "var(--accent-subtle)" : "transparent",
-        color: active ? "var(--primary)" : "var(--muted-foreground)",
-        fontWeight: active ? 600 : 400,
-      }}
-    >
-      {children}
-    </button>
   );
 }

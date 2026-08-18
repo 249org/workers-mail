@@ -4,6 +4,9 @@ import { domains, routingRules } from "@/lib/db/schema";
 import { listMailboxes, publicMailbox } from "@/lib/mail/mailboxes";
 import { DomainManager } from "@/components/settings/domain-manager";
 import { PageHeader, SettingsBody } from "@/components/settings/page-header";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Domains" };
 
 export default async function DomainsPage() {
   const { user, db } = await requireUser();

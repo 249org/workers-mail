@@ -14,6 +14,10 @@ import {
 import { parsePrivacy } from "@/lib/privacy";
 import { parseSignature } from "@/lib/signature";
 import { Toaster } from "sonner";
+import { privateMetadata } from "@/lib/seo";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = privateMetadata("Settings");
 
 export default async function SettingsLayout({ children }: { children: React.ReactNode }) {
   const { user, db, env: cloudflare } = await requireUser();

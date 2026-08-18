@@ -1,6 +1,9 @@
 import { requireUser } from "@/lib/auth/server";
 import { ApiKeyManager } from "@/components/settings/api-key-manager";
 import { PageHeader, SettingsBody } from "@/components/settings/page-header";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "API keys" };
 
 export default async function ApiKeysPage() {
   await requireUser();

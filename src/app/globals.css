@@ -123,6 +123,52 @@ body {
   box-shadow: none;
 }
 
+.kind-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  padding: 0.75rem 0.875rem;
+  text-align: left;
+  background: transparent;
+  color: var(--foreground);
+  cursor: pointer;
+}
+
+.kind-choice-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin-top: 0.05rem;
+  flex-shrink: 0;
+  color: var(--foreground);
+}
+
+.kind-choice[aria-pressed="true"] {
+  border-color: var(--primary);
+  background: var(--accent-subtle);
+  color: var(--primary);
+}
+
+.kind-choice[aria-pressed="true"] .kind-choice-mark {
+  color: var(--primary);
+}
+
+.kind-choice[aria-pressed="true"] .text-muted-foreground {
+  color: var(--primary);
+  opacity: 0.75;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .kind-choice:hover:not([aria-pressed="true"]) {
+    background: var(--accent-wash);
+  }
+}
+
 .field {
   width: 100%;
   height: 2.5rem;

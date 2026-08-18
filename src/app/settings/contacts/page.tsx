@@ -3,6 +3,9 @@ import { requireUser } from "@/lib/auth/server";
 import { contacts } from "@/lib/db/schema";
 import { ContactList } from "@/components/settings/contact-list";
 import { PageHeader, SettingsBody } from "@/components/settings/page-header";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Contacts" };
 
 export default async function ContactsPage() {
   const { user, db } = await requireUser();

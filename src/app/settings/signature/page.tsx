@@ -2,6 +2,9 @@ import { PageHeader, SettingsBody } from "@/components/settings/page-header";
 import { SignatureForm } from "@/components/settings/signature-form";
 import { requireUser } from "@/lib/auth/server";
 import { listMailboxes, publicMailbox } from "@/lib/mail/mailboxes";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Signature" };
 
 export default async function SignaturePage() {
   const { user, db } = await requireUser();

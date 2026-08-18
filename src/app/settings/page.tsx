@@ -1,12 +1,15 @@
 import Link from "next/link";
+import { eq } from "drizzle-orm";
 import { requireUser } from "@/lib/auth/server";
 import { listMailboxes } from "@/lib/mail/mailboxes";
 import { mailboxUsage } from "@/lib/mail/queries";
 import { domains } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
 import { formatBytes, formatRelative } from "@/lib/format";
 import { HealthPanel } from "@/components/settings/health-panel";
 import { PageHeader, SettingsBody } from "@/components/settings/page-header";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Overview" };
 
 export default async function SettingsOverviewPage() {
   const { user, db } = await requireUser();

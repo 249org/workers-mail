@@ -1,6 +1,9 @@
 import { PageHeader, SettingsBody } from "@/components/settings/page-header";
 import { PrivacyForm } from "@/components/settings/privacy-form";
 import { requireUser } from "@/lib/auth/server";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Privacy" };
 
 export default async function PrivacyPage() {
   await requireUser();

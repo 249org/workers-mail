@@ -3,6 +3,9 @@ import { requireUser } from "@/lib/auth/server";
 import { domains } from "@/lib/db/schema";
 import { NewMailboxForm } from "@/components/settings/new-mailbox-form";
 import { PageHeader, SettingsBody } from "@/components/settings/page-header";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Add a mailbox" };
 
 export default async function NewMailboxPage() {
   const { user, db } = await requireUser();

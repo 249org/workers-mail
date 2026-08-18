@@ -1,6 +1,9 @@
 import { PageHeader, SettingsBody } from "@/components/settings/page-header";
 import { SecurityPanel } from "@/components/settings/security-panel";
 import { requireUser } from "@/lib/auth/server";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Security" };
 
 export default async function SecurityPage() {
   await requireUser();

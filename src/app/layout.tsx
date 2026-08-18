@@ -6,6 +6,8 @@ import {
   APPEARANCE_COOKIE,
   parseAppearance,
 } from "@/lib/appearance";
+import { JsonLd } from "@/components/json-ld";
+import { appOrigin, siteJsonLd, siteMetadata } from "@/lib/seo";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -24,10 +26,9 @@ const newsreader = Newsreader({
   style: ["normal", "italic"],
 });
 
-export const metadata: Metadata = {
-  title: "Workers Mail",
-  description: "Self-hosted mail workspace running on Cloudflare",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return siteMetadata(await appOrigin());
+}
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -40,6 +41,7 @@ export const viewport: Viewport = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const prefs = parseAppearance((await cookies()).get(APPEARANCE_COOKIE)?.value);
+  const origin = await appOrigin();
 
   return (
     <html
@@ -51,6 +53,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: APPEARANCE_BOOTSTRAP }} />
+        <JsonLd data={siteJsonLd(origin)} />
       </head>
       <body className="font-sans antialiased">
         {/*

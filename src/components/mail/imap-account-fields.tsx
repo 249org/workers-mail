@@ -1,17 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import { AccountKindPicker } from "@/components/mail/account-kind-picker";
 import {
   ServerSettingsFields,
   type ServerSettings,
 } from "@/components/mail/server-settings-fields";
 import {
-  EASY_PROVIDERS,
-  OTHER_PROVIDER_ID,
   easyProvider,
   hostsForEasyProvider,
   hostsFromPreset,
   presetFor,
+  OTHER_PROVIDER_ID,
   type EasyProviderId,
 } from "@/lib/transport/presets";
 
@@ -29,6 +29,7 @@ type Props = {
   onPasswordChange: (password: string) => void;
   onServersChange: (servers: ServerSettings) => void;
   checks?: { imap: ConnectionCheck; smtp: ConnectionCheck } | null;
+  showChooser?: boolean;
 };
 
 export function ImapAccountFields({
@@ -41,13 +42,19 @@ export function ImapAccountFields({
   onPasswordChange,
   onServersChange,
   checks,
+  showChooser = true,
 }: Props) {
   const [advanced, setAdvanced] = useState(false);
   const easy = provider === "other" ? null : easyProvider(provider);
 
   function pick(next: ImapProvider) {
     if (next === "other") {
-      onProviderChange(next, servers);
+      onProviderChange(next, {
+        imapHost: "",
+        imapPort: 993,
+        smtpHost: "",
+        smtpPort: 587,
+      });
       setAdvanced(true);
       return;
     }
@@ -64,47 +71,19 @@ export function ImapAccountFields({
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-2">
-        {EASY_PROVIDERS.map((option) => {
-          const selected = provider === option.id;
-          return (
-            <button
-              key={option.id}
-              type="button"
-              aria-pressed={selected}
-              onClick={() => pick(option.id)}
-              className="flex items-start gap-2.5 border px-3 py-2.5 text-left"
-              style={{
-                borderRadius: 4,
-                borderColor: selected ? "var(--primary)" : "var(--border)",
-                background: selected ? "var(--accent-subtle)" : "transparent",
-              }}
-            >
-              <ProviderMark letter={option.id === "gmail" ? "G" : "M"} selected={selected} />
-              <span className="min-w-0">
-                <span
-                  className="block text-[13px] font-medium"
-                  style={{ color: selected ? "var(--primary)" : "var(--foreground)" }}
-                >
-                  {option.label}
-                </span>
-                <span className="mt-0.5 block text-[12px] text-muted-foreground">{option.blurb}</span>
-              </span>
-            </button>
-          );
-        })}
-      </div>
-      <button
-        type="button"
-        aria-pressed={provider === "other"}
-        onClick={() => pick("other")}
-        className="mt-2 text-[13px] text-muted-foreground hover:underline"
-        style={{ color: provider === "other" ? "var(--primary)" : undefined, fontWeight: provider === "other" ? 600 : 400 }}
-      >
-        Other IMAP
-      </button>
+      {showChooser ? (
+        <div className="mb-4">
+          <AccountKindPicker
+            value={provider}
+            onChange={(next) => {
+              if (next === "native") return;
+              pick(next);
+            }}
+          />
+        </div>
+      ) : null}
 
-      <div className="mt-4 grid gap-4">
+      <div className="grid gap-4">
         <div>
           <label className="label" htmlFor="imap-address">
             Email address
@@ -181,22 +160,6 @@ export function ImapAccountFields({
         </div>
       )}
     </>
-  );
-}
-
-function ProviderMark({ letter, selected }: { letter: string; selected: boolean }) {
-  return (
-    <span
-      aria-hidden
-      className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center border text-[12px] font-medium"
-      style={{
-        borderRadius: 4,
-        borderColor: selected ? "var(--primary)" : "var(--border)",
-        color: selected ? "var(--primary)" : "var(--foreground)",
-      }}
-    >
-      {letter}
-    </span>
   );
 }
 

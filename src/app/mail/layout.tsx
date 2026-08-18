@@ -2,9 +2,12 @@ import { Toaster } from "sonner";
 import { requireUser } from "@/lib/auth/server";
 import { listMailboxes, publicMailbox } from "@/lib/mail/mailboxes";
 import { AppHeader } from "@/components/app-header";
+import { privateMetadata } from "@/lib/seo";
+import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+export const metadata: Metadata = privateMetadata("Mail");
 
 export default async function MailLayout({ children }: { children: React.ReactNode }) {
   const { user, db } = await requireUser();

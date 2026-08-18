@@ -3,6 +3,9 @@ import { requireUser } from "@/lib/auth/server";
 import { listMailboxes, publicMailbox } from "@/lib/mail/mailboxes";
 import { MailboxList } from "@/components/settings/mailbox-list";
 import { PageHeader, SettingsBody } from "@/components/settings/page-header";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Mailboxes" };
 
 export default async function MailboxesPage() {
   const { user, db } = await requireUser();
