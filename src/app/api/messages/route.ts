@@ -24,7 +24,9 @@ export async function GET(request: Request): Promise<Response> {
       before: before ? Number(before) : undefined,
     });
 
-    return Response.json(page);
+    return Response.json(page, {
+      headers: { "cache-control": "no-store" },
+    });
   } catch (error) {
     return errorResponse(error);
   }

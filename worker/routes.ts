@@ -96,6 +96,21 @@ export async function handleSend(request: Request, env: CloudflareEnv): Promise<
       .notify({ type: "sent", messageId: result.storedMessageId ?? result.messageId })
       .catch(() => undefined);
 
+    await Promise.all(
+      result.localDeliveries.map((delivery) => {
+        const recipient = env.MAILBOX.get(env.MAILBOX.idFromName(delivery.mailboxId));
+        return recipient
+          .notify({
+            type: "new",
+            messageId: delivery.messageId,
+            folderId: delivery.folderId,
+            subject: delivery.subject,
+            from: delivery.from,
+          })
+          .catch(() => undefined);
+      }),
+    );
+
     return Response.json(result);
   } catch (error) {
     if (error instanceof SendError) {

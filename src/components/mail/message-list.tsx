@@ -1,18 +1,20 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { displayName } from "@/lib/mail/address";
 import type { MessageSummary } from "@/lib/mail/queries";
-import { useMailStore, type FolderSummary } from "@/lib/mail/view-store";
+import { navigateMailFolder, useMailStore, type FolderSummary } from "@/lib/mail/view-store";
 import { formatMessageDate } from "@/lib/format";
+import { MailIcon } from "./icons";
 
 type Props = {
   onOpenSearch: () => void;
   searchRef: React.RefObject<HTMLInputElement | null>;
+  hidden?: boolean;
+  onHideList?: () => void;
 };
 
-export function MessageList({ onOpenSearch, searchRef }: Props) {
+export function MessageList({ onOpenSearch, searchRef, hidden, onHideList }: Props) {
   const messages = useMailStore((state) => state.messages);
   const selectedId = useMailStore((state) => state.selectedId);
   const checked = useMailStore((state) => state.checked);
@@ -41,22 +43,39 @@ export function MessageList({ onOpenSearch, searchRef }: Props) {
   }, [selectedId]);
 
   return (
-    <section className="flex w-full shrink-0 flex-col border-r border-border bg-card md:w-[21rem] lg:w-[25rem]">
+    <section
+      className={`flex w-full shrink-0 flex-col border-r border-border bg-card md:w-[21rem] lg:w-[25rem] ${
+        hidden ? "hidden" : ""
+      }`}
+    >
       <div className="shrink-0 border-b border-[var(--border)] p-2.5">
-        <div className="relative">
-          <input
-            ref={searchRef}
-            type="search"
-            value={search}
-            placeholder="Search, or try from:sam is:unread"
-            onChange={(event) => setSearch(event.target.value)}
-            onFocus={onOpenSearch}
-            className="field pr-12"
-            aria-label="Search messages"
-          />
-          <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2">
-            <span className="kbd">/</span>
-          </span>
+        <div className="flex items-center gap-1.5">
+          <div className="relative min-w-0 flex-1">
+            <input
+              ref={searchRef}
+              type="search"
+              value={search}
+              placeholder="Search, or try from:sam is:unread"
+              onChange={(event) => setSearch(event.target.value)}
+              onFocus={onOpenSearch}
+              className="field pr-12"
+              aria-label="Search messages"
+            />
+            <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2">
+              <span className="kbd">/</span>
+            </span>
+          </div>
+          {selectedId && onHideList && (
+            <button
+              type="button"
+              className="btn btn-quiet btn-icon shrink-0"
+              onClick={onHideList}
+              aria-label="Read full width"
+              title="Read full width (])"
+            >
+              <MailIcon name="expand" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -131,14 +150,14 @@ function Row({
         tabIndex={-1}
         onClick={onSelect}
         onMouseEnter={onHover}
-        className="flex cursor-pointer gap-2 border-b border-border px-3 py-2"
+        className="flex cursor-pointer gap-2.5 border-b border-border px-3 py-2"
         style={{
           background: active ? "var(--accent-subtle)" : "transparent",
         }}
       >
         <input
           type="checkbox"
-          className="mt-1 shrink-0"
+          className="check"
           checked={checked}
           onClick={(event) => event.stopPropagation()}
           onChange={onToggle}
@@ -227,9 +246,13 @@ function EmptyFolder({
     <div className="px-6 py-10 text-center">
       <p className="text-[13px] text-[var(--ink-muted)]">{copy}</p>
       {!search && folder?.role !== "inbox" && inbox && (
-        <Link href={`/mail/${mailboxId}/${inbox.id}`} prefetch={false} className="btn btn-ghost mt-4">
+        <button
+          type="button"
+          className="btn btn-ghost mt-4"
+          onClick={() => navigateMailFolder(mailboxId, inbox.id)}
+        >
           Open Inbox
-        </Link>
+        </button>
       )}
     </div>
   );

@@ -2,6 +2,7 @@ import { and, asc, eq } from "drizzle-orm";
 import type { Database } from "@/lib/db";
 import { folders, mailboxes, type DnsRecord } from "@/lib/db/schema";
 import { newId } from "@/lib/ids";
+import { normalizeAddress } from "./address";
 
 export type Mailbox = typeof mailboxes.$inferSelect;
 export type Folder = typeof folders.$inferSelect;
@@ -64,6 +65,15 @@ export async function ensureDefaultFolders(db: Database, mailboxId: string): Pro
   }
 
   return existing;
+}
+
+export async function mailboxByAddress(db: Database, address: string): Promise<Mailbox | null> {
+  const rows = await db
+    .select()
+    .from(mailboxes)
+    .where(eq(mailboxes.address, normalizeAddress(address)))
+    .limit(1);
+  return rows[0] ?? null;
 }
 
 export async function folderByRole(

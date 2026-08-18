@@ -4,9 +4,9 @@ import type { Database } from "@/lib/db";
 import { deliveryLog, messages, type Addr } from "@/lib/db/schema";
 import { newId } from "@/lib/ids";
 import { buildRawMessage, generateMessageId, type OutboundAttachment } from "./build";
-import { domainOf } from "./address";
+import { domainOf, normalizeAddress } from "./address";
 import { buildSnippet, parseMime } from "./mime";
-import { folderByRole, type Mailbox } from "./mailboxes";
+import { folderByRole, mailboxByAddress, type Mailbox } from "./mailboxes";
 import { canSendAs } from "./routing";
 import { storeMessage } from "./store";
 import { smtpCredentials } from "@/lib/transport/credentials";
@@ -40,10 +40,19 @@ export type SendDeps = {
   encryptionKey: string | undefined;
 };
 
+export type LocalDelivery = {
+  mailboxId: string;
+  messageId: string;
+  folderId: string;
+  subject: string;
+  from: string;
+};
+
 export type SendResult = {
   messageId: string;
   storedMessageId: string | null;
   transport: "send_email" | "smtp";
+  localDeliveries: LocalDelivery[];
 };
 
 export async function sendMessage(
@@ -106,7 +115,51 @@ export async function sendMessage(
   await logDelivery(deps.db, mailbox.id, recipients, transport, "sent");
 
   const storedMessageId = await writeSentCopy(deps, mailbox, rawBytes, request.draftId);
-  return { messageId, storedMessageId, transport };
+  const localDeliveries = await deliverLocalCopies(deps, recipients, rawBytes);
+  return { messageId, storedMessageId, transport, localDeliveries };
+}
+
+/** Puts a copy in any in-app inbox that matches a recipient, so the open mailbox does not wait on IMAP. */
+async function deliverLocalCopies(
+  deps: SendDeps,
+  recipients: Addr[],
+  rawBytes: Uint8Array,
+): Promise<LocalDelivery[]> {
+  const deliveries: LocalDelivery[] = [];
+  const seen = new Set<string>();
+
+  for (const recipient of recipients) {
+    const address = normalizeAddress(recipient.address);
+    if (seen.has(address)) continue;
+    seen.add(address);
+
+    const target = await mailboxByAddress(deps.db, address);
+    if (!target) continue;
+
+    const inbox = await folderByRole(deps.db, target.id, "inbox");
+    if (!inbox) continue;
+
+    const parsed = await parseMime(rawBytes);
+    const stored = await storeMessage(deps.db, deps.bucket, parsed, {
+      mailboxId: target.id,
+      folderId: inbox.id,
+      ownerId: target.ownerId,
+      raw: rawBytes,
+      size: rawBytes.byteLength,
+      seen: false,
+    });
+    if (!stored.created) continue;
+
+    deliveries.push({
+      mailboxId: target.id,
+      messageId: stored.id,
+      folderId: inbox.id,
+      subject: parsed.subject,
+      from: parsed.from.address,
+    });
+  }
+
+  return deliveries;
 }
 
 async function writeSentCopy(

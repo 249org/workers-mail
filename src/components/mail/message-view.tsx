@@ -4,13 +4,16 @@ import { useEffect, useState } from "react";
 import { displayName, formatAddressList } from "@/lib/mail/address";
 import { useMailStore } from "@/lib/mail/view-store";
 import { formatBytes, formatFullDate, initialsOf } from "@/lib/format";
+import { MailIcon } from "./icons";
 
 type Props = {
   messageId: string;
   onReply: (mode: "reply" | "replyAll" | "forward") => void;
+  listHidden: boolean;
+  onToggleList: () => void;
 };
 
-export function MessageView({ messageId, onReply }: Props) {
+export function MessageView({ messageId, onReply, listHidden, onToggleList }: Props) {
   const loaded = useMailStore((state) => state.loaded.get(messageId));
   const load = useMailStore((state) => state.load);
   const select = useMailStore((state) => state.select);
@@ -28,22 +31,46 @@ export function MessageView({ messageId, onReply }: Props) {
 
   if (!loaded) {
     return (
-      <section className="flex min-w-0 flex-1 items-center justify-center bg-card">
-        <p className="text-[13px] text-[var(--ink-muted)]">Loading</p>
+      <section className="flex min-w-0 flex-1 flex-col bg-card">
+        <header className={`flex items-center gap-2 border-b border-border py-3 ${listHidden ? "px-8 md:px-10" : "px-6"}`}>
+          <button
+            type="button"
+            className="btn btn-quiet btn-icon"
+            onClick={onToggleList}
+            aria-label={listHidden ? "Show message list" : "Read full width"}
+            title={listHidden ? "Show messages (])" : "Read full width (])"}
+          >
+            <MailIcon name={listHidden ? "list" : "expand"} />
+          </button>
+          <p className="text-[13px] text-[var(--ink-muted)]">Loading</p>
+        </header>
       </section>
     );
   }
 
   const { detail, thread, body } = loaded;
   const files = detail.attachments.filter((file) => !file.inline);
+  const pad = listHidden ? "px-8 md:px-10" : "px-6";
 
   return (
     <section className="scroll-thin flex min-w-0 flex-1 flex-col overflow-y-auto bg-card">
-      <header className="sticky top-0 z-10 border-b border-border bg-card/90 px-6 py-4 backdrop-blur-md">
+      <header className={`sticky top-0 z-10 border-b border-border bg-card/90 py-4 backdrop-blur-md ${pad}`}>
         <div className="flex items-start justify-between gap-4">
-          <h1 className="text-[17px] font-semibold tracking-[-0.01em]">
-            {detail.subject || "(no subject)"}
-          </h1>
+          <div className="flex min-w-0 items-start gap-2">
+            <button
+              type="button"
+              className="btn btn-quiet btn-icon mt-0.5 shrink-0"
+              onClick={onToggleList}
+              aria-pressed={listHidden}
+              aria-label={listHidden ? "Show message list" : "Read full width"}
+              title={listHidden ? "Show messages (])" : "Read full width (])"}
+            >
+              <MailIcon name={listHidden ? "list" : "expand"} />
+            </button>
+            <h1 className="text-[17px] font-semibold tracking-[-0.01em]">
+              {detail.subject || "(no subject)"}
+            </h1>
+          </div>
           <div className="flex shrink-0 items-center gap-1">
             <Action label="Reply" hint="R" onClick={() => onReply("reply")} />
             <Action label="Reply all" hint="A" onClick={() => onReply("replyAll")} />
@@ -84,7 +111,7 @@ export function MessageView({ messageId, onReply }: Props) {
       </header>
 
       {thread.length > 1 && (
-        <div className="flex flex-wrap items-center gap-1.5 border-b border-[var(--border)] px-6 py-2">
+        <div className={`flex flex-wrap items-center gap-1.5 border-b border-[var(--border)] py-2 ${pad}`}>
           <span className="text-[11px] text-[var(--ink-faint)]">
             {thread.length} in thread
           </span>
@@ -106,7 +133,7 @@ export function MessageView({ messageId, onReply }: Props) {
       )}
 
       {body && body.blockedImages > 0 && !showImages && (
-        <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--surface)] px-6 py-2 text-[13px]">
+        <div className={`flex items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--surface)] py-2 text-[13px] ${pad}`}>
           <span className="text-[var(--ink-muted)]">
             {body.blockedImages} remote image{body.blockedImages === 1 ? "" : "s"} blocked.
           </span>
@@ -123,7 +150,7 @@ export function MessageView({ messageId, onReply }: Props) {
         </div>
       )}
 
-      <div className="px-6 py-5">
+      <div className={`py-5 ${pad}`}>
         {body ? (
           <div className="message-body" dangerouslySetInnerHTML={{ __html: body.html }} />
         ) : (
@@ -132,7 +159,7 @@ export function MessageView({ messageId, onReply }: Props) {
       </div>
 
       {files.length > 0 && (
-        <div className="border-t border-[var(--border)] px-6 py-4">
+        <div className={`border-t border-[var(--border)] py-4 ${pad}`}>
           <p className="label">Attachments</p>
           <ul className="flex flex-wrap gap-2">
             {files.map((file) => (

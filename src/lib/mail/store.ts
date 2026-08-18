@@ -60,7 +60,13 @@ export async function storeMessage(
       )
       .limit(1);
     const found = existing[0];
-    if (found) return { ...found, created: false };
+    if (found) {
+      // Local delivery lands first; IMAP later attaches the server UID without duplicating.
+      if (options.remoteUid != null) {
+        await db.update(messages).set({ remoteUid: options.remoteUid }).where(eq(messages.id, found.id));
+      }
+      return { ...found, created: false };
+    }
   }
 
   const id = newId("msg");

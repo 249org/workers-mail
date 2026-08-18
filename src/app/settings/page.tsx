@@ -34,7 +34,7 @@ export default async function SettingsOverviewPage() {
   return (
     <div>
       <PageHeader title="Overview">
-        Signed in as {user.email}. This deployment runs entirely on your Cloudflare account.
+        This deployment runs on your Cloudflare account.
       </PageHeader>
 
       <div className="stat-strip relative">

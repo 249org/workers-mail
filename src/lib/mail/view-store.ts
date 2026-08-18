@@ -33,6 +33,28 @@ const inFlight = new Map<string, Promise<void>>();
 /** Load another page once the cursor comes within this many rows of the end. */
 const PREFETCH_MARGIN = 5;
 
+type FolderPage = {
+  messages: MessageSummary[];
+  cursor: number | null;
+  selectedId: string | null;
+};
+
+const folderPages = new Map<string, FolderPage>();
+let pageRequest = 0;
+
+function folderKey(mailboxId: string, folderId: string, search: string): string {
+  return `${mailboxId}:${folderId}:${search.trim()}`;
+}
+
+function rememberFolder(state: Pick<State, "mailboxId" | "folderId" | "search" | "messages" | "cursor" | "selectedId">) {
+  if (!state.mailboxId || !state.folderId) return;
+  folderPages.set(folderKey(state.mailboxId, state.folderId, state.search), {
+    messages: state.messages,
+    cursor: state.cursor,
+    selectedId: state.selectedId,
+  });
+}
+
 type State = {
   mailboxId: string;
   folderId: string;
@@ -88,6 +110,7 @@ type Actions = {
   setSyncing: (syncing: boolean) => void;
   setSyncError: (error: string | null) => void;
   refreshFolders: () => Promise<void>;
+  openFolder: (folderId: string) => void;
 };
 
 export const useMailStore = create<State & Actions>((set, get) => ({
@@ -108,23 +131,32 @@ export const useMailStore = create<State & Actions>((set, get) => ({
 
   hydrate: (input) => {
     const current = get();
-    // Server navigation to a different folder resets transient view state.
-    const changedView =
-      current.mailboxId !== input.mailboxId || current.folderId !== input.folderId;
+    const mailboxChanged = current.mailboxId !== input.mailboxId;
+    const changedView = mailboxChanged || current.folderId !== input.folderId;
 
-    // A cached empty RSC payload must not wipe messages the live socket already loaded.
-    const keepMessages =
-      !changedView && current.messages.length > 0 && input.messages.length === 0;
+    if (!changedView && current.messages.length > 0) {
+      set({
+        folders: input.folders,
+        lastSyncedAt: input.lastSyncedAt,
+        syncError: input.syncError,
+      });
+      return;
+    }
+
+    if (current.folderId && !mailboxChanged) rememberFolder(current);
+
+    const cached =
+      !mailboxChanged && input.folderId
+        ? folderPages.get(folderKey(input.mailboxId, input.folderId, input.search))
+        : undefined;
 
     set({
       ...input,
-      messages: keepMessages ? current.messages : input.messages,
-      cursor: keepMessages ? current.cursor : input.cursor,
+      messages: cached?.messages ?? input.messages,
+      cursor: cached?.cursor ?? input.cursor,
       checked: changedView ? new Set() : current.checked,
-      loaded: changedView ? new Map() : current.loaded,
-      selectedId: keepMessages
-        ? current.selectedId
-        : (input.selectedId ?? input.messages[0]?.id ?? null),
+      loaded: mailboxChanged ? new Map() : current.loaded,
+      selectedId: cached?.selectedId ?? input.selectedId ?? input.messages[0]?.id ?? null,
     });
   },
 
@@ -176,32 +208,39 @@ export const useMailStore = create<State & Actions>((set, get) => ({
 
   fetchPage: async (options = {}) => {
     const { mailboxId, folderId, search, cursor, loading } = get();
-    if (!mailboxId || (options.append && (loading || cursor === null))) return;
+    if (!mailboxId || !folderId || (options.append && (loading || cursor === null))) return;
 
+    const requestId = ++pageRequest;
+    const requestedFolder = folderId;
+    const requestedSearch = search;
     set({ loading: true });
     const params = new URLSearchParams({ mailbox: mailboxId, folder: folderId });
     if (search.trim()) params.set("q", search.trim());
     if (options.append && cursor) params.set("before", String(cursor));
 
     try {
-      const response = await fetch(`/api/messages?${params}`);
+      const response = await fetch(`/api/messages?${params}`, { cache: "no-store" });
       if (!response.ok) return;
       const page = (await response.json()) as {
         items: MessageSummary[];
         nextCursor: number | null;
       };
+      if (requestId !== pageRequest) return;
 
       set((state) => {
+        if (state.folderId !== requestedFolder || state.search !== requestedSearch) return state;
         const messages = options.append ? [...state.messages, ...page.items] : page.items;
         const stillPresent = messages.some((message) => message.id === state.selectedId);
-        return {
+        const selectedId = stillPresent ? state.selectedId : (messages[0]?.id ?? null);
+        folderPages.set(folderKey(state.mailboxId, state.folderId, state.search), {
           messages,
           cursor: page.nextCursor,
-          selectedId: stillPresent ? state.selectedId : (messages[0]?.id ?? null),
-        };
+          selectedId,
+        });
+        return { messages, cursor: page.nextCursor, selectedId };
       });
     } finally {
-      set({ loading: false });
+      if (requestId === pageRequest) set({ loading: false });
     }
   },
 
@@ -277,6 +316,23 @@ export const useMailStore = create<State & Actions>((set, get) => ({
 
   setSyncing: (syncing) => set({ syncing }),
   setSyncError: (syncError) => set({ syncError }),
+
+  openFolder: (folderId) => {
+    const current = get();
+    if (!folderId || current.folderId === folderId) return;
+
+    rememberFolder(current);
+    const cached = folderPages.get(folderKey(current.mailboxId, folderId, current.search));
+    set({
+      folderId,
+      messages: cached?.messages ?? [],
+      cursor: cached?.cursor ?? null,
+      selectedId: cached?.selectedId ?? cached?.messages[0]?.id ?? null,
+      checked: new Set(),
+      loading: !cached,
+    });
+    void get().fetchPage();
+  },
 
   refreshFolders: async () => {
     const { mailboxId } = get();
@@ -399,6 +455,16 @@ async function send(body: {
     return response.ok;
   } catch {
     return false;
+  }
+}
+
+/** Instant folder switch: restore the cached list, then refresh in the background. */
+export function navigateMailFolder(mailboxId: string, folderId: string): void {
+  if (!mailboxId || !folderId) return;
+  useMailStore.getState().openFolder(folderId);
+  const path = `/mail/${mailboxId}/${folderId}`;
+  if (window.location.pathname !== path) {
+    window.history.pushState(window.history.state, "", path);
   }
 }
 

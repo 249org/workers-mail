@@ -84,6 +84,7 @@ export function ApiKeyManager() {
             <label key={scope} className="flex items-center gap-1.5">
               <input
                 type="checkbox"
+                className="check"
                 checked={scopes.includes(scope)}
                 onChange={(event) =>
                   setScopes(

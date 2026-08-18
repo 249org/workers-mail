@@ -26,7 +26,9 @@ export type ShortcutAction =
   | "goSent"
   | "goDrafts"
   | "goArchive"
-  | "goSettings";
+  | "goSettings"
+  | "toggleSidebar"
+  | "toggleList";
 
 export type Shortcut = {
   action: ShortcutAction;
@@ -52,8 +54,10 @@ export const SHORTCUTS: Shortcut[] = [
 
   { action: "next", keys: ["j", "arrowdown"], label: "Next message", group: "Navigation", scope: "list" },
   { action: "previous", keys: ["k", "arrowup"], label: "Previous message", group: "Navigation", scope: "list" },
-  { action: "open", keys: ["enter", "o"], label: "Open message", group: "Navigation", scope: "list" },
+  { action: "open", keys: ["enter", "o"], label: "Read full width", group: "Navigation", scope: "list" },
   { action: "back", keys: ["escape"], label: "Close or go back", group: "Navigation", scope: "global", worksWhileTyping: true },
+  { action: "toggleSidebar", keys: ["["], label: "Collapse folder sidebar", group: "Navigation", scope: "global" },
+  { action: "toggleList", keys: ["]"], label: "Read full width", group: "Navigation", scope: "global" },
 
   { action: "archive", keys: ["e"], label: "Archive", group: "Actions", scope: "list" },
   { action: "trash", keys: ["#", "backspace"], label: "Move to trash", group: "Actions", scope: "list" },

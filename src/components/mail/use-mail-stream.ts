@@ -6,7 +6,7 @@ import type { MailboxEvent } from "@/lib/mail/events";
 export type StreamState = "connecting" | "open" | "polling";
 
 const BACKOFF_MS = [1_000, 2_000, 5_000, 10_000, 30_000];
-const POLL_INTERVAL_MS = 60_000;
+const POLL_INTERVAL_MS = 15_000;
 const HEARTBEAT_MS = 30_000;
 const OPEN_TIMEOUT_MS = 6_000;
 

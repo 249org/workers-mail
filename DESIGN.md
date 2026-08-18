@@ -82,11 +82,11 @@ components:
 
 Workers Mail is drawn, not stacked. Regions are hairline frames on a warm off-white field. The only fully curved things are pressable controls. Brand lives in that contrast, in Geist vs Newsreader, and in terracotta used rarely.
 
-Operate mode: three-pane mail, settings as a ruled document, login as a framed sheet. Light and dark follow `prefers-color-scheme`.
+Operate mode: three-pane mail, settings as a ruled document, login as a framed sheet. Light and dark follow the operator's Appearance setting (System / Light / Dark). Colour templates (Meridian, Harbor, Grove, Ember, Ink, Dusk) remap primary, highlight, and paper; structure does not change.
 
 ## Colors
 
-Meridian. Primary (slate-blue) is interactive: buttons, selected nav, unread dots, focus. Accent-subtle tints selected and active rows. Accent-wash is hover on ghost controls and stat cells. Highlight (terracotta) is for icon wells, required asterisks, and identity initials — never routine status. Status stays success / warning / destructive. Do not invent extra blues or purples.
+Meridian is the default. Primary is interactive: buttons, selected nav, unread dots, focus. Accent-subtle tints selected and active rows. Accent-wash is hover on ghost controls and stat cells. Highlight is for icon wells, required asterisks, and identity initials — never routine status. Status stays success / warning / destructive. Extra hues exist only as operator-chosen templates in Settings → Appearance, never as one-off component colours.
 
 ## Typography
 
@@ -94,7 +94,7 @@ UI and body: Geist Sans, 13px, antialiased, `rlig` + `calt` + tabular nums. Page
 
 ## Layout
 
-8px grid. App chrome `px-8`. Settings content max 64rem with a 11rem side nav. Mail is three hairline-split panes; the page never scrolls — panes do. Stats sit in a ruled strip of cells (borders on children, no outer double line). Empty states are centered, with a highlight-subtle icon well.
+8px grid. App chrome `px-8`. Settings content max 64rem with a 11rem side nav. Mail is three hairline-split panes; the page never scrolls — panes do. The folder rail collapses to a 56px icon strip (`[`). The message list can hide so the reader fills the remaining width (`]`, Enter). Stats sit in a ruled strip of cells (borders on children, no outer double line). Empty states are centered, with a highlight-subtle icon well.
 
 ## Elevation & Depth
 

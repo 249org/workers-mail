@@ -1,5 +1,11 @@
+import { cookies } from "next/headers";
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Newsreader } from "next/font/google";
+import {
+  APPEARANCE_BOOTSTRAP,
+  APPEARANCE_COOKIE,
+  parseAppearance,
+} from "@/lib/appearance";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -32,9 +38,20 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const prefs = parseAppearance((await cookies()).get(APPEARANCE_COOKIE)?.value);
+
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} ${newsreader.variable}`}>
+    <html
+      lang="en"
+      data-palette={prefs.palette}
+      data-scheme={prefs.scheme}
+      suppressHydrationWarning
+      className={`${geistSans.variable} ${geistMono.variable} ${newsreader.variable}`}
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: APPEARANCE_BOOTSTRAP }} />
+      </head>
       <body className="font-sans antialiased">
         {/*
           THESIS: Mail is a drawing — hairline regions vs pill controls — not a stack of floating cards.

@@ -7,7 +7,7 @@ import { displayName } from "@/lib/mail/address";
 import type { MessageSummary } from "@/lib/mail/queries";
 import { SEARCH_OPERATORS } from "@/lib/mail/search";
 import type { PublicMailbox } from "@/lib/mail/mailboxes";
-import { useMailStore } from "@/lib/mail/view-store";
+import { navigateMailFolder, useMailStore } from "@/lib/mail/view-store";
 import { useHotkeys } from "@/lib/keyboard/use-hotkeys";
 import { formatMessageDate } from "@/lib/format";
 
@@ -209,7 +209,7 @@ export function CommandPalette({
                   key={folder.id}
                   value={`folder-${folder.id}`}
                   onSelect={() =>
-                    runAndClose(() => router.push(`/mail/${mailbox.id}/${folder.id}`))
+                    runAndClose(() => navigateMailFolder(mailbox.id, folder.id))
                   }
                 >
                   <span className="flex-1 truncate">{folder.name}</span>

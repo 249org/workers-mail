@@ -1,14 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import type { MailboxEvent } from "@/lib/mail/events";
 import type { PublicMailbox } from "@/lib/mail/mailboxes";
-import type { MessageSummary } from "@/lib/mail/queries";
 import { formatAddressList } from "@/lib/mail/address";
 import { normalizeSubject } from "@/lib/mail/thread";
-import { useMailStore, type FolderSummary } from "@/lib/mail/view-store";
+import { navigateMailFolder, useMailStore, type FolderSummary } from "@/lib/mail/view-store";
+import { readMailLayout, writeMailLayout, type MailLayout } from "@/lib/mail/layout-prefs";
 import { useHotkeys } from "@/lib/keyboard/use-hotkeys";
 import { CommandPalette, type PaletteCommand } from "@/components/palette/command-palette";
 import { ComposeDialog, type ComposeDraft } from "./compose-dialog";
@@ -22,11 +22,6 @@ type Props = {
   mailbox: PublicMailbox;
   mailboxes: PublicMailbox[];
   folders: FolderSummary[];
-  activeFolderId: string;
-  initialMessages: MessageSummary[];
-  initialCursor: number | null;
-  initialSearch: string;
-  initialSelectedId: string | null;
   initialLastSyncedAt: number | null;
   initialSyncError: string | null;
 };
@@ -38,22 +33,33 @@ export function MailWorkspace({
   mailbox,
   mailboxes,
   folders,
-  activeFolderId,
-  initialMessages,
-  initialCursor,
-  initialSearch,
-  initialSelectedId,
   initialLastSyncedAt,
   initialSyncError,
 }: Props) {
   const router = useRouter();
+  const params = useParams<{ mailboxId: string; folderId?: string }>();
+  const searchParams = useSearchParams();
+  const folderId = params.folderId ?? "";
   const [compose, setCompose] = useState<ComposeDraft | null>(null);
   const [composeMailboxId, setComposeMailboxId] = useState(mailbox.id);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteQuery, setPaletteQuery] = useState("");
   const [helpOpen, setHelpOpen] = useState(false);
+  const [layout, setLayout] = useState<MailLayout>({ sidebarCollapsed: false, listHidden: false });
   const searchRef = useRef<HTMLInputElement>(null);
   const searchDirty = useRef(false);
+
+  useEffect(() => {
+    setLayout(readMailLayout());
+  }, []);
+
+  const setMailLayout = useCallback((patch: Partial<MailLayout> | ((current: MailLayout) => MailLayout)) => {
+    setLayout((current) => {
+      const next = typeof patch === "function" ? patch(current) : { ...current, ...patch };
+      writeMailLayout(next);
+      return next;
+    });
+  }, []);
 
   const hydrate = useMailStore((state) => state.hydrate);
   const messages = useMailStore((state) => state.messages);
@@ -66,30 +72,37 @@ export function MailWorkspace({
   useEffect(() => {
     hydrate({
       mailboxId: mailbox.id,
-      folderId: activeFolderId,
-      messages: initialMessages,
+      folderId,
+      messages: [],
       folders,
-      cursor: initialCursor,
-      search: initialSearch,
-      selectedId: initialSelectedId,
+      cursor: null,
+      search: searchParams.get("q") ?? "",
+      selectedId: searchParams.get("message"),
       lastSyncedAt: initialLastSyncedAt,
       syncError: initialSyncError,
     });
-    // Folder Links prefetch; an empty payload captured before IMAP landed would
-    // otherwise stick. Always re-read the folder from the API after hydrate.
-    void useMailStore.getState().fetchPage();
-  }, [
-    hydrate,
-    mailbox.id,
-    activeFolderId,
-    initialMessages,
-    folders,
-    initialCursor,
-    initialSearch,
-    initialSelectedId,
-    initialLastSyncedAt,
-    initialSyncError,
-  ]);
+    if (folderId) void useMailStore.getState().fetchPage();
+    // Mailbox layout owns this tree; folder changes go through openFolder.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrate, mailbox.id, folders, initialLastSyncedAt, initialSyncError]);
+
+  useEffect(() => {
+    if (folderId && folderId !== useMailStore.getState().folderId) {
+      useMailStore.getState().openFolder(folderId);
+    }
+  }, [folderId]);
+
+  useEffect(() => {
+    const onPopState = () => {
+      const match = window.location.pathname.match(/^\/mail\/[^/]+\/([^/]+)/);
+      const nextFolder = match?.[1];
+      if (nextFolder && nextFolder !== useMailStore.getState().folderId) {
+        useMailStore.getState().openFolder(nextFolder);
+      }
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   // Re-query on search, but never on the first render — the server already did it.
   useEffect(() => {
@@ -107,15 +120,20 @@ export function MailWorkspace({
       if (event.type === "sync") {
         store.setSyncing(event.state === "syncing");
         store.setSyncError(event.state === "error" ? (event.error ?? "Sync failed") : null);
-        if (event.state === "idle" || event.state === "error" || (event.stored ?? 0) > 0) {
+        if ((event.stored ?? 0) > 0 || event.state === "idle") {
           void store.fetchPage();
           void store.refreshFolders();
         }
         return;
       }
       if (event.type === "new") {
-        void store.fetchPage();
         void store.refreshFolders();
+        if (event.folderId === store.folderId) void store.fetchPage();
+        return;
+      }
+      if (event.type === "sent") {
+        const sent = store.folders.find((folder) => folder.role === "sent");
+        if (sent && sent.id === store.folderId) void store.fetchPage();
       }
     },
     [],
@@ -123,13 +141,27 @@ export function MailWorkspace({
 
   const streamState = useMailStream(mailbox.id, onEvent);
 
-  // Cached RSC payloads can keep an empty inbox on screen after IMAP has stored
-  // mail. Reload the list as soon as the live socket (or polling fallback) is up.
   useEffect(() => {
     if (streamState === "connecting") return;
     void fetchPage();
     void refreshFolders();
   }, [streamState, fetchPage, refreshFolders]);
+
+  useEffect(() => {
+    function onVisible() {
+      if (document.visibilityState !== "visible") return;
+      void fetchPage();
+      void refreshFolders();
+    }
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    const tick = setInterval(onVisible, 15_000);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+      clearInterval(tick);
+    };
+  }, [fetchPage, refreshFolders]);
 
   const targetIds = useMemo(
     () => (checked.size > 0 ? [...checked] : selectedId ? [selectedId] : []),
@@ -200,9 +232,9 @@ export function MailWorkspace({
   const goToRole = useCallback(
     (role: string) => {
       const target = useMailStore.getState().folders.find((folder) => folder.role === role);
-      if (target) router.push(`/mail/${mailbox.id}/${target.id}`);
+      if (target) navigateMailFolder(mailbox.id, target.id);
     },
-    [router, mailbox.id],
+    [mailbox.id],
   );
 
   const syncNow = useCallback(async () => {
@@ -212,6 +244,22 @@ export function MailWorkspace({
     await store.fetchPage();
     store.setSyncing(false);
   }, [mailbox.id]);
+
+  const toggleSidebar = useCallback(() => {
+    setMailLayout((current) => ({ ...current, sidebarCollapsed: !current.sidebarCollapsed }));
+  }, [setMailLayout]);
+
+  const setListHidden = useCallback(
+    (hidden: boolean) => {
+      setMailLayout({ listHidden: hidden });
+    },
+    [setMailLayout],
+  );
+
+  const toggleList = useCallback(() => {
+    if (!useMailStore.getState().selectedId) return;
+    setMailLayout((current) => ({ ...current, listHidden: !current.listHidden }));
+  }, [setMailLayout]);
 
   useHotkeys("global", {
     palette: () => {
@@ -230,7 +278,13 @@ export function MailWorkspace({
       });
     },
     syncNow: () => void syncNow(),
+    toggleSidebar,
+    toggleList,
     back: () => {
+      if (layout.listHidden) {
+        setListHidden(false);
+        return;
+      }
       const store = useMailStore.getState();
       if (store.checked.size > 0) store.clearChecked();
       else searchRef.current?.blur();
@@ -246,6 +300,9 @@ export function MailWorkspace({
   useHotkeys("list", {
     next: () => useMailStore.getState().step(1),
     previous: () => useMailStore.getState().step(-1),
+    open: () => {
+      if (useMailStore.getState().selectedId) setListHidden(true);
+    },
     archive,
     trash,
     star: () => {
@@ -280,6 +337,20 @@ export function MailWorkspace({
       { id: "archive", label: "Archive selected", hint: "E", group: "Actions", run: archive },
       { id: "trash", label: "Move selected to trash", hint: "#", group: "Actions", run: trash },
       { id: "sync", label: "Sync now", group: "Actions", run: () => void syncNow() },
+      {
+        id: "sidebar",
+        label: layout.sidebarCollapsed ? "Expand folder sidebar" : "Collapse folder sidebar",
+        hint: "[",
+        group: "Application",
+        run: toggleSidebar,
+      },
+      {
+        id: "reader",
+        label: layout.listHidden ? "Show message list" : "Read full width",
+        hint: "]",
+        group: "Application",
+        run: toggleList,
+      },
       { id: "help", label: "Keyboard shortcuts", hint: "?", group: "Application", run: () => setHelpOpen(true) },
       { id: "settings", label: "Open settings", group: "Application", run: () => router.push("/settings") },
       {
@@ -292,7 +363,7 @@ export function MailWorkspace({
         },
       },
     ],
-    [archive, trash, syncNow, router],
+    [archive, trash, syncNow, router, layout.sidebarCollapsed, layout.listHidden, toggleSidebar, toggleList],
   );
 
   return (
@@ -301,6 +372,8 @@ export function MailWorkspace({
         mailbox={mailbox}
         mailboxes={mailboxes}
         streamState={streamState}
+        collapsed={layout.sidebarCollapsed}
+        onToggleCollapsed={toggleSidebar}
         onCompose={() => {
           setComposeMailboxId(mailbox.id);
           setCompose(EMPTY_DRAFT);
@@ -313,14 +386,21 @@ export function MailWorkspace({
       />
 
       <MessageList
+        hidden={layout.listHidden && Boolean(selectedId)}
         searchRef={searchRef}
+        onHideList={() => setListHidden(true)}
         onOpenSearch={() => {
           /* focus alone is enough; the palette stays a deliberate ⌘K action */
         }}
       />
 
       {selectedId && messages.length > 0 ? (
-        <MessageView messageId={selectedId} onReply={startReply} />
+        <MessageView
+          messageId={selectedId}
+          onReply={startReply}
+          listHidden={layout.listHidden}
+          onToggleList={toggleList}
+        />
       ) : (
         <section className="hidden flex-1 items-center justify-center bg-card md:flex">
           <p className="text-[13px] text-muted-foreground">
