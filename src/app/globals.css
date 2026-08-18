@@ -219,6 +219,7 @@ textarea.field {
   height: 3.5rem;
   padding: 0 0.5rem;
   flex-shrink: 0;
+  overflow: visible;
 }
 
 .pane-toolbar[data-wide] {
@@ -452,6 +453,12 @@ button.field {
 .tip-end::after {
   left: auto;
   right: 0;
+  transform: none;
+}
+
+.tip-start::after {
+  left: 0;
+  right: auto;
   transform: none;
 }
 
@@ -1524,6 +1531,19 @@ html[data-palette="ink"] .tour-mark-well {
   flex-direction: column;
   overflow: hidden;
   background: var(--card);
+}
+
+.settings-spread-slot {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.settings-spread-slot[hidden] {
+  display: none;
 }
 
 .settings-spread-head {

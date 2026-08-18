@@ -9,6 +9,7 @@ import {
 } from "@/lib/appearance";
 import type { PaletteCommand } from "@/components/palette/command-palette";
 import { SETTINGS_PAGES } from "@/components/settings/settings-nav";
+import { useSettingsViewStore } from "@/components/settings/settings-view-store";
 import { usePaletteStore } from "@/lib/palette/store";
 import { useOnboardingStore } from "@/lib/onboarding-store";
 
@@ -58,7 +59,10 @@ export function settingsCommands(
     label: page.command,
     group: "Settings",
     keywords: ["settings", "preferences", ...page.keywords],
-    run: () => navigate(page.href),
+    run: () => {
+      useSettingsViewStore.getState().prepare(page.href);
+      navigate(page.href);
+    },
   }));
 
   return [

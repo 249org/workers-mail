@@ -8,17 +8,18 @@ type Props = {
   hint?: string;
   danger?: boolean;
   end?: boolean;
+  start?: boolean;
   pressed?: boolean;
   disabled?: boolean;
   onClick: () => void;
 };
 
-export function ChromeButton({ icon, label, hint, danger, end, pressed, disabled, onClick }: Props) {
+export function ChromeButton({ icon, label, hint, danger, end, start, pressed, disabled, onClick }: Props) {
   const tip = hint ? `${label} (${hint})` : label;
   return (
     <button
       type="button"
-      className={`tip btn btn-quiet btn-icon shrink-0 ${end ? "tip-end" : ""}`}
+      className={`tip btn btn-quiet btn-icon shrink-0 ${end ? "tip-end" : ""} ${start ? "tip-start" : ""}`}
       style={danger ? { color: "var(--danger)" } : undefined}
       data-tip={tip}
       aria-label={tip}

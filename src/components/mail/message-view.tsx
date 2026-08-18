@@ -46,6 +46,7 @@ export function MessageView({ messageId, onReply, listHidden, onToggleList }: Pr
             icon={listHidden ? "list" : "expand"}
             label={listHidden ? "Show message list" : "Read full width"}
             hint="]"
+            start
             pressed={listHidden}
             onClick={onToggleList}
           />
@@ -65,13 +66,14 @@ export function MessageView({ messageId, onReply, listHidden, onToggleList }: Pr
   const sentAt = new Date(detail.sentAt * 1000);
 
   return (
-    <section className="scroll-thin flex min-w-0 flex-1 flex-col overflow-y-auto bg-card">
-      <header className="sticky top-0 z-10 border-b border-border bg-card/90 backdrop-blur-md">
+    <section className="flex min-w-0 flex-1 flex-col bg-card">
+      <header className="z-[21] shrink-0 border-b border-border bg-card">
         <div className="pane-toolbar" data-wide={listHidden ? "" : undefined}>
           <ChromeButton
             icon={listHidden ? "list" : "expand"}
             label={listHidden ? "Show message list" : "Read full width"}
             hint="]"
+            start
             pressed={listHidden}
             onClick={onToggleList}
           />
@@ -108,6 +110,7 @@ export function MessageView({ messageId, onReply, listHidden, onToggleList }: Pr
         </div>
       </header>
 
+      <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
       {thread.length > 1 && (
         <div className={`flex flex-wrap items-center gap-1.5 border-b border-border py-2 ${chromePad}`}>
           <span className="text-[13px] text-muted-foreground">{thread.length} in thread</span>
@@ -212,6 +215,7 @@ export function MessageView({ messageId, onReply, listHidden, onToggleList }: Pr
           </footer>
         )}
       </article>
+      </div>
     </section>
   );
 }

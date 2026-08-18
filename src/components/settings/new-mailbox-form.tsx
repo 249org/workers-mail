@@ -8,6 +8,7 @@ import {
   type AccountKind,
 } from "@/components/mail/account-kind-picker";
 import { LinkInboxWizard, type ImapDraft } from "@/components/mail/link-inbox-wizard";
+import { useSettingsViewStore } from "@/components/settings/settings-view-store";
 import type { EasyProviderId } from "@/lib/transport/presets";
 
 type DomainOption = { id: string; name: string; status: string };
@@ -48,6 +49,7 @@ export function NewMailboxForm({
       setBusy(false);
       return;
     }
+    useSettingsViewStore.getState().prepare("/settings/mailboxes");
     router.push("/settings/mailboxes");
     router.refresh();
   }
@@ -70,6 +72,7 @@ export function NewMailboxForm({
       setBusy(false);
       return;
     }
+    useSettingsViewStore.getState().prepare("/settings/mailboxes");
     router.push("/settings/mailboxes");
     router.refresh();
   }

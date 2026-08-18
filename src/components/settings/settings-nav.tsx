@@ -104,8 +104,9 @@ export type SettingsIndex = {
   signatureOn: boolean;
 };
 
-export function SettingsNav({ index }: { index: SettingsIndex }) {
+export function SettingsNav({ index, view }: { index: SettingsIndex; view?: string }) {
   const pathname = usePathname();
+  const current = view ?? pathname;
 
   return (
     <nav className="settings-index" aria-label="Settings">
@@ -115,14 +116,16 @@ export function SettingsNav({ index }: { index: SettingsIndex }) {
           {SETTINGS_PAGES.filter((item) => (group.hrefs as readonly string[]).includes(item.href)).map((item) => {
             const active =
               item.href === "/settings"
-                ? pathname === "/settings"
+                ? current === "/settings"
                 : item.href === "/settings/mailboxes"
-                  ? pathname.startsWith("/settings/mailboxes")
-                  : pathname.startsWith(item.href);
+                  ? current.startsWith("/settings/mailboxes")
+                  : current.startsWith(item.href);
             return (
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch
+                scroll={false}
                 className="settings-index-item"
                 data-active={active ? "true" : undefined}
               >

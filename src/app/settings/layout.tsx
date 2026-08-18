@@ -4,7 +4,8 @@ import { requireUser } from "@/lib/auth/server";
 import { listMailboxes, publicMailbox } from "@/lib/mail/mailboxes";
 import { apiKeys, contacts, domains, users } from "@/lib/db/schema";
 import { AppHeader } from "@/components/app-header";
-import { SettingsNav, type SettingsIndex } from "@/components/settings/settings-nav";
+import { type SettingsIndex } from "@/components/settings/settings-nav";
+import { SettingsRuntime } from "@/components/settings/settings-runtime";
 import {
   APPEARANCE_COOKIE,
   PALETTES,
@@ -74,10 +75,7 @@ export default async function SettingsLayout({ children }: { children: React.Rea
         context="settings"
       />
 
-      <div className="settings-shell">
-        <SettingsNav index={index} />
-        <main className="settings-spread">{children}</main>
-      </div>
+      <SettingsRuntime index={index}>{children}</SettingsRuntime>
       <Toaster
         position="bottom-right"
         toastOptions={{
