@@ -84,6 +84,23 @@ export function BrandLockup({ size = "sm" }: Props) {
   );
 }
 
+/** The slash mark on its own — cropped to the glyph, follows `currentColor`. */
+export function BrandMark({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="6.5 6 32 33"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path fillRule="evenodd" clipRule="evenodd" d={MARK_FLAT} />
+      <path fillRule="evenodd" clipRule="evenodd" d={MARK_FLAT_SOFT} opacity="0.4" />
+    </svg>
+  );
+}
+
 const MARK_FLAT =
   "M18.4201 9.79148C19.2053 10.2448 19.4743 11.2487 19.021 12.0338L10.8134 26.2498C10.3601 27.0349 9.35616 27.3039 8.57104 26.8506C7.78592 26.3973 7.51689 25.3934 7.9702 24.6083L16.1778 10.3923C16.6311 9.6072 17.635 9.33819 18.4201 9.79148ZM27.7561 13.3178C28.5412 13.7712 28.8102 14.7751 28.3569 15.5602L18.5078 32.6194C18.0545 33.4045 17.0506 33.6735 16.2655 33.2202C15.4803 32.7669 15.2113 31.763 15.6646 30.9778L25.5137 13.9187C25.967 13.1336 26.9709 12.8645 27.7561 13.3178ZM36.7357 20.7434C37.2646 19.8275 37.0569 18.7174 36.2717 18.2641C35.4866 17.8108 34.4214 18.1859 33.8926 19.1019L24.317 35.6872C23.7882 36.6032 23.9959 37.7132 24.7811 38.1665C25.5662 38.6198 26.6314 38.2447 27.1602 37.3287L36.7357 20.7434Z";
 

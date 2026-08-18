@@ -2,17 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { KeyCaps, useIsMac } from "@/components/mail/key-caps";
+import { BrandMark } from "@/components/brand/wordmark";
 import { primaryCombo } from "@/lib/keyboard/bindings";
 import { useShortcutStore } from "@/lib/keyboard/store";
 import { useHotkeys } from "@/lib/keyboard/use-hotkeys";
 import type { ShortcutAction } from "@/lib/keyboard/shortcuts";
 
-type Focus = "all" | "folders" | "list" | "reader" | "command";
+type Figure = "mark" | "move" | "act" | "command" | "jump";
 
 type Step = {
   title: string;
   body: string;
-  focus: Focus;
+  figure: Figure;
   keys: ShortcutAction[];
 };
 
@@ -20,31 +21,31 @@ const STEPS: Step[] = [
   {
     title: "A keyboard-first mailbox",
     body: "Folders, the list, and the message sit in three hairline panes. The work happens on the keys, not the chrome.",
-    focus: "all",
+    figure: "mark",
     keys: [],
   },
   {
     title: "Move",
     body: "Walk the list, then open a message full width. Same motion as any mail client — just faster.",
-    focus: "list",
+    figure: "move",
     keys: ["next", "previous", "open"],
   },
   {
     title: "Act",
     body: "Archive, star, and compose without the mouse. These do not animate; they just happen.",
-    focus: "list",
+    figure: "act",
     keys: ["archive", "star", "compose"],
   },
   {
     title: "Command",
     body: "One surface for appearance, settings, and mail. Search when you already know what you want.",
-    focus: "command",
+    figure: "command",
     keys: ["palette", "search"],
   },
   {
     title: "Shape and jump",
     body: "Collapse the folder rail or hide the list so the reader fills the width. Jump to a folder with a two-key sequence. The cheat sheet is always one key away, and every binding can be reassigned in Settings → Shortcuts.",
-    focus: "folders",
+    figure: "jump",
     keys: ["toggleSidebar", "toggleList", "goInbox", "help"],
   },
 ];
@@ -99,7 +100,7 @@ export function OnboardingTour({ open, onClose }: { open: boolean; onClose: () =
         <span className="reg reg-br" />
 
         <div className="px-6 pt-6">
-          <WorkspaceSketch focus={current.focus} />
+          <TourFigure figure={current.figure} isMac={isMac} />
         </div>
 
         <div className="px-6 pt-5 pb-2">
@@ -170,15 +171,57 @@ export function OnboardingTour({ open, onClose }: { open: boolean; onClose: () =
   );
 }
 
-function WorkspaceSketch({ focus }: { focus: Focus }) {
+function TourFigure({ figure, isMac }: { figure: Figure; isMac: boolean }) {
   return (
-    <div className="tour-sketch" aria-hidden>
-      <div className="tour-sketch-bar" data-on={focus === "command" ? "true" : undefined} />
-      <div className="tour-sketch-panes">
-        <div data-on={focus === "all" || focus === "folders" ? "true" : undefined} />
-        <div data-on={focus === "all" || focus === "list" ? "true" : undefined} />
-        <div data-on={focus === "all" || focus === "reader" ? "true" : undefined} />
+    <div className="tour-hero" aria-hidden>
+      <div className="tour-hero-scene" key={figure}>
+        {figure === "mark" ? (
+          <div className="tour-mark-well">
+            <BrandMark className="tour-mark" />
+          </div>
+        ) : null}
+        {figure === "move" ? <MoveFigure /> : null}
+        {figure === "act" ? <KeyRow keys={["E", "S", "C"]} /> : null}
+        {figure === "command" ? <CommandFigure isMac={isMac} /> : null}
+        {figure === "jump" ? <KeyRow keys={["[", "]", "G", "I"]} /> : null}
       </div>
+    </div>
+  );
+}
+
+function MoveFigure() {
+  return (
+    <div className="tour-list">
+      {[0, 1, 2].map((index) => (
+        <div key={index} className="tour-list-row" data-on={index === 1 ? "true" : undefined}>
+          <span className="tour-list-dot" />
+          <span className="tour-list-lines">
+            <span />
+            <span />
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CommandFigure({ isMac }: { isMac: boolean }) {
+  return (
+    <div className="tour-search">
+      <span>Search mail</span>
+      <KeyCaps combo="mod+k" isMac={isMac} />
+    </div>
+  );
+}
+
+function KeyRow({ keys }: { keys: string[] }) {
+  return (
+    <div className="tour-hero-keys">
+      {keys.map((key) => (
+        <span key={key} className="kbd">
+          {key}
+        </span>
+      ))}
     </div>
   );
 }
