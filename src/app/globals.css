@@ -845,11 +845,16 @@ section:has(> header .pane-toolbar[data-wide]) .message-sheet {
   background: none;
 }
 
-/* Designed HTML mail keeps its own tables, colours, and buttons. */
+/* HTML mail is an authored light letter. Isolate it from the app scheme so
+   table cells without their own colour do not inherit night-mode CanvasText
+   onto a white bgcolor — and so `bgcolor` on td/th is not wiped by our CSS. */
 .message-body[data-kind="html"] {
   font-size: 14px;
   line-height: 1.5;
-  color: var(--foreground);
+  color: #1a1a1a;
+  background-color: #fff;
+  color-scheme: light;
+  color-scheme: only light;
 }
 
 .message-body[data-kind="html"] a {
@@ -860,12 +865,6 @@ section:has(> header .pane-toolbar[data-wide]) .message-sheet {
   max-width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-}
-
-.message-body[data-kind="html"] td,
-.message-body[data-kind="html"] th {
-  border: none;
-  background: none;
 }
 
 .message-body[data-kind="html"] img {
