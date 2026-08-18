@@ -1,15 +1,18 @@
 import { ApiError, authenticate, errorResponse, readJson } from "@/lib/auth/api";
-import { createSession, hasAnyUser, sessionCookie } from "@/lib/auth/session";
+import { createSession, findUserByEmail, hasAnyUser, sessionCookie } from "@/lib/auth/session";
+import { issuePasswordReset } from "@/lib/auth/password-reset";
 import { encryptSecret, hashPassword } from "@/lib/crypto";
 import { createDb } from "@/lib/db";
 import { mailboxes, users } from "@/lib/db/schema";
 import { newId } from "@/lib/ids";
-import { isEmailAddress, normalizeAddress, parseAddressList } from "@/lib/mail/address";
-import { ensureDefaultFolders, getOwnedMailbox } from "@/lib/mail/mailboxes";
+import { domainOf, isEmailAddress, normalizeAddress, parseAddressList } from "@/lib/mail/address";
+import { buildRawMessage, generateMessageId } from "@/lib/mail/build";
+import { ensureDefaultFolders, getOwnedMailbox, listMailboxes } from "@/lib/mail/mailboxes";
 import { sendMessage, SendError } from "@/lib/mail/send";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
+import { smtpCredentials } from "@/lib/transport/credentials";
 import { testImapConnection } from "@/lib/transport/imap";
-import { testSmtpConnection } from "@/lib/transport/smtp";
+import { sendViaSmtp, testSmtpConnection } from "@/lib/transport/smtp";
 import {
   TransportConfigError,
   validateImapSettings,
@@ -330,4 +333,67 @@ export async function handleSetup(request: Request, env: CloudflareEnv): Promise
 
 function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Password-reset mail has to leave from the Worker entry: SMTP needs `cloudflare:sockets`.
+ * The response is always the same so the form cannot be used to probe which addresses exist.
+ */
+export async function handleForgotPassword(request: Request, env: CloudflareEnv): Promise<Response> {
+  const generic = {
+    ok: true,
+    message: "If that account exists, a reset link is on its way.",
+  };
+
+  try {
+    const limit = await rateLimit(env.SESSION_STORE, clientKey(request, "forgot"), 5, 900);
+    if (!limit.allowed) {
+      return Response.json({ error: "Too many attempts. Try again shortly." }, { status: 429 });
+    }
+
+    const body = await readJson<{ email?: string }>(request);
+    const email = body.email?.trim().toLowerCase() ?? "";
+    if (!isEmailAddress(email)) return Response.json(generic);
+
+    const db = createDb(env.DB);
+    const user = await findUserByEmail(db, email);
+    if (!user) return Response.json(generic);
+
+    const token = await issuePasswordReset(env.SESSION_STORE, user.id);
+    const origin = new URL(request.url).origin;
+    const resetUrl = `${origin}/login/reset?token=${token}`;
+
+    const owned = await listMailboxes(db, user.id);
+    const mailbox =
+      owned.find((item) => item.address.toLowerCase() === user.email && item.smtpHost) ??
+      owned.find((item) => item.smtpHost);
+    if (!mailbox) return Response.json(generic);
+
+    const raw = buildRawMessage({
+      from: { address: mailbox.address, name: "Workers Mail" },
+      to: [{ address: user.email }],
+      subject: "Reset your Workers Mail password",
+      text: [
+        "A password reset was requested for this Workers Mail account.",
+        "",
+        "Open this link within an hour to choose a new password:",
+        resetUrl,
+        "",
+        "If you did not ask for this, you can ignore the message.",
+      ].join("\n"),
+      messageId: generateMessageId(domainOf(mailbox.address)),
+    });
+
+    const credentials = await smtpCredentials(mailbox, env.MAIL_ENCRYPTION_KEY);
+    await sendViaSmtp(credentials, {
+      from: mailbox.address,
+      to: [user.email],
+      subject: "Reset your Workers Mail password",
+      raw: new TextEncoder().encode(raw),
+    });
+    return Response.json(generic);
+  } catch (error) {
+    console.error("password reset mail failed", error);
+    return Response.json(generic);
+  }
 }

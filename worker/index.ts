@@ -3,7 +3,7 @@ import { createDb } from "@/lib/db";
 import { resolveRecipient } from "@/lib/mail/routing";
 import { pollExternalMailboxes } from "./cron";
 import { handleIngestBatch } from "./ingest";
-import { handleSend, handleSetup, handleTestConnection } from "./routes";
+import { handleSend, handleSetup, handleTestConnection, handleForgotPassword } from "./routes";
 import { handleStream } from "./stream";
 import type { IngestJob } from "./types";
 
@@ -24,6 +24,9 @@ export default {
     }
     if (url.pathname === "/api/mail/setup" && request.method === "POST") {
       return handleSetup(request, env);
+    }
+    if (url.pathname === "/api/auth/password/forgot" && request.method === "POST") {
+      return handleForgotPassword(request, env);
     }
 
     return nextHandler.fetch(request, env, ctx);
