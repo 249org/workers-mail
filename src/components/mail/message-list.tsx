@@ -14,6 +14,7 @@ type Props = {
   hidden?: boolean;
   sidebarCollapsed: boolean;
   onToggleSidebar: () => void;
+  onCompose?: () => void;
 };
 
 export function MessageList({
@@ -22,6 +23,7 @@ export function MessageList({
   hidden,
   sidebarCollapsed,
   onToggleSidebar,
+  onCompose,
 }: Props) {
   const messages = useMailStore((state) => state.messages);
   const selectedId = useMailStore((state) => state.selectedId);
@@ -53,7 +55,7 @@ export function MessageList({
 
   return (
     <section
-      className={`flex w-full shrink-0 flex-col border-r border-border bg-card md:w-[21rem] lg:w-[25rem] ${
+      className={`mail-list flex w-full min-h-0 shrink-0 flex-col border-r border-border bg-card md:w-[21rem] lg:w-[25rem] ${
         hidden ? "hidden" : ""
       }`}
     >
@@ -62,6 +64,7 @@ export function MessageList({
           icon="sidebar"
           label={sidebarCollapsed ? "Expand folder sidebar" : "Collapse folder sidebar"}
           hint="["
+          start
           pressed={sidebarCollapsed}
           onClick={onToggleSidebar}
         />
@@ -76,10 +79,15 @@ export function MessageList({
             className="field pr-12"
             aria-label="Search messages"
           />
-          <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2">
+          <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 max-md:hidden">
             <span className="kbd">/</span>
           </span>
         </div>
+        {onCompose ? (
+          <span className="md:hidden">
+            <ChromeButton icon="compose" label="Compose" hint="C" onClick={onCompose} />
+          </span>
+        ) : null}
         {inTrash && messages.length > 0 && <EmptyTrashButton />}
       </div>
 
@@ -156,7 +164,7 @@ function Row({
         tabIndex={-1}
         onClick={onSelect}
         onMouseEnter={onHover}
-        className="flex cursor-pointer gap-2.5 border-b border-border px-3 py-2"
+        className="flex cursor-pointer gap-2.5 border-b border-border px-3 py-2.5 md:py-2"
         style={{
           background: active ? "var(--accent-subtle)" : "transparent",
         }}

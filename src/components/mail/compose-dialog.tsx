@@ -178,7 +178,7 @@ export function ComposeDialog({
     >
       <div className="overlay-backdrop absolute inset-0" data-open={mounted} />
       <div
-        className="overlay-panel panel relative flex max-h-full w-full max-w-2xl flex-col overflow-hidden"
+        className="overlay-panel panel relative flex max-h-full w-full max-w-2xl flex-col overflow-hidden max-md:h-full max-md:max-h-none max-md:rounded-none"
         data-open={mounted}
         style={{ boxShadow: "var(--shadow-pop)" }}
       >
@@ -283,10 +283,10 @@ export function ComposeDialog({
           )}
         </div>
 
-        <footer className="frost-bar flex items-center gap-3 px-4 py-3">
+        <footer className="frost-bar flex flex-wrap items-center gap-3 px-4 py-3">
           <button type="button" className="btn btn-primary" onClick={send} disabled={sending}>
             {sending ? "Sending" : "Send"}
-            <span className="kbd" style={{ background: "transparent", color: "inherit", opacity: 0.75 }}>
+            <span className="kbd max-md:hidden" style={{ background: "transparent", color: "inherit", opacity: 0.75 }}>
               ⌘↵
             </span>
           </button>
@@ -314,8 +314,8 @@ export function ComposeDialog({
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="mb-2 flex items-center gap-3">
-      <span className="w-14 shrink-0 text-xs text-[var(--ink-muted)]">{label}</span>
+    <div className="mb-2 flex items-center gap-3 max-md:flex-col max-md:items-stretch max-md:gap-1">
+      <span className="w-14 shrink-0 text-xs text-[var(--ink-muted)] max-md:w-auto">{label}</span>
       <div className="min-w-0 flex-1">{children}</div>
     </div>
   );

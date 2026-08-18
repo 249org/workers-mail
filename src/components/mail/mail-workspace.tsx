@@ -22,6 +22,7 @@ import { MessageList } from "./message-list";
 import { MessageView } from "./message-view";
 import { MailIcon } from "./icons";
 import { useMailStream } from "./use-mail-stream";
+import { NARROW_MAIL, useMediaQuery } from "@/lib/use-media-query";
 
 type Props = {
   mailbox: PublicMailbox;
@@ -55,8 +56,10 @@ export function MailWorkspace({
   const [compose, setCompose] = useState<ComposeDraft | null>(null);
   const [composeMailboxId, setComposeMailboxId] = useState(mailbox.id);
   const [layout, setLayout] = useState<MailLayout>({ sidebarCollapsed: false, listHidden: false });
+  const [foldersOpen, setFoldersOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const searchDirty = useRef(false);
+  const narrow = useMediaQuery(NARROW_MAIL);
 
   useEffect(() => {
     setLayout(readMailLayout());
@@ -270,9 +273,15 @@ export function MailWorkspace({
     store.setSyncing(false);
   }, [mailbox.id]);
 
+  const closeFolders = useCallback(() => setFoldersOpen(false), []);
+
   const toggleSidebar = useCallback(() => {
+    if (narrow) {
+      setFoldersOpen((open) => !open);
+      return;
+    }
     setMailLayout((current) => ({ ...current, sidebarCollapsed: !current.sidebarCollapsed }));
-  }, [setMailLayout]);
+  }, [narrow, setMailLayout]);
 
   const setListHidden = useCallback(
     (hidden: boolean) => {
@@ -286,12 +295,23 @@ export function MailWorkspace({
     setMailLayout((current) => ({ ...current, listHidden: !current.listHidden }));
   }, [setMailLayout]);
 
+  const startCompose = useCallback(() => {
+    setComposeMailboxId(mailbox.id);
+    setCompose(EMPTY_DRAFT);
+    setFoldersOpen(false);
+  }, [mailbox.id]);
+
+  const leaveReader = useCallback(() => {
+    if (narrow) {
+      useMailStore.getState().select(null);
+      return;
+    }
+    toggleList();
+  }, [narrow, toggleList]);
+
   useHotkeys("global", {
     search: () => searchRef.current?.focus(),
-    compose: () => {
-      setComposeMailboxId(mailbox.id);
-      setCompose(EMPTY_DRAFT);
-    },
+    compose: () => startCompose(),
     undo: () => {
       void useMailStore.getState().undo().then((did) => {
         if (did) toast("Undone");
@@ -301,6 +321,14 @@ export function MailWorkspace({
     toggleSidebar,
     toggleList,
     back: () => {
+      if (foldersOpen) {
+        setFoldersOpen(false);
+        return;
+      }
+      if (narrow && useMailStore.getState().selectedId) {
+        useMailStore.getState().select(null);
+        return;
+      }
       if (layout.listHidden) {
         setListHidden(false);
         return;
@@ -353,7 +381,7 @@ export function MailWorkspace({
 
   const commands = useMemo<PaletteCommand[]>(
     () => [
-      { id: "compose", label: "Compose message", hint: hintFor("compose"), group: "Actions", keywords: ["new", "write"], run: () => setCompose(EMPTY_DRAFT) },
+      { id: "compose", label: "Compose message", hint: hintFor("compose"), group: "Actions", keywords: ["new", "write"], run: startCompose },
       { id: "archive", label: "Archive selected", hint: hintFor("archive"), group: "Actions", run: archive },
       { id: "trash", label: inTrash ? "Delete selected forever" : "Move selected to trash", hint: hintFor("trash"), group: "Actions", run: trash },
       { id: "sync", label: "Sync now", hint: hintFor("syncNow"), group: "Actions", keywords: ["refresh", "imap"], run: () => void syncNow() },
@@ -374,7 +402,7 @@ export function MailWorkspace({
         run: toggleList,
       },
     ],
-    [archive, trash, syncNow, inTrash, layout.sidebarCollapsed, layout.listHidden, toggleSidebar, toggleList, shortcuts, isMac],
+    [archive, trash, syncNow, inTrash, layout.sidebarCollapsed, layout.listHidden, toggleSidebar, toggleList, startCompose, shortcuts, isMac],
   );
 
   useEffect(() => {
@@ -388,18 +416,35 @@ export function MailWorkspace({
   }, [mailbox, commands]);
 
   return (
-    <div className="flex h-full">
+    <div
+      className="mail-workspace flex h-full min-w-0"
+      data-reading={selectedId ? "" : undefined}
+      data-folders-open={foldersOpen ? "" : undefined}
+    >
+      {foldersOpen ? (
+        <button
+          type="button"
+          className="mail-folders-scrim"
+          aria-label="Close folders"
+          onClick={closeFolders}
+        />
+      ) : null}
+
       <FolderSidebar
         mailbox={mailbox}
         mailboxes={mailboxes}
         streamState={streamState}
-        collapsed={layout.sidebarCollapsed}
-        onCompose={() => {
-          setComposeMailboxId(mailbox.id);
-          setCompose(EMPTY_DRAFT);
-        }}
+        collapsed={narrow ? false : layout.sidebarCollapsed}
+        onCompose={startCompose}
         onSync={() => void syncNow()}
-        onOpenPalette={() => usePaletteStore.getState().openPalette()}
+        onOpenPalette={() => {
+          setFoldersOpen(false);
+          usePaletteStore.getState().openPalette();
+        }}
+        onNavigate={() => {
+          useMailStore.getState().select(null);
+          closeFolders();
+        }}
       />
 
       <MessageList
@@ -407,6 +452,7 @@ export function MailWorkspace({
         searchRef={searchRef}
         sidebarCollapsed={layout.sidebarCollapsed}
         onToggleSidebar={toggleSidebar}
+        onCompose={startCompose}
         onOpenSearch={() => {
           /* focus alone is enough; the palette stays a deliberate ⌘K action */
         }}
@@ -416,11 +462,11 @@ export function MailWorkspace({
         <MessageView
           messageId={selectedId}
           onReply={startReply}
-          listHidden={layout.listHidden}
-          onToggleList={toggleList}
+          listHidden={narrow || layout.listHidden}
+          onToggleList={leaveReader}
         />
       ) : (
-        <section className="hidden flex-1 flex-col items-center justify-center gap-3 bg-card px-8 text-center md:flex">
+        <section className="mail-reader hidden flex-1 flex-col items-center justify-center gap-3 bg-card px-8 text-center md:flex">
           <span className="icon-well" aria-hidden>
             <MailIcon name="inbox" />
           </span>

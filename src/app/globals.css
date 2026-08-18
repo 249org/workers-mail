@@ -85,6 +85,8 @@
 html,
 body {
   height: 100%;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
@@ -95,6 +97,11 @@ body {
   font-feature-settings: "rlig" 1, "calt" 1, "tnum" 1;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  -webkit-tap-highlight-color: color-mix(in srgb, var(--primary) 16%, transparent);
+}
+
+.app-chrome {
+  padding-top: max(0.75rem, env(safe-area-inset-top));
 }
 
 ::selection {
@@ -2053,6 +2060,121 @@ html[data-palette="ink"] .login-scene {
   accent-color: var(--primary);
 }
 
+.mail-folders-scrim {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .app-chrome {
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+  }
+
+  .mail-workspace {
+    position: relative;
+    min-width: 0;
+  }
+
+  .mail-folders-scrim {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 35;
+    border: 0;
+    background: rgb(17 17 19 / 0.4);
+  }
+
+  .mail-sidebar {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 40;
+    width: min(18.5rem, calc(100vw - 3rem)) !important;
+    padding-bottom: env(safe-area-inset-bottom);
+    transform: translateX(-110%);
+    transition: transform 180ms var(--ease-out-strong);
+    box-shadow: var(--shadow-pop);
+  }
+
+  .mail-workspace[data-folders-open] .mail-sidebar {
+    transform: none;
+  }
+
+  .mail-list {
+    width: 100%;
+    max-width: none;
+    border-right: 0;
+  }
+
+  .mail-workspace[data-reading] .mail-list {
+    display: none;
+  }
+
+  .mail-workspace:not([data-reading]) .mail-reader {
+    display: none;
+  }
+
+  .mail-workspace[data-reading] .mail-reader {
+    display: flex;
+    width: 100%;
+  }
+
+  .pane-toolbar {
+    height: 3.5rem;
+  }
+
+  .pane-toolbar .btn-icon {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  .nav-row {
+    min-height: 2.75rem;
+  }
+
+  .field {
+    font-size: 16px;
+    height: 2.75rem;
+  }
+
+  .mail-sidebar .kbd,
+  .pane-toolbar .kbd {
+    display: none;
+  }
+
+  .account-item {
+    min-height: 2.75rem;
+  }
+
+  .palette-shell {
+    padding: 0;
+    align-items: stretch;
+    justify-content: stretch;
+  }
+
+  .palette-shell .panel {
+    max-width: none;
+    max-height: none;
+    height: 100%;
+    border-radius: 0;
+  }
+
+  .frost-bar {
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  }
+
+  .settings-index-item {
+    min-height: 2.5rem;
+  }
+}
+
+@media (max-width: 767px) and (prefers-reduced-motion: reduce) {
+  .mail-sidebar {
+    transition: none;
+  }
+}
+
 @media (max-width: 839px) {
   .login-split {
     grid-template-columns: 1fr;
@@ -2071,9 +2193,13 @@ html[data-palette="ink"] .login-scene {
 
   .login-pane {
     align-items: flex-start;
-    padding: 1.5rem 1.25rem 2.5rem;
+    padding: 1.5rem 1.25rem max(2.5rem, env(safe-area-inset-bottom));
     border-left: 0;
     border-top: 1px solid var(--border);
+  }
+
+  .login-split {
+    min-height: 100dvh;
   }
 }
 

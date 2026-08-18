@@ -67,7 +67,7 @@ export default async function SettingsLayout({ children }: { children: React.Rea
   };
 
   return (
-    <div className="flex h-screen flex-col bg-background">
+    <div className="flex h-dvh flex-col bg-background">
       <AppHeader
         email={user.email}
         name={user.name}

@@ -36,11 +36,11 @@ export function MessageView({ messageId, onReply, listHidden, onToggleList }: Pr
     if (!loaded) void load(messageId, { allowRemoteImages: remoteImages === "allow" });
   }, [loaded, load, messageId, remoteImages]);
 
-  const chromePad = listHidden ? "px-8 md:px-10" : "px-4";
+  const chromePad = listHidden ? "px-4 md:px-10" : "px-4";
 
   if (!loaded) {
     return (
-      <section className="flex min-w-0 flex-1 flex-col bg-card">
+      <section className="mail-reader flex min-w-0 flex-1 flex-col bg-card">
         <div className="pane-toolbar border-b border-border" data-wide={listHidden ? "" : undefined}>
           <ChromeButton
             icon={listHidden ? "list" : "expand"}
@@ -66,7 +66,7 @@ export function MessageView({ messageId, onReply, listHidden, onToggleList }: Pr
   const sentAt = new Date(detail.sentAt * 1000);
 
   return (
-    <section className="flex min-w-0 flex-1 flex-col bg-card">
+    <section className="mail-reader flex min-w-0 flex-1 flex-col bg-card">
       <header className="z-[21] shrink-0 border-b border-border bg-card">
         <div className="pane-toolbar" data-wide={listHidden ? "" : undefined}>
           <ChromeButton

@@ -149,7 +149,7 @@ export function CommandPalette({
 
   return (
     <div
-      className="palette-instant fixed inset-0 z-50 flex items-start justify-center px-4 pt-[12vh]"
+      className="palette-instant palette-shell fixed inset-0 z-50 flex items-start justify-center px-4 pt-[12vh]"
       role="dialog"
       aria-modal="true"
       aria-label="Command palette"

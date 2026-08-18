@@ -27,6 +27,7 @@ type Props = {
   onCompose: () => void;
   onSync: () => void;
   onOpenPalette: () => void;
+  onNavigate?: () => void;
 };
 
 export function FolderSidebar({
@@ -37,6 +38,7 @@ export function FolderSidebar({
   onCompose,
   onSync,
   onOpenPalette,
+  onNavigate,
 }: Props) {
   const folders = useMailStore((state) => state.folders);
   const activeFolderId = useMailStore((state) => state.folderId);
@@ -56,7 +58,7 @@ export function FolderSidebar({
 
   return (
     <aside
-      className={`flex shrink-0 flex-col border-r border-border bg-card ${collapsed ? "w-14" : "w-56"}`}
+      className={`mail-sidebar flex shrink-0 flex-col border-r border-border bg-card ${collapsed ? "w-14" : "w-56"}`}
       data-collapsed={collapsed ? "true" : undefined}
     >
       <div className={`pane-toolbar border-b border-border ${collapsed ? "justify-center" : ""}`}>
@@ -136,6 +138,7 @@ export function FolderSidebar({
                 if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
                 event.preventDefault();
                 navigateMailFolder(mailbox.id, folder.id);
+                onNavigate?.();
               }}
             >
               <span className="flex min-w-0 items-center gap-2">
@@ -159,6 +162,7 @@ export function FolderSidebar({
                 data-compact={collapsed ? "true" : undefined}
                 data-tip={collapsed ? entry.address : undefined}
                 aria-label={entry.address}
+                onClick={() => onNavigate?.()}
               >
                 <span className="flex min-w-0 items-center gap-2">
                   <MailIcon name="mailbox" />

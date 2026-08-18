@@ -33,6 +33,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  viewportFit: "cover",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#F9F9F8" },
     { media: "(prefers-color-scheme: dark)", color: "#17171A" },
@@ -55,7 +56,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <script dangerouslySetInnerHTML={{ __html: APPEARANCE_BOOTSTRAP }} />
         <JsonLd data={siteJsonLd(origin)} />
       </head>
-      <body className="font-sans antialiased">
+      <body className="font-sans antialiased touch-manipulation">
         {/*
           THESIS: Mail is a drawing — hairline regions vs pill controls — not a stack of floating cards.
           OWN-WORLD: Meridian. Warm off-white field #F9F9F8, cool slate-blue primary, terracotta highlight. Geist Sans 13px, Newsreader titles, Geist Mono eyebrows. Radius 4px on panels; rounded-full only on buttons.

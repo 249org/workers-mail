@@ -14,7 +14,7 @@ export default async function MailLayout({ children }: { children: React.ReactNo
   const mailboxes = await listMailboxes(db, user.id);
 
   return (
-    <div className="flex h-screen flex-col bg-background">
+    <div className="flex h-dvh flex-col bg-background">
       <AppHeader
         email={user.email}
         name={user.name}
