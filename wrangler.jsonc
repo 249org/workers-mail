@@ -21,7 +21,7 @@
     {
       "binding": "DB",
       "database_name": "workers-mail",
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "database_id": "c3aba342-68b4-456a-8f5f-ada9c3d79275",
       "migrations_dir": "migrations"
     }
   ],
@@ -36,7 +36,7 @@
   "kv_namespaces": [
     {
       "binding": "SESSION_STORE",
-      "id": "REPLACE_WITH_KV_NAMESPACE_ID"
+      "id": "9087a97b08104369902b2b3d44f191f6"
     }
   ],
 

@@ -1,8 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState, type FormEvent } from "react";
-import { presetFor, tlsForImapPort, tlsForSmtpPort } from "@/lib/transport/presets";
+import { useState, type FormEvent } from "react";
+import {
+  ServerSettingsFields,
+  type ServerSettings,
+} from "@/components/mail/server-settings-fields";
+import { tlsForImapPort, tlsForSmtpPort } from "@/lib/transport/presets";
 
 type Props = {
   setupNeeded: boolean;
@@ -16,13 +20,13 @@ export function AuthScreen({ setupNeeded, encryptionReady }: Props) {
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-[var(--surface)] px-4 py-10">
-      <div className="w-full max-w-[26rem]">
+      <div className="w-full max-w-[28rem]">
         <header className="rise-in mb-7 text-center">
           <h1 className="text-[19px] font-semibold tracking-[-0.01em]">Workers Mail</h1>
           <p className="mt-1 text-[13px] text-[var(--ink-muted)]">
             {setupNeeded
-              ? "Connect a mailbox to finish setting up this workspace."
-              : "Sign in to your mail workspace."}
+              ? "Connect with your mailbox email, password, and server settings."
+              : "Sign in with your mailbox email and password."}
           </p>
         </header>
 
@@ -32,7 +36,7 @@ export function AuthScreen({ setupNeeded, encryptionReady }: Props) {
               Connect account
             </Tab>
             <Tab active={mode === "signin"} onClick={() => setMode("signin")}>
-              Use a password
+              Workspace only
             </Tab>
           </div>
         )}
@@ -156,29 +160,15 @@ function ConnectForm({ encryptionReady }: { encryptionReady: boolean }) {
   const router = useRouter();
   const [address, setAddress] = useState("");
   const [password, setPassword] = useState("");
-  const [loginPassword, setLoginPassword] = useState("");
   const [name, setName] = useState("");
-
-  const [imapHost, setImapHost] = useState("");
-  const [imapPort, setImapPort] = useState(993);
-  const [smtpHost, setSmtpHost] = useState("");
-  const [smtpPort, setSmtpPort] = useState(587);
-  const [advanced, setAdvanced] = useState(false);
-  const [touchedHosts, setTouchedHosts] = useState(false);
-
+  const [servers, setServers] = useState<ServerSettings>({
+    imapHost: "",
+    imapPort: 993,
+    smtpHost: "",
+    smtpPort: 587,
+  });
   const [stage, setStage] = useState<Stage>("idle");
   const [error, setError] = useState<string | null>(null);
-
-  const preset = presetFor(address);
-
-  // Fill the hosts from the address until the user overrides them by hand.
-  useEffect(() => {
-    if (touchedHosts || !preset) return;
-    setImapHost(preset.imapHost);
-    setImapPort(preset.imapPort);
-    setSmtpHost(preset.smtpHost);
-    setSmtpPort(preset.smtpPort);
-  }, [preset, touchedHosts]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -192,18 +182,17 @@ function ConnectForm({ encryptionReady }: { encryptionReady: boolean }) {
         name,
         address,
         password,
-        loginPassword,
         imap: {
-          host: imapHost,
-          port: imapPort,
-          tls: tlsForImapPort(imapPort),
+          host: servers.imapHost,
+          port: servers.imapPort,
+          tls: tlsForImapPort(servers.imapPort),
           username: address,
           password,
         },
         smtp: {
-          host: smtpHost,
-          port: smtpPort,
-          tls: tlsForSmtpPort(smtpPort),
+          host: servers.smtpHost,
+          port: servers.smtpPort,
+          tls: tlsForSmtpPort(servers.smtpPort),
           username: address,
           password,
         },
@@ -260,14 +249,13 @@ function ConnectForm({ encryptionReady }: { encryptionReady: boolean }) {
           value={address}
           onChange={(event) => setAddress(event.target.value)}
         />
-        {preset && (
-          <p className="mt-1.5 text-[12px] text-[var(--ink-faint)]">
-            Detected {preset.name}. {preset.note ?? ""}
-          </p>
-        )}
       </Field>
 
-      <Field label="Mailbox password" htmlFor="mailbox-password">
+      <Field
+        label="Mailbox password"
+        htmlFor="mailbox-password"
+        hint="The password you use for webmail. You will sign in to this workspace with the same one."
+      >
         <input
           id="mailbox-password"
           type="password"
@@ -289,96 +277,16 @@ function ConnectForm({ encryptionReady }: { encryptionReady: boolean }) {
         />
       </Field>
 
-      <Field
-        label="Sign-in password"
-        htmlFor="login-password"
-        hint="Used to sign in to this workspace. At least 10 characters."
-      >
-        <input
-          id="login-password"
-          type="password"
-          required
-          minLength={10}
-          autoComplete="new-password"
-          className="field"
-          value={loginPassword}
-          onChange={(event) => setLoginPassword(event.target.value)}
-        />
-      </Field>
-
-      <button
-        type="button"
-        className="mb-3 text-[12px] text-[var(--accent)]"
-        onClick={() => setAdvanced((open) => !open)}
-        aria-expanded={advanced}
-      >
-        {advanced ? "Hide server settings" : "Server settings"}
-      </button>
-
-      {advanced && (
-        <div className="mb-3 grid grid-cols-2 gap-3 rounded-md border border-[var(--border)] bg-[var(--surface)] p-3">
-          <Field label="IMAP host" htmlFor="imap-host">
-            <input
-              id="imap-host"
-              className="field"
-              value={imapHost}
-              onChange={(event) => {
-                setTouchedHosts(true);
-                setImapHost(event.target.value);
-              }}
-            />
-          </Field>
-          <Field label="IMAP port" htmlFor="imap-port">
-            <select
-              id="imap-port"
-              className="field"
-              value={imapPort}
-              onChange={(event) => {
-                setTouchedHosts(true);
-                setImapPort(Number(event.target.value));
-              }}
-            >
-              <option value={993}>993 · TLS</option>
-              <option value={143}>143 · STARTTLS</option>
-            </select>
-          </Field>
-          <Field label="SMTP host" htmlFor="smtp-host">
-            <input
-              id="smtp-host"
-              className="field"
-              value={smtpHost}
-              onChange={(event) => {
-                setTouchedHosts(true);
-                setSmtpHost(event.target.value);
-              }}
-            />
-          </Field>
-          <Field label="SMTP port" htmlFor="smtp-port">
-            <select
-              id="smtp-port"
-              className="field"
-              value={smtpPort}
-              onChange={(event) => {
-                setTouchedHosts(true);
-                setSmtpPort(Number(event.target.value));
-              }}
-            >
-              <option value={587}>587 · STARTTLS</option>
-              <option value={465}>465 · TLS</option>
-            </select>
-          </Field>
-          <p className="col-span-2 text-[11px] text-[var(--ink-faint)]">
-            Port 25 is blocked on Workers and is not offered.
-          </p>
-        </div>
-      )}
+      <ServerSettingsFields value={servers} onChange={setServers} />
 
       {error && <ErrorNote>{error}</ErrorNote>}
 
       <button
         type="submit"
         className="btn btn-primary w-full"
-        disabled={stage !== "idle" || !address || !password || loginPassword.length < 10}
+        disabled={
+          stage !== "idle" || !address || !password || !servers.imapHost || !servers.smtpHost
+        }
       >
         {stage === "verifying"
           ? "Verifying connection"
@@ -389,7 +297,7 @@ function ConnectForm({ encryptionReady }: { encryptionReady: boolean }) {
 
       <p className="mt-3 text-center text-[12px] text-[var(--ink-faint)]">
         Credentials are checked against your server before anything is saved, then stored
-        encrypted.
+        encrypted. Later sign-in uses this same mailbox password.
       </p>
     </form>
   );

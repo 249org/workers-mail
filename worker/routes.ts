@@ -187,7 +187,8 @@ type SetupBody = {
 
 /**
  * First-run onboarding: verify a real IMAP/SMTP account, then create the workspace
- * owner and their first mailbox together. It lives in the Worker because the
+ * owner and their first mailbox together. Sign-in uses the mailbox password unless
+ * a separate loginPassword is supplied. It lives in the Worker because the
  * verification opens sockets, which only resolve inside workerd.
  *
  * The `hasAnyUser` check here is the security boundary, not the UI that hides the
@@ -210,9 +211,7 @@ export async function handleSetup(request: Request, env: CloudflareEnv): Promise
 
     if (!isEmailAddress(address)) throw new ApiError(400, "Enter a valid email address.");
     if (!password) throw new ApiError(400, "Enter the account password.");
-    if (loginPassword.length < 10) {
-      throw new ApiError(400, "Choose a sign-in password of at least 10 characters.");
-    }
+    const workspacePassword = loginPassword || password;
     if (!env.MAIL_ENCRYPTION_KEY) {
       throw new ApiError(503, "Set the MAIL_ENCRYPTION_KEY secret before connecting a mailbox.");
     }
@@ -256,7 +255,7 @@ export async function handleSetup(request: Request, env: CloudflareEnv): Promise
       id: userId,
       email: address,
       name: body.name?.trim() || null,
-      passwordHash: await hashPassword(loginPassword),
+      passwordHash: await hashPassword(workspacePassword),
       role: "admin",
     });
 
