@@ -18,35 +18,35 @@ type Props = {
 type Stage = "idle" | "verifying" | "connected";
 
 export function AuthScreen({ setupNeeded, encryptionReady }: Props) {
-  const [mode, setMode] = useState<"signin" | "connect">(setupNeeded ? "connect" : "signin");
+  const [mode, setMode] = useState<"signin" | "connect">("connect");
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
-      <div className="w-full max-w-[28rem]">
+      <div className={`w-full ${mode === "connect" ? "max-w-[32rem]" : "max-w-[28rem]"}`}>
         <header className="rise-in mb-7 text-center">
           <h1 className="flex justify-center">
             <BrandLockup size="lg" />
           </h1>
           <p className="mt-2 text-[13px] text-muted-foreground">
-            {setupNeeded
-              ? "Connect Google, Microsoft, or any IMAP mailbox."
+            {mode === "connect"
+              ? setupNeeded
+                ? "Add Google, Microsoft, or any IMAP mailbox."
+                : "Add Google, Microsoft, or IMAP — then sign in to save it."
               : "Sign in with your mailbox email and password."}
           </p>
         </header>
 
-        {setupNeeded && (
-          <div className="rise-in mb-4 flex gap-1 border border-border bg-card p-1" style={{ borderRadius: 4 }}>
-            <Tab active={mode === "connect"} onClick={() => setMode("connect")}>
-              Connect account
-            </Tab>
-            <Tab active={mode === "signin"} onClick={() => setMode("signin")}>
-              Workspace only
-            </Tab>
-          </div>
-        )}
+        <div className="rise-in mb-4 flex gap-1 border border-border bg-card p-1" style={{ borderRadius: 4 }}>
+          <Tab active={mode === "connect"} onClick={() => setMode("connect")}>
+            Add a mailbox
+          </Tab>
+          <Tab active={mode === "signin"} onClick={() => setMode("signin")}>
+            {setupNeeded ? "Workspace only" : "Sign in"}
+          </Tab>
+        </div>
 
-        {mode === "connect" && setupNeeded ? (
-          <ConnectForm encryptionReady={encryptionReady} />
+        {mode === "connect" ? (
+          <ConnectForm setupNeeded={setupNeeded} encryptionReady={encryptionReady} />
         ) : (
           <SignInForm setupNeeded={setupNeeded} />
         )}
@@ -328,58 +328,142 @@ function SignInForm({ setupNeeded }: { setupNeeded: boolean }) {
   );
 }
 
-function ConnectForm({ encryptionReady }: { encryptionReady: boolean }) {
+function ConnectForm({
+  setupNeeded,
+  encryptionReady,
+}: {
+  setupNeeded: boolean;
+  encryptionReady: boolean;
+}) {
   const router = useRouter();
   const [provider, setProvider] = useState<ImapProvider>("gmail");
   const [address, setAddress] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [workspaceEmail, setWorkspaceEmail] = useState("");
+  const [workspacePassword, setWorkspacePassword] = useState("");
   const [servers, setServers] = useState<ServerSettings>(hostsForEasyProvider("gmail"));
   const [stage, setStage] = useState<Stage>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [totp, setTotp] = useState<{ challenge: string; code: string } | null>(null);
+
+  function mailboxBody() {
+    return {
+      type: "external_imap" as const,
+      displayName: name,
+      address,
+      imap: {
+        host: servers.imapHost,
+        port: servers.imapPort,
+        tls: tlsForImapPort(servers.imapPort),
+        username: address,
+        password,
+      },
+      smtp: {
+        host: servers.smtpHost,
+        port: servers.smtpPort,
+        tls: tlsForSmtpPort(servers.smtpPort),
+        username: address,
+        password,
+      },
+    };
+  }
+
+  async function createMailbox() {
+    const response = await fetch("/api/mailboxes", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(mailboxBody()),
+    });
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      throw new Error(payload.error ?? "That mailbox could not be connected.");
+    }
+  }
+
+  async function finish() {
+    setStage("connected");
+    setTimeout(() => {
+      router.replace("/mail");
+      router.refresh();
+    }, 700);
+  }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setStage("verifying");
     setError(null);
 
-    const response = await fetch("/api/mail/setup", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        name,
-        address,
-        password,
-        imap: {
-          host: servers.imapHost,
-          port: servers.imapPort,
-          tls: tlsForImapPort(servers.imapPort),
-          username: address,
-          password,
-        },
-        smtp: {
-          host: servers.smtpHost,
-          port: servers.smtpPort,
-          tls: tlsForSmtpPort(servers.smtpPort),
-          username: address,
-          password,
-        },
-      }),
-    });
+    try {
+      if (setupNeeded) {
+        const response = await fetch("/api/mail/setup", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            name,
+            address,
+            password,
+            imap: mailboxBody().imap,
+            smtp: mailboxBody().smtp,
+          }),
+        });
+        if (!response.ok) {
+          const payload = (await response.json().catch(() => ({}))) as { error?: string };
+          throw new Error(payload.error ?? "That mailbox could not be connected.");
+        }
+        await finish();
+        return;
+      }
 
-    if (!response.ok) {
-      const payload = (await response.json().catch(() => ({}))) as { error?: string };
-      setError(payload.error ?? "That mailbox could not be connected.");
+      const login = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email: workspaceEmail || address,
+          password: workspacePassword,
+        }),
+      });
+      const loginPayload = (await login.json().catch(() => ({}))) as {
+        error?: string;
+        requiresTwoFactor?: boolean;
+        challenge?: string;
+      };
+      if (!login.ok) throw new Error(loginPayload.error ?? "Those credentials did not match.");
+      if (loginPayload.requiresTwoFactor && loginPayload.challenge) {
+        setTotp({ challenge: loginPayload.challenge, code: "" });
+        setStage("idle");
+        return;
+      }
+
+      await createMailbox();
+      await finish();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "That mailbox could not be connected.");
       setStage("idle");
-      return;
     }
+  }
 
-    setStage("connected");
-    // Hold the success state briefly; this screen is seen once, so it can breathe.
-    setTimeout(() => {
-      router.replace("/mail");
-      router.refresh();
-    }, 700);
+  async function verifyTwoFactor(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!totp) return;
+    setStage("verifying");
+    setError(null);
+    try {
+      const response = await fetch("/api/auth/login/verify", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ challenge: totp.challenge, code: totp.code }),
+      });
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error ?? "That code was not recognised.");
+      }
+      await createMailbox();
+      await finish();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "That code was not recognised.");
+      setStage("idle");
+    }
   }
 
   if (!encryptionReady) {
@@ -404,11 +488,41 @@ function ConnectForm({ encryptionReady }: { encryptionReady: boolean }) {
     );
   }
 
+  if (totp) {
+    return (
+      <form onSubmit={verifyTwoFactor} className="rise-in panel relative p-5">
+        <span className="reg reg-tl" aria-hidden />
+        <span className="reg reg-tr" aria-hidden />
+        <span className="reg reg-bl" aria-hidden />
+        <span className="reg reg-br" aria-hidden />
+        <p className="mb-4 text-[13px] text-muted-foreground">
+          Enter the six-digit code from your authenticator, then the mailbox will be added.
+        </p>
+        <Field label="Authenticator code" htmlFor="add-totp-code">
+          <input
+            id="add-totp-code"
+            className="field"
+            autoComplete="one-time-code"
+            inputMode="numeric"
+            autoFocus
+            value={totp.code}
+            onChange={(event) => setTotp({ ...totp, code: event.target.value })}
+          />
+        </Field>
+        {error && <ErrorNote>{error}</ErrorNote>}
+        <button
+          type="submit"
+          className="btn btn-primary mt-1 w-full"
+          disabled={stage !== "idle" || !totp.code.trim()}
+        >
+          {stage === "verifying" ? "Checking" : "Add mailbox"}
+        </button>
+      </form>
+    );
+  }
+
   return (
-    <form
-      onSubmit={onSubmit}
-      className="rise-in panel relative p-5"
-    >
+    <form onSubmit={onSubmit} className="rise-in panel relative p-5">
       <span className="reg reg-tl" aria-hidden />
       <span className="reg reg-tr" aria-hidden />
       <span className="reg reg-bl" aria-hidden />
@@ -428,7 +542,7 @@ function ConnectForm({ encryptionReady }: { encryptionReady: boolean }) {
       />
 
       <div className="mt-4">
-        <Field label="Your name" htmlFor="display-name">
+        <Field label={setupNeeded ? "Your name" : "Display name"} htmlFor="display-name">
           <input
             id="display-name"
             className="field"
@@ -439,25 +553,60 @@ function ConnectForm({ encryptionReady }: { encryptionReady: boolean }) {
         </Field>
       </div>
 
+      {!setupNeeded && (
+        <div className="mb-3.5 border border-border bg-background p-3" style={{ borderRadius: 4 }}>
+          <p className="mb-3 text-[13px] text-muted-foreground">
+            Sign in to this workspace to save the mailbox.
+          </p>
+          <Field label="Workspace email" htmlFor="workspace-email">
+            <input
+              id="workspace-email"
+              className="field"
+              type="email"
+              autoComplete="username"
+              placeholder="The email you sign in with"
+              value={workspaceEmail}
+              onChange={(event) => setWorkspaceEmail(event.target.value)}
+            />
+          </Field>
+          <Field label="Workspace password" htmlFor="workspace-password">
+            <input
+              id="workspace-password"
+              className="field"
+              type="password"
+              autoComplete="current-password"
+              value={workspacePassword}
+              onChange={(event) => setWorkspacePassword(event.target.value)}
+            />
+          </Field>
+        </div>
+      )}
+
       {error && <ErrorNote>{error}</ErrorNote>}
 
       <button
         type="submit"
         className="btn btn-primary w-full"
         disabled={
-          stage !== "idle" || !address || !password || !servers.imapHost || !servers.smtpHost
+          stage !== "idle" ||
+          !address ||
+          !password ||
+          !servers.imapHost ||
+          !servers.smtpHost ||
+          (!setupNeeded && !workspacePassword)
         }
       >
         {stage === "verifying"
           ? "Verifying connection"
           : stage === "connected"
             ? "Connected"
-            : "Connect mailbox"}
+            : "Add mailbox"}
       </button>
 
       <p className="mt-3 text-center text-[12px] text-[var(--ink-faint)]">
-        Credentials are checked against your server before anything is saved, then stored
-        encrypted. Later sign-in uses this same mailbox password.
+        {setupNeeded
+          ? "Credentials are checked against your server before anything is saved, then stored encrypted. Later sign-in uses this same mailbox password."
+          : "The new mailbox is tested, then stored encrypted on your Cloudflare account."}
       </p>
     </form>
   );

@@ -29,6 +29,11 @@ export function AppHeader({ email, name, mailboxes, context }: Props) {
         )}
       </div>
       <div className="flex items-center gap-2">
+        {context === "mail" && (
+          <Link href="/settings/mailboxes/new" className="btn btn-ghost">
+            Add mailbox
+          </Link>
+        )}
         {context === "settings" && (
           <Link href="/mail" className="btn btn-ghost">
             Back to mail
