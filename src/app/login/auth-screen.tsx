@@ -2,12 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import {
-  ImapAccountFields,
-  type ImapProvider,
-} from "@/components/mail/imap-account-fields";
-import { type ServerSettings } from "@/components/mail/server-settings-fields";
-import { hostsForEasyProvider, tlsForImapPort, tlsForSmtpPort } from "@/lib/transport/presets";
+import { FirstRun } from "@/components/auth/first-run";
 import { LoginShell } from "@/components/auth/login-shell";
 import { MailIcon } from "@/components/mail/icons";
 import {
@@ -22,71 +17,20 @@ type Props = {
   encryptionReady: boolean;
 };
 
-type Stage = "idle" | "verifying" | "connected";
-
 export function AuthScreen({ setupNeeded, encryptionReady }: Props) {
-  const [mode, setMode] = useState<"signin" | "connect">("connect");
-
-  useEffect(() => {
-    if (readSavedProfiles().length > 0) setMode("signin");
-  }, []);
-  const heading =
-    mode === "connect" ? "Add a mailbox" : setupNeeded ? "Create a workspace" : "Sign in";
-  const lede =
-    mode === "connect"
-      ? setupNeeded
-        ? "Google, Microsoft, or any host that speaks IMAP."
-        : "Add Google, Microsoft, or IMAP — then sign in to save it."
-      : setupNeeded
-        ? "This Worker has no account yet. The password you set is for this workspace."
-        : "Use the email and password for this workspace.";
+  if (setupNeeded) return <FirstRun encryptionReady={encryptionReady} />;
 
   return (
-    <LoginShell heading={heading} lede={lede}>
-      <div className="mb-5 flex gap-1 border border-border bg-card p-1" style={{ borderRadius: 4 }}>
-        <Tab active={mode === "connect"} onClick={() => setMode("connect")}>
-          Add a mailbox
-        </Tab>
-        <Tab active={mode === "signin"} onClick={() => setMode("signin")}>
-          {setupNeeded ? "Workspace only" : "Sign in"}
-        </Tab>
-      </div>
-
-      {mode === "connect" ? (
-        <ConnectForm setupNeeded={setupNeeded} encryptionReady={encryptionReady} />
-      ) : (
-        <SignInForm setupNeeded={setupNeeded} />
-      )}
+    <LoginShell
+      heading="Sign in"
+      lede="This is your Workers Mail password. After you’re in, link Gmail or Outlook from Settings."
+    >
+      <SignInForm />
     </LoginShell>
   );
 }
 
-function Tab({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex-1 rounded-full px-3 py-1.5 text-[13px]"
-      style={{
-        background: active ? "var(--accent-subtle)" : "transparent",
-        color: active ? "var(--primary)" : "var(--muted-foreground)",
-        fontWeight: active ? 600 : 400,
-      }}
-    >
-      {children}
-    </button>
-  );
-}
-
-function SignInForm({ setupNeeded }: { setupNeeded: boolean }) {
+function SignInForm() {
   const router = useRouter();
   const [step, setStep] = useState<"credentials" | "totp" | "forgot" | "forgot-sent">("credentials");
   const [pending, setPending] = useState(false);
@@ -118,13 +62,12 @@ function SignInForm({ setupNeeded }: { setupNeeded: boolean }) {
 
     const form = new FormData(event.currentTarget);
     const submittedEmail = String(form.get("email") ?? "").trim().toLowerCase();
-    const response = await fetch(setupNeeded ? "/api/auth/register" : "/api/auth/login", {
+    const response = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         email: submittedEmail,
         password: form.get("password"),
-        name: form.get("name"),
       }),
     });
 
@@ -187,7 +130,7 @@ function SignInForm({ setupNeeded }: { setupNeeded: boolean }) {
     return (
       <form onSubmit={requestReset}>
         {step === "forgot-sent" ? (
-          <p className="text-[13px] text-[var(--ink)]">
+          <p className="text-[13px]">
             If that account exists, a reset link is on its way. Check the inbox for this address.
           </p>
         ) : (
@@ -275,7 +218,7 @@ function SignInForm({ setupNeeded }: { setupNeeded: boolean }) {
     );
   }
 
-  const showPicker = !setupNeeded && profiles.length > 0 && !another && !picked;
+  const showPicker = profiles.length > 0 && !another && !picked;
 
   if (showPicker) {
     return (
@@ -321,12 +264,6 @@ function SignInForm({ setupNeeded }: { setupNeeded: boolean }) {
 
   return (
     <form onSubmit={onSubmit}>
-      {setupNeeded && (
-        <Field label="Your name" htmlFor="name">
-          <input id="name" name="name" className="field" autoComplete="name" />
-        </Field>
-      )}
-
       {lockedEmail ? (
         <div className="mb-3.5">
           <p className="label">Email</p>
@@ -353,18 +290,13 @@ function SignInForm({ setupNeeded }: { setupNeeded: boolean }) {
         </Field>
       )}
 
-      <Field
-        label="Password"
-        htmlFor="password"
-        hint={setupNeeded ? "At least 10 characters." : undefined}
-      >
+      <Field label="Workers Mail password" htmlFor="password">
         <input
           id="password"
           name="password"
           type="password"
           required
-          minLength={setupNeeded ? 10 : undefined}
-          autoComplete={setupNeeded ? "new-password" : "current-password"}
+          autoComplete="current-password"
           className="field"
           autoFocus={Boolean(lockedEmail)}
         />
@@ -382,7 +314,7 @@ function SignInForm({ setupNeeded }: { setupNeeded: boolean }) {
       {error && <ErrorNote>{error}</ErrorNote>}
 
       <button type="submit" className="btn btn-primary mt-3 w-full" disabled={pending}>
-        {pending ? "Working" : setupNeeded ? "Create account" : "Sign in"}
+        {pending ? "Working" : "Sign in"}
       </button>
 
       <div className="mt-3 flex flex-col gap-2">
@@ -400,292 +332,17 @@ function SignInForm({ setupNeeded }: { setupNeeded: boolean }) {
             ← View saved profiles
           </button>
         ) : null}
-        {!setupNeeded && (
-          <button
-            type="button"
-            className="w-full text-center text-[13px] text-muted-foreground hover:underline"
-            onClick={() => {
-              setStep("forgot");
-              setError(null);
-            }}
-          >
-            Forgot password
-          </button>
-        )}
-      </div>
-    </form>
-  );
-}
-
-function ConnectForm({
-  setupNeeded,
-  encryptionReady,
-}: {
-  setupNeeded: boolean;
-  encryptionReady: boolean;
-}) {
-  const router = useRouter();
-  const [provider, setProvider] = useState<ImapProvider>("gmail");
-  const [address, setAddress] = useState("");
-  const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
-  const [workspaceEmail, setWorkspaceEmail] = useState("");
-  const [workspacePassword, setWorkspacePassword] = useState("");
-  const [servers, setServers] = useState<ServerSettings>(hostsForEasyProvider("gmail"));
-  const [stage, setStage] = useState<Stage>("idle");
-  const [error, setError] = useState<string | null>(null);
-  const [totp, setTotp] = useState<{ challenge: string; code: string } | null>(null);
-
-  function mailboxBody() {
-    return {
-      type: "external_imap" as const,
-      displayName: name,
-      address,
-      imap: {
-        host: servers.imapHost,
-        port: servers.imapPort,
-        tls: tlsForImapPort(servers.imapPort),
-        username: address,
-        password,
-      },
-      smtp: {
-        host: servers.smtpHost,
-        port: servers.smtpPort,
-        tls: tlsForSmtpPort(servers.smtpPort),
-        username: address,
-        password,
-      },
-    };
-  }
-
-  async function createMailbox() {
-    const response = await fetch("/api/mailboxes", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(mailboxBody()),
-    });
-    if (!response.ok) {
-      const payload = (await response.json().catch(() => ({}))) as { error?: string };
-      throw new Error(payload.error ?? "That mailbox could not be connected.");
-    }
-  }
-
-  function rememberThenGo(email: string) {
-    rememberSavedProfile(email);
-    setStage("connected");
-    setTimeout(() => {
-      router.replace("/mail");
-      router.refresh();
-    }, 700);
-  }
-
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setStage("verifying");
-    setError(null);
-
-    try {
-      if (setupNeeded) {
-        const response = await fetch("/api/mail/setup", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            name,
-            address,
-            password,
-            imap: mailboxBody().imap,
-            smtp: mailboxBody().smtp,
-          }),
-        });
-        if (!response.ok) {
-          const payload = (await response.json().catch(() => ({}))) as { error?: string };
-          throw new Error(payload.error ?? "That mailbox could not be connected.");
-        }
-        rememberThenGo(address);
-        return;
-      }
-
-      const login = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          email: workspaceEmail || address,
-          password: workspacePassword,
-        }),
-      });
-      const loginPayload = (await login.json().catch(() => ({}))) as {
-        error?: string;
-        requiresTwoFactor?: boolean;
-        challenge?: string;
-      };
-      if (!login.ok) throw new Error(loginPayload.error ?? "Those credentials did not match.");
-      if (loginPayload.requiresTwoFactor && loginPayload.challenge) {
-        setTotp({ challenge: loginPayload.challenge, code: "" });
-        setStage("idle");
-        return;
-      }
-
-      await createMailbox();
-      rememberThenGo(workspaceEmail || address);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "That mailbox could not be connected.");
-      setStage("idle");
-    }
-  }
-
-  async function verifyTwoFactor(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!totp) return;
-    setStage("verifying");
-    setError(null);
-    try {
-      const response = await fetch("/api/auth/login/verify", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ challenge: totp.challenge, code: totp.code }),
-      });
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => ({}))) as { error?: string };
-        throw new Error(payload.error ?? "That code was not recognised.");
-      }
-      await createMailbox();
-      rememberThenGo(workspaceEmail || address);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "That code was not recognised.");
-      setStage("idle");
-    }
-  }
-
-  if (!encryptionReady) {
-    return (
-      <div>
-        <p className="text-[13px] text-[var(--ink)]">
-          Set the <code className="font-mono text-xs">MAIL_ENCRYPTION_KEY</code> secret
-          before connecting a mailbox.
-        </p>
-        <p className="mt-2 text-[13px] text-[var(--ink-muted)]">
-          It encrypts stored IMAP credentials. Without it this workspace refuses to hold
-          them rather than saving them in the clear.
-        </p>
-        <pre className="mt-3 overflow-x-auto rounded-md bg-[var(--surface)] p-3 font-mono text-[11px]">
-          npx wrangler secret put MAIL_ENCRYPTION_KEY
-        </pre>
-      </div>
-    );
-  }
-
-  if (totp) {
-    return (
-      <form onSubmit={verifyTwoFactor}>
-        <p className="mb-4 text-[13px] text-muted-foreground">
-          Enter the six-digit code from your authenticator, then the mailbox will be added.
-        </p>
-        <Field label="Authenticator code" htmlFor="add-totp-code">
-          <input
-            id="add-totp-code"
-            className="field"
-            autoComplete="one-time-code"
-            inputMode="numeric"
-            autoFocus
-            value={totp.code}
-            onChange={(event) => setTotp({ ...totp, code: event.target.value })}
-          />
-        </Field>
-        {error && <ErrorNote>{error}</ErrorNote>}
         <button
-          type="submit"
-          className="btn btn-primary mt-1 w-full"
-          disabled={stage !== "idle" || !totp.code.trim()}
+          type="button"
+          className="w-full text-center text-[13px] text-muted-foreground hover:underline"
+          onClick={() => {
+            setStep("forgot");
+            setError(null);
+          }}
         >
-          {stage === "verifying" ? "Checking" : "Add mailbox"}
+          Forgot password
         </button>
-      </form>
-    );
-  }
-
-  return (
-    <form onSubmit={onSubmit}>
-      <ImapAccountFields
-        provider={provider}
-        address={address}
-        password={password}
-        servers={servers}
-        onProviderChange={(next, nextServers) => {
-          setProvider(next);
-          setServers(nextServers);
-        }}
-        onAddressChange={setAddress}
-        onPasswordChange={setPassword}
-        onServersChange={setServers}
-      />
-
-      <div className="mt-4">
-        <Field label={setupNeeded ? "Your name" : "Display name"} htmlFor="display-name">
-          <input
-            id="display-name"
-            className="field"
-            autoComplete="name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-          />
-        </Field>
       </div>
-
-      {!setupNeeded && (
-        <div className="mb-3.5 border border-border bg-card p-3" style={{ borderRadius: 4 }}>
-          <p className="mb-3 text-[13px] text-muted-foreground">
-            Sign in to this workspace to save the mailbox.
-          </p>
-          <Field label="Workspace email" htmlFor="workspace-email">
-            <input
-              id="workspace-email"
-              className="field"
-              type="email"
-              autoComplete="username"
-              placeholder="The email you sign in with"
-              value={workspaceEmail}
-              onChange={(event) => setWorkspaceEmail(event.target.value)}
-            />
-          </Field>
-          <Field label="Workspace password" htmlFor="workspace-password">
-            <input
-              id="workspace-password"
-              className="field"
-              type="password"
-              autoComplete="current-password"
-              value={workspacePassword}
-              onChange={(event) => setWorkspacePassword(event.target.value)}
-            />
-          </Field>
-        </div>
-      )}
-
-      {error && <ErrorNote>{error}</ErrorNote>}
-
-      <button
-        type="submit"
-        className="btn btn-primary w-full"
-        disabled={
-          stage !== "idle" ||
-          !address ||
-          !password ||
-          !servers.imapHost ||
-          !servers.smtpHost ||
-          (!setupNeeded && !workspacePassword)
-        }
-      >
-        {stage === "verifying"
-          ? "Verifying connection"
-          : stage === "connected"
-            ? "Connected"
-            : "Add mailbox"}
-      </button>
-
-      <p className="mt-3 text-center text-[12px] text-[var(--ink-faint)]">
-        {setupNeeded
-          ? "Credentials are checked against your server before anything is saved, then stored encrypted. Later sign-in uses this same mailbox password."
-          : "The new mailbox is tested, then stored encrypted on your Cloudflare account."}
-      </p>
     </form>
   );
 }
@@ -707,7 +364,7 @@ function Field({
         {label}
       </label>
       {children}
-      {hint && <p className="mt-1.5 text-[12px] text-[var(--ink-faint)]">{hint}</p>}
+      {hint && <p className="mt-1.5 text-[12px] text-muted-foreground">{hint}</p>}
     </div>
   );
 }

@@ -1976,6 +1976,12 @@ html[data-palette="ink"] .login-scene {
   text-decoration: underline;
 }
 
+.login-step-index {
+  margin: 0 0 1rem;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+
 .login-remember {
   display: flex;
   align-items: center;

@@ -29,15 +29,14 @@ export default async function MailIndexPage() {
         </div>
         <h2 className="text-[15px] font-semibold">No mailboxes yet</h2>
         <p className="mt-2 text-[13px] text-muted-foreground">
-          Connect a domain to receive mail on your own addresses, or attach an existing
-          IMAP account to read it here.
+          Link Gmail or Outlook, or create an address on a domain you already run.
         </p>
         <div className="mt-6 flex justify-center gap-2">
-          <Link href="/settings/domains" className="btn btn-primary">
-            Add a domain
+          <Link href="/settings/mailboxes/new" className="btn btn-primary">
+            Link an inbox
           </Link>
-          <Link href="/settings/mailboxes/new" className="btn btn-ghost">
-            Connect IMAP
+          <Link href="/settings/domains" className="btn btn-ghost">
+            Add a domain
           </Link>
         </div>
       </div>
