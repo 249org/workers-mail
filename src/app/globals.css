@@ -1541,6 +1541,65 @@ html[data-palette="ink"] .tour-mark-well {
   border-bottom: 1px solid var(--border);
 }
 
+.settings-pref {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1.25rem 2rem;
+  align-items: start;
+  padding: 1.35rem 2rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-pref[data-stack] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.settings-pref-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.settings-pref-hint {
+  margin: 0.35rem 0 0;
+  max-width: 42rem;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+
+.settings-pref-control {
+  min-width: 0;
+}
+
+.totp-secret {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  letter-spacing: 0.08em;
+  line-height: 1.6;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  background: var(--surface);
+}
+
+.recovery-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem 1rem;
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  list-style: none;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+}
+
+.settings-ledger-sessions .settings-ledger-row {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 @media (max-width: 639px) {
   .settings-shell {
     flex-direction: column;
@@ -1585,8 +1644,17 @@ html[data-palette="ink"] .tour-mark-well {
   .settings-ledger-head,
   .settings-ledger-row,
   .settings-block,
+  .settings-pref,
   .settings-section-label {
     padding-inline: 1rem;
+  }
+
+  .settings-pref {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .recovery-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

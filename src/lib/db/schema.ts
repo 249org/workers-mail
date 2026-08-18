@@ -11,8 +11,18 @@ export const users = sqliteTable("users", {
   role: text("role", { enum: ["admin", "member"] })
     .notNull()
     .default("member"),
+  totpSecret: text("totp_secret"),
+  totpEnabledAt: integer("totp_enabled_at"),
+  recoveryCodes: text("recovery_codes", { mode: "json" }).$type<string[]>(),
+  privacyPrefs: text("privacy_prefs", { mode: "json" }).$type<PrivacyPrefs>(),
+  sessionTtlDays: integer("session_ttl_days").notNull().default(30),
   createdAt: integer("created_at").notNull().default(now),
 }, (t) => [uniqueIndex("users_email_idx").on(t.email)]);
+
+export type PrivacyPrefs = {
+  remoteImages: "ask" | "allow";
+  collectContacts: boolean;
+};
 
 export const domains = sqliteTable("domains", {
   id: text("id").primaryKey(),

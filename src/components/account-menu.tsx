@@ -125,6 +125,22 @@ export function AccountMenu({ email, name, mailboxes }: Props) {
               Manage accounts
             </Link>
             <Link
+              href="/settings/security"
+              role="menuitem"
+              className="account-item"
+              onClick={() => setOpen(false)}
+            >
+              Security
+            </Link>
+            <Link
+              href="/settings/privacy"
+              role="menuitem"
+              className="account-item"
+              onClick={() => setOpen(false)}
+            >
+              Privacy
+            </Link>
+            <Link
               href="/settings/appearance"
               role="menuitem"
               className="account-item"

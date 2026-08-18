@@ -24,7 +24,7 @@ Desktop web, keyboard-first (j/k, ⌘K, g then i/s/d/a, `[` sidebar, `]` full-wi
 
 ## Capabilities and Constraints
 
-- Settings: domains, mailboxes, contacts, API keys, appearance (saved colour templates), keyboard shortcuts (reassignable).
+- Settings: domains, mailboxes, contacts, API keys, appearance (saved colour templates), keyboard shortcuts (reassignable), privacy (remote images, contact collection), security (password, TOTP 2FA, sessions).
 - IMAP/SMTP over `cloudflare:sockets`; port 25 blocked; passwords encrypted with `MAIL_ENCRYPTION_KEY`.
 - Workers Paid required (Durable Objects, Queues).
 - Visual world is brief-pinned: Meridian (hairline panels vs pill controls; Geist Sans / Geist Mono / Newsreader; terracotta highlight, slate-blue primary).

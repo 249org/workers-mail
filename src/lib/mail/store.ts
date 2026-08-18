@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import type { Database } from "@/lib/db";
-import { attachments, contacts, messages } from "@/lib/db/schema";
+import { attachments, contacts, messages, users } from "@/lib/db/schema";
+import { parsePrivacy } from "@/lib/privacy";
 import { newId } from "@/lib/ids";
 import type { ParsedMessage } from "./mime";
 import { resolveThreadId } from "./thread";
@@ -134,6 +135,12 @@ async function rememberContacts(
   ownerId: string,
   parsed: ParsedMessage,
 ): Promise<void> {
+  const rows = await db
+    .select({ privacyPrefs: users.privacyPrefs })
+    .from(users)
+    .where(eq(users.id, ownerId))
+    .limit(1);
+  if (!parsePrivacy(rows[0]?.privacyPrefs).collectContacts) return;
   const seen = new Map<string, string | undefined>();
   for (const addr of [parsed.from, ...parsed.to, ...parsed.cc]) {
     if (addr.address && !seen.has(addr.address)) seen.set(addr.address, addr.name);

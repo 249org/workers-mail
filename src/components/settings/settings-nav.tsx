@@ -54,18 +54,32 @@ export const SETTINGS_PAGES = [
     group: "Mail",
   },
   {
+    href: "/settings/privacy",
+    label: "Privacy",
+    command: "Open privacy settings",
+    keywords: ["images", "contacts", "tracking", "data"],
+    group: "Account",
+  },
+  {
+    href: "/settings/security",
+    label: "Security",
+    command: "Open security settings",
+    keywords: ["password", "2fa", "totp", "session", "two-factor"],
+    group: "Account",
+  },
+  {
     href: "/settings/api-keys",
     label: "API keys",
     command: "Open API keys",
     keywords: ["token", "access", "developer"],
-    group: "Access",
+    group: "Account",
   },
 ] as const;
 
 const NAV_GROUPS = [
   { label: "Workspace", hrefs: ["/settings", "/settings/appearance", "/settings/shortcuts"] },
   { label: "Mail", hrefs: ["/settings/domains", "/settings/mailboxes", "/settings/contacts"] },
-  { label: "Access", hrefs: ["/settings/api-keys"] },
+  { label: "Account", hrefs: ["/settings/privacy", "/settings/security", "/settings/api-keys"] },
 ] as const;
 
 export type SettingsIndex = {
@@ -75,6 +89,8 @@ export type SettingsIndex = {
   domainCount: number;
   contactCount: number;
   keyCount: number;
+  twoFactor: boolean;
+  remoteImages: "ask" | "allow";
 };
 
 export function SettingsNav({ index }: { index: SettingsIndex }) {
@@ -126,6 +142,10 @@ function hintFor(href: string, index: SettingsIndex): string {
       return index.mailboxHint;
     case "/settings/contacts":
       return index.contactCount === 0 ? "Empty" : `${index.contactCount} people`;
+    case "/settings/privacy":
+      return index.remoteImages === "allow" ? "Images load" : "Images blocked";
+    case "/settings/security":
+      return index.twoFactor ? "2FA on" : "Password";
     case "/settings/api-keys":
       return index.keyCount === 0 ? "None issued" : `${index.keyCount} issued`;
     default:

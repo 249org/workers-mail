@@ -3,9 +3,10 @@ import { createDb, type Database } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { randomToken } from "@/lib/ids";
 import { sha256Hex } from "@/lib/crypto";
+import { parseSessionTtlDays, sessionTtlSeconds, type SessionTtlDays } from "@/lib/privacy";
 
 export const SESSION_COOKIE = "wm_session";
-const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
+const DEFAULT_TTL_SECONDS = sessionTtlSeconds(30);
 
 export type SessionUser = {
   id: string;
@@ -17,22 +18,99 @@ export type SessionUser = {
 type SessionRecord = {
   userId: string;
   createdAt: number;
+  userAgent?: string;
+  ip?: string;
+};
+
+export type PublicSession = {
+  id: string;
+  createdAt: number;
+  userAgent: string;
+  ip: string;
+  current: boolean;
+};
+
+type SessionIndexEntry = {
+  hash: string;
+  createdAt: number;
+  userAgent: string;
+  ip: string;
 };
 
 export async function createSession(
   store: KVNamespace,
   userId: string,
+  options: {
+    maxAge?: number;
+    userAgent?: string;
+    ip?: string;
+  } = {},
 ): Promise<{ token: string; maxAge: number }> {
   const token = randomToken(32);
-  const record: SessionRecord = { userId, createdAt: Date.now() };
-  await store.put(sessionKey(await sha256Hex(token)), JSON.stringify(record), {
-    expirationTtl: SESSION_TTL_SECONDS,
-  });
-  return { token, maxAge: SESSION_TTL_SECONDS };
+  const hash = await sha256Hex(token);
+  const maxAge = options.maxAge ?? DEFAULT_TTL_SECONDS;
+  const createdAt = Date.now();
+  const record: SessionRecord = {
+    userId,
+    createdAt,
+    userAgent: options.userAgent,
+    ip: options.ip,
+  };
+  await store.put(sessionKey(hash), JSON.stringify(record), { expirationTtl: maxAge });
+  await addToIndex(store, userId, {
+    hash,
+    createdAt,
+    userAgent: options.userAgent ?? "",
+    ip: options.ip ?? "unknown",
+  }, maxAge);
+  return { token, maxAge };
 }
 
 export async function destroySession(store: KVNamespace, token: string): Promise<void> {
-  await store.delete(sessionKey(await sha256Hex(token)));
+  const hash = await sha256Hex(token);
+  const raw = await store.get(sessionKey(hash));
+  if (raw) {
+    const record = JSON.parse(raw) as SessionRecord;
+    await removeFromIndex(store, record.userId, hash);
+  }
+  await store.delete(sessionKey(hash));
+}
+
+export async function listSessions(
+  store: KVNamespace,
+  userId: string,
+  currentToken: string | undefined,
+): Promise<PublicSession[]> {
+  const currentHash = currentToken ? await sha256Hex(currentToken) : "";
+  const index = await readIndex(store, userId);
+  return index.map((entry) => ({
+    id: entry.hash.slice(0, 12),
+    createdAt: entry.createdAt,
+    userAgent: entry.userAgent,
+    ip: entry.ip,
+    current: entry.hash === currentHash,
+  }));
+}
+
+export async function revokeOtherSessions(
+  store: KVNamespace,
+  userId: string,
+  keepToken: string | undefined,
+): Promise<number> {
+  const keepHash = keepToken ? await sha256Hex(keepToken) : "";
+  const index = await readIndex(store, userId);
+  const kept: SessionIndexEntry[] = [];
+  let revoked = 0;
+  for (const entry of index) {
+    if (entry.hash === keepHash) {
+      kept.push(entry);
+      continue;
+    }
+    await store.delete(sessionKey(entry.hash));
+    revoked += 1;
+  }
+  await writeIndex(store, userId, kept);
+  return revoked;
 }
 
 export async function resolveSession(
@@ -70,6 +148,10 @@ export async function hasAnyUser(db: Database): Promise<boolean> {
   return rows.length > 0;
 }
 
+export function ttlForUser(days: number | null | undefined): number {
+  return sessionTtlSeconds(parseSessionTtlDays(days));
+}
+
 export function sessionCookie(token: string, maxAge: number, secure: boolean): string {
   const parts = [
     `${SESSION_COOKIE}=${token}`,
@@ -98,3 +180,47 @@ export function readCookie(header: string | null, name: string): string | undefi
 function sessionKey(hash: string): string {
   return `session:${hash}`;
 }
+
+function indexKey(userId: string): string {
+  return `sessions:${userId}`;
+}
+
+async function readIndex(store: KVNamespace, userId: string): Promise<SessionIndexEntry[]> {
+  const raw = await store.get(indexKey(userId));
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as SessionIndexEntry[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+async function writeIndex(store: KVNamespace, userId: string, entries: SessionIndexEntry[]): Promise<void> {
+  if (entries.length === 0) {
+    await store.delete(indexKey(userId));
+    return;
+  }
+  await store.put(indexKey(userId), JSON.stringify(entries), {
+    expirationTtl: sessionTtlSeconds(30) + 60 * 60 * 24,
+  });
+}
+
+async function addToIndex(
+  store: KVNamespace,
+  userId: string,
+  entry: SessionIndexEntry,
+  maxAge: number,
+): Promise<void> {
+  const next = [...(await readIndex(store, userId)).filter((item) => item.hash !== entry.hash), entry];
+  await store.put(indexKey(userId), JSON.stringify(next), {
+    expirationTtl: Math.max(maxAge, sessionTtlSeconds(30)) + 60 * 60 * 24,
+  });
+}
+
+async function removeFromIndex(store: KVNamespace, userId: string, hash: string): Promise<void> {
+  const next = (await readIndex(store, userId)).filter((entry) => entry.hash !== hash);
+  await writeIndex(store, userId, next);
+}
+
+export type { SessionTtlDays };

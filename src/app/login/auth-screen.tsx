@@ -82,8 +82,13 @@ function Tab({
 
 function SignInForm({ setupNeeded }: { setupNeeded: boolean }) {
   const router = useRouter();
+  const [step, setStep] = useState<"credentials" | "totp" | "forgot" | "forgot-sent">("credentials");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
+  const [challenge, setChallenge] = useState("");
+  const [code, setCode] = useState("");
+  const [recovery, setRecovery] = useState(false);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -101,15 +106,161 @@ function SignInForm({ setupNeeded }: { setupNeeded: boolean }) {
       }),
     });
 
+    const payload = (await response.json().catch(() => ({}))) as {
+      error?: string;
+      requiresTwoFactor?: boolean;
+      challenge?: string;
+    };
+
     if (!response.ok) {
-      const payload = (await response.json().catch(() => ({}))) as { error?: string };
       setError(payload.error ?? "Something went wrong. Try again.");
+      setPending(false);
+      return;
+    }
+
+    if (payload.requiresTwoFactor && payload.challenge) {
+      setChallenge(payload.challenge);
+      setEmail(String(form.get("email") ?? ""));
+      setStep("totp");
       setPending(false);
       return;
     }
 
     router.replace("/mail");
     router.refresh();
+  }
+
+  async function verifyTwoFactor(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPending(true);
+    setError(null);
+    const response = await fetch("/api/auth/login/verify", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ challenge, code }),
+    });
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      setError(payload.error ?? "That code was not recognised.");
+      setPending(false);
+      return;
+    }
+    router.replace("/mail");
+    router.refresh();
+  }
+
+  async function requestReset(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPending(true);
+    setError(null);
+    const form = new FormData(event.currentTarget);
+    await fetch("/api/auth/password/forgot", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: form.get("email") }),
+    });
+    setPending(false);
+    setStep("forgot-sent");
+  }
+
+  if (step === "forgot" || step === "forgot-sent") {
+    return (
+      <form onSubmit={requestReset} className="rise-in panel relative p-5">
+        <span className="reg reg-tl" aria-hidden />
+        <span className="reg reg-tr" aria-hidden />
+        <span className="reg reg-bl" aria-hidden />
+        <span className="reg reg-br" aria-hidden />
+        {step === "forgot-sent" ? (
+          <p className="text-[13px] text-[var(--ink)]">
+            If that account exists, a reset link is on its way. Check the inbox for this address.
+          </p>
+        ) : (
+          <>
+            <p className="mb-4 text-[13px] text-muted-foreground">
+              We will send a reset link to the address you sign in with.
+            </p>
+            <Field label="Email" htmlFor="reset-email">
+              <input
+                id="reset-email"
+                name="email"
+                type="email"
+                required
+                autoComplete="username"
+                className="field"
+                defaultValue={email}
+              />
+            </Field>
+            {error && <ErrorNote>{error}</ErrorNote>}
+            <button type="submit" className="btn btn-primary mt-1 w-full" disabled={pending}>
+              {pending ? "Sending" : "Send reset link"}
+            </button>
+          </>
+        )}
+        <button
+          type="button"
+          className="mt-3 w-full text-center text-[13px] text-muted-foreground hover:underline"
+          onClick={() => {
+            setStep("credentials");
+            setError(null);
+          }}
+        >
+          Back to sign in
+        </button>
+      </form>
+    );
+  }
+
+  if (step === "totp") {
+    return (
+      <form onSubmit={verifyTwoFactor} className="rise-in panel relative p-5">
+        <span className="reg reg-tl" aria-hidden />
+        <span className="reg reg-tr" aria-hidden />
+        <span className="reg reg-bl" aria-hidden />
+        <span className="reg reg-br" aria-hidden />
+        <p className="mb-4 text-[13px] text-muted-foreground">
+          {recovery
+            ? "Enter one of your recovery codes."
+            : "Enter the six-digit code from your authenticator."}
+        </p>
+        <Field label={recovery ? "Recovery code" : "Authenticator code"} htmlFor="totp-code">
+          <input
+            id="totp-code"
+            className="field"
+            autoComplete={recovery ? "off" : "one-time-code"}
+            inputMode={recovery ? "text" : "numeric"}
+            autoFocus
+            value={code}
+            onChange={(event) => setCode(event.target.value)}
+          />
+        </Field>
+        {error && <ErrorNote>{error}</ErrorNote>}
+        <button type="submit" className="btn btn-primary mt-1 w-full" disabled={pending || !code.trim()}>
+          {pending ? "Checking" : "Sign in"}
+        </button>
+        <button
+          type="button"
+          className="mt-3 w-full text-center text-[13px] text-muted-foreground hover:underline"
+          onClick={() => {
+            setRecovery((value) => !value);
+            setCode("");
+            setError(null);
+          }}
+        >
+          {recovery ? "Use authenticator code" : "Use a recovery code"}
+        </button>
+        <button
+          type="button"
+          className="mt-2 w-full text-center text-[13px] text-muted-foreground hover:underline"
+          onClick={() => {
+            setStep("credentials");
+            setCode("");
+            setError(null);
+          }}
+        >
+          Back
+        </button>
+      </form>
+    );
   }
 
   return (
@@ -135,6 +286,8 @@ function SignInForm({ setupNeeded }: { setupNeeded: boolean }) {
           required
           autoComplete="username"
           className="field"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
         />
       </Field>
 
@@ -159,6 +312,18 @@ function SignInForm({ setupNeeded }: { setupNeeded: boolean }) {
       <button type="submit" className="btn btn-primary mt-1 w-full" disabled={pending}>
         {pending ? "Working" : setupNeeded ? "Create account" : "Sign in"}
       </button>
+      {!setupNeeded && (
+        <button
+          type="button"
+          className="mt-3 w-full text-center text-[13px] text-muted-foreground hover:underline"
+          onClick={() => {
+            setStep("forgot");
+            setError(null);
+          }}
+        >
+          Forgot password
+        </button>
+      )}
     </form>
   );
 }

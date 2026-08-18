@@ -1,8 +1,15 @@
 import { createDb } from "@/lib/db";
 import { env } from "@/lib/env";
 import { verifyPassword } from "@/lib/crypto";
-import { createSession, findUserByEmail, sessionCookie } from "@/lib/auth/session";
+import {
+  createSession,
+  findUserByEmail,
+  sessionCookie,
+  ttlForUser,
+} from "@/lib/auth/session";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
+import { isSecureRequest, sessionMeta } from "@/lib/auth/user-agent";
+import { randomToken } from "@/lib/ids";
 
 type LoginBody = { email?: string; password?: string };
 
@@ -30,17 +37,27 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ error: "Those credentials did not match." }, { status: 401 });
   }
 
-  const session = await createSession(cloudflare.SESSION_STORE, user.id);
+  if (user.totpSecret && user.totpEnabledAt) {
+    const challenge = randomToken(24);
+    await cloudflare.SESSION_STORE.put(
+      `totp-login:${challenge}`,
+      JSON.stringify({ userId: user.id }),
+      { expirationTtl: 300 },
+    );
+    return Response.json({ requiresTwoFactor: true, challenge });
+  }
+
+  const meta = sessionMeta(request);
+  const session = await createSession(cloudflare.SESSION_STORE, user.id, {
+    maxAge: ttlForUser(user.sessionTtlDays),
+    ...meta,
+  });
   return Response.json(
     { ok: true },
     {
       headers: {
-        "set-cookie": sessionCookie(session.token, session.maxAge, isSecure(request)),
+        "set-cookie": sessionCookie(session.token, session.maxAge, isSecureRequest(request)),
       },
     },
   );
-}
-
-function isSecure(request: Request): boolean {
-  return new URL(request.url).protocol === "https:";
 }

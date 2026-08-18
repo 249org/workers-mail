@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { displayName, formatAddressList } from "@/lib/mail/address";
 import { useMailStore } from "@/lib/mail/view-store";
+import { usePrivacyStore } from "@/lib/privacy-store";
 import { formatBytes, formatFullDate, initialsOf } from "@/lib/format";
 import { toast } from "sonner";
 import { ChromeButton } from "./chrome-button";
@@ -24,15 +25,16 @@ export function MessageView({ messageId, onReply, listHidden, onToggleList }: Pr
   const folderId = useMailStore((state) => state.folderId);
   const inTrash = folders.find((folder) => folder.id === folderId)?.role === "trash";
   const star = useMailStore((state) => state.star);
+  const remoteImages = usePrivacyStore((state) => state.prefs.remoteImages);
   const [showImages, setShowImages] = useState(false);
 
   useEffect(() => {
-    setShowImages(false);
-  }, [messageId]);
+    setShowImages(remoteImages === "allow");
+  }, [messageId, remoteImages]);
 
   useEffect(() => {
-    if (!loaded) void load(messageId);
-  }, [loaded, load, messageId]);
+    if (!loaded) void load(messageId, { allowRemoteImages: remoteImages === "allow" });
+  }, [loaded, load, messageId, remoteImages]);
 
   const chromePad = listHidden ? "px-8 md:px-10" : "px-4";
 

@@ -4,7 +4,9 @@ import { env } from "@/lib/env";
 import { hashPassword } from "@/lib/crypto";
 import { newId } from "@/lib/ids";
 import { createSession, findUserByEmail, hasAnyUser, sessionCookie } from "@/lib/auth/session";
+import { isSecureRequest, sessionMeta } from "@/lib/auth/user-agent";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
+import { passwordIssue } from "@/lib/auth/password";
 import { isEmailAddress } from "@/lib/mail/address";
 
 type RegisterBody = { email?: string; password?: string; name?: string };
@@ -32,8 +34,9 @@ export async function POST(request: Request): Promise<Response> {
   if (!isEmailAddress(email)) {
     return Response.json({ error: "Enter a valid email address." }, { status: 400 });
   }
-  if (password.length < 10) {
-    return Response.json({ error: "Use a password of at least 10 characters." }, { status: 400 });
+  const issue = passwordIssue(password);
+  if (issue) {
+    return Response.json({ error: issue }, { status: 400 });
   }
   if (await findUserByEmail(db, email)) {
     return Response.json({ error: "That address is already registered." }, { status: 409 });
@@ -48,16 +51,12 @@ export async function POST(request: Request): Promise<Response> {
     role: "admin",
   });
 
-  const session = await createSession(cloudflare.SESSION_STORE, id);
+  const session = await createSession(cloudflare.SESSION_STORE, id, sessionMeta(request));
   return Response.json(
     { ok: true },
     {
       headers: {
-        "set-cookie": sessionCookie(
-          session.token,
-          session.maxAge,
-          new URL(request.url).protocol === "https:",
-        ),
+        "set-cookie": sessionCookie(session.token, session.maxAge, isSecureRequest(request)),
       },
     },
   );
