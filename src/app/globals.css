@@ -344,6 +344,43 @@ button.field {
   border-radius: 0.375rem;
 }
 
+/* Instant label — no delay, unlike native title tooltips. */
+.tip {
+  position: relative;
+}
+
+.tip::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  z-index: 30;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  box-shadow: var(--shadow-pop);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.tip-end::after {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+
+.tip:hover::after,
+.tip:focus-visible::after {
+  opacity: 1;
+}
+
 @media (hover: hover) and (pointer: fine) {
   .btn-primary:hover:not(:disabled) {
     background: color-mix(in srgb, var(--primary) 88%, black);

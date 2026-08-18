@@ -3,37 +3,73 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const GROUPS = [
+export const SETTINGS_PAGES = [
   {
-    label: "Workspace",
-    items: [
-      { href: "/settings", label: "Overview" },
-      { href: "/settings/appearance", label: "Appearance" },
-    ],
+    href: "/settings",
+    label: "Overview",
+    command: "Open settings overview",
+    keywords: ["overview", "health", "usage"],
+    group: "Workspace",
   },
   {
-    label: "Mail",
-    items: [
-      { href: "/settings/domains", label: "Domains" },
-      { href: "/settings/mailboxes", label: "Mailboxes" },
-      { href: "/settings/contacts", label: "Contacts" },
-    ],
+    href: "/settings/appearance",
+    label: "Appearance",
+    command: "Open appearance settings",
+    keywords: ["theme", "dark", "light", "palette", "colour", "color"],
+    group: "Workspace",
   },
   {
-    label: "Access",
-    items: [{ href: "/settings/api-keys", label: "API keys" }],
+    href: "/settings/domains",
+    label: "Domains",
+    command: "Open domains",
+    keywords: ["dns", "routing", "domain"],
+    group: "Mail",
   },
-];
+  {
+    href: "/settings/mailboxes",
+    label: "Mailboxes",
+    command: "Open mailboxes",
+    keywords: ["accounts", "imap", "smtp"],
+    group: "Mail",
+  },
+  {
+    href: "/settings/mailboxes/new",
+    label: "Add mailbox",
+    command: "Add mailbox",
+    keywords: ["connect", "imap", "new", "account"],
+    group: "Mail",
+  },
+  {
+    href: "/settings/contacts",
+    label: "Contacts",
+    command: "Open contacts",
+    keywords: ["people", "address book"],
+    group: "Mail",
+  },
+  {
+    href: "/settings/api-keys",
+    label: "API keys",
+    command: "Open API keys",
+    keywords: ["token", "access", "developer"],
+    group: "Access",
+  },
+] as const;
+
+const NAV_GROUPS = [
+  { label: "Workspace", hrefs: ["/settings", "/settings/appearance"] },
+  { label: "Mail", hrefs: ["/settings/domains", "/settings/mailboxes", "/settings/contacts"] },
+  { label: "Access", hrefs: ["/settings/api-keys"] },
+] as const;
 
 export function SettingsNav() {
   const pathname = usePathname();
 
   return (
     <nav className="hidden w-44 shrink-0 sm:block">
-      {GROUPS.map((group) => (
+      {NAV_GROUPS.map((group) => (
         <div key={group.label} className="mb-5">
           <p className="label px-2.5 pb-1">{group.label}</p>
-          {group.items.map((item) => {
+          {SETTINGS_PAGES.filter((item) => (group.hrefs as readonly string[]).includes(item.href)).map((item) => {
             const active =
               item.href === "/settings"
                 ? pathname === "/settings"

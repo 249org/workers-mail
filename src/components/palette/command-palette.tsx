@@ -16,19 +16,22 @@ export type PaletteCommand = {
   label: string;
   hint?: string;
   group: string;
+  keywords?: string[];
+  suffix?: string;
   run: () => void;
 };
 
 type Props = {
   open: boolean;
   initialQuery: string;
-  mailbox: PublicMailbox;
+  mailbox: PublicMailbox | null;
   mailboxes: PublicMailbox[];
   commands: PaletteCommand[];
   onClose: () => void;
 };
 
 const SEARCH_DEBOUNCE_MS = 120;
+const GROUP_ORDER = ["Appearance", "Settings", "Actions", "Application"];
 
 /**
  * Commands, message search and jump-to in one surface.
@@ -69,9 +72,10 @@ export function CommandPalette({
 
   const trimmed = query.trim();
   const commandMode = trimmed.startsWith(">");
+  const mailboxId = mailbox?.id ?? mailboxes[0]?.id ?? null;
 
   useEffect(() => {
-    if (!open || commandMode || trimmed.length < 2) {
+    if (!open || commandMode || !mailboxId || trimmed.length < 2) {
       setResults([]);
       return;
     }
@@ -80,7 +84,7 @@ export function CommandPalette({
     const timer = setTimeout(async () => {
       setSearching(true);
       try {
-        const params = new URLSearchParams({ mailbox: mailbox.id, q: trimmed });
+        const params = new URLSearchParams({ mailbox: mailboxId, q: trimmed });
         const response = await fetch(`/api/search?${params}`, { signal: controller.signal });
         if (!response.ok) return;
         const payload = (await response.json()) as { items: MessageSummary[] };
@@ -96,18 +100,34 @@ export function CommandPalette({
       controller.abort();
       clearTimeout(timer);
     };
-  }, [open, trimmed, commandMode, mailbox.id]);
+  }, [open, trimmed, commandMode, mailboxId]);
 
   const needle = trimmed.replace(/^>\s*/, "");
 
-  const visibleCommands = useMemo(
-    () => commands.filter((command) => matches(command.label, needle)),
-    [commands, needle],
-  );
+  const commandGroups = useMemo(() => {
+    const visible = commands.filter((command) => matchesCommand(command, needle));
+    const grouped = new Map<string, PaletteCommand[]>();
+    for (const command of visible) {
+      const list = grouped.get(command.group) ?? [];
+      list.push(command);
+      grouped.set(command.group, list);
+    }
+    const known = GROUP_ORDER.filter((group) => grouped.has(group)).map((group) => ({
+      heading: group,
+      items: grouped.get(group) ?? [],
+    }));
+    const rest = [...grouped.keys()]
+      .filter((group) => !GROUP_ORDER.includes(group))
+      .map((group) => ({ heading: group, items: grouped.get(group) ?? [] }));
+    return [...known, ...rest];
+  }, [commands, needle]);
 
   const visibleFolders = useMemo(
-    () => (commandMode ? [] : folders.filter((folder) => matches(folder.name, trimmed))),
-    [commandMode, folders, trimmed],
+    () =>
+      commandMode || !mailbox
+        ? []
+        : folders.filter((folder) => matches(folder.name, trimmed)),
+    [commandMode, folders, mailbox, trimmed],
   );
 
   const visibleMailboxes = useMemo(
@@ -115,9 +135,9 @@ export function CommandPalette({
       commandMode
         ? []
         : mailboxes.filter(
-            (entry) => entry.id !== mailbox.id && matches(entry.address, trimmed),
+            (entry) => entry.id !== mailbox?.id && matches(entry.address, trimmed),
           ),
-    [commandMode, mailboxes, mailbox.id, trimmed],
+    [commandMode, mailboxes, mailbox?.id, trimmed],
   );
 
   if (!open) return null;
@@ -153,7 +173,7 @@ export function CommandPalette({
             ref={inputRef}
             value={query}
             onValueChange={setQuery}
-            placeholder="Search messages, or > for commands"
+            placeholder="Search mail, appearance, settings…"
             className="field min-w-0 flex-1"
           />
           {searching && <span className="shrink-0 text-[11px] text-[var(--ink-faint)]">…</span>}
@@ -171,7 +191,14 @@ export function CommandPalette({
                 <Item
                   key={message.id}
                   value={`message-${message.id}`}
-                  onSelect={() => runAndClose(() => select(message.id))}
+                  onSelect={() => {
+                    runAndClose(() => {
+                      if (mailboxId) {
+                        router.push(`/mail/${mailboxId}/${message.folderId}?message=${message.id}`);
+                      }
+                      select(message.id);
+                    });
+                  }}
                 >
                   <span className="w-28 shrink-0 truncate text-[var(--ink-muted)]">
                     {displayName(message.from)}
@@ -187,22 +214,27 @@ export function CommandPalette({
             </Group>
           )}
 
-          {visibleCommands.length > 0 && (
-            <Group heading="Commands">
-              {visibleCommands.map((command) => (
+          {commandGroups.map((group) => (
+            <Group key={group.heading} heading={group.heading}>
+              {group.items.map((command) => (
                 <Item
                   key={command.id}
                   value={`command-${command.id}`}
                   onSelect={() => runAndClose(command.run)}
                 >
                   <span className="flex-1 truncate">{command.label}</span>
+                  {command.suffix && (
+                    <span className="font-mono text-[10px] font-medium tracking-[0.15em] text-primary uppercase">
+                      {command.suffix}
+                    </span>
+                  )}
                   {command.hint && <span className="kbd">{command.hint}</span>}
                 </Item>
               ))}
             </Group>
-          )}
+          ))}
 
-          {visibleFolders.length + visibleMailboxes.length > 0 && (
+          {visibleFolders.length + visibleMailboxes.length > 0 && mailbox && (
             <Group heading="Jump to">
               {visibleFolders.map((folder) => (
                 <Item
@@ -234,7 +266,7 @@ export function CommandPalette({
             </Group>
           )}
 
-          {trimmed.length === 0 && (
+          {trimmed.length === 0 && mailboxId && (
             <div className="px-3 py-2.5">
               <p className="label">Search operators</p>
               <div className="flex flex-wrap gap-1.5">
@@ -287,6 +319,12 @@ function Item({
       {children}
     </Command.Item>
   );
+}
+
+export function matchesCommand(command: PaletteCommand, query: string): boolean {
+  if (!query) return true;
+  const haystack = [command.label, command.group, ...(command.keywords ?? [])].join(" ");
+  return matches(haystack, query);
 }
 
 function matches(candidate: string, query: string): boolean {

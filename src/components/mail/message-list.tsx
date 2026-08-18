@@ -5,7 +5,7 @@ import { displayName } from "@/lib/mail/address";
 import type { MessageSummary } from "@/lib/mail/queries";
 import { navigateMailFolder, useMailStore, type FolderSummary } from "@/lib/mail/view-store";
 import { formatMessageDate } from "@/lib/format";
-import { MailIcon } from "./icons";
+import { MailIcon, type IconName } from "./icons";
 
 type Props = {
   onOpenSearch: () => void;
@@ -266,29 +266,46 @@ function BulkBar({ count, onToggleAll }: { count: number; onToggleAll: () => voi
   const ids = [...checked];
 
   return (
-    <div className="flex shrink-0 items-center gap-2 border-b border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs">
-      <button type="button" className="hover:underline" onClick={onToggleAll}>
+    <div className="relative z-10 flex shrink-0 items-center gap-2 border-b border-border bg-secondary px-2 py-1">
+      <button type="button" className="btn btn-quiet !px-2.5" onClick={onToggleAll}>
         {count} selected
       </button>
-      <div className="ml-auto flex gap-2.5">
-        <button type="button" className="hover:underline" onClick={() => markRead(ids, true)}>
-          Read
-        </button>
-        <button type="button" className="hover:underline" onClick={() => markRead(ids, false)}>
-          Unread
-        </button>
-        <button type="button" className="hover:underline" onClick={() => star(ids, true)}>
-          Star
-        </button>
-        <button
-          type="button"
-          className="hover:underline"
-          style={{ color: "var(--danger)" }}
-          onClick={() => trash(ids)}
-        >
-          Trash
-        </button>
+      <div className="ml-auto flex items-center">
+        <IconAction icon="seen" label="Mark read" onClick={() => markRead(ids, true)} />
+        <IconAction icon="unseen" label="Mark unread" hint="U" onClick={() => markRead(ids, false)} />
+        <IconAction icon="star" label="Star" hint="S" onClick={() => star(ids, true)} />
+        <IconAction icon="trash" label="Move to trash" hint="#" danger onClick={() => trash(ids)} end />
       </div>
     </div>
+  );
+}
+
+function IconAction({
+  icon,
+  label,
+  hint,
+  danger,
+  end,
+  onClick,
+}: {
+  icon: IconName;
+  label: string;
+  hint?: string;
+  danger?: boolean;
+  end?: boolean;
+  onClick: () => void;
+}) {
+  const tip = hint ? `${label} (${hint})` : label;
+  return (
+    <button
+      type="button"
+      className={`tip btn btn-quiet btn-icon ${end ? "tip-end" : ""}`}
+      style={danger ? { color: "var(--danger)" } : undefined}
+      data-tip={tip}
+      aria-label={tip}
+      onClick={onClick}
+    >
+      <MailIcon name={icon} />
+    </button>
   );
 }

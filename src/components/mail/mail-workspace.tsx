@@ -9,13 +9,13 @@ import { formatAddressList } from "@/lib/mail/address";
 import { normalizeSubject } from "@/lib/mail/thread";
 import { navigateMailFolder, useMailStore, type FolderSummary } from "@/lib/mail/view-store";
 import { readMailLayout, writeMailLayout, type MailLayout } from "@/lib/mail/layout-prefs";
+import { usePaletteStore } from "@/lib/palette/store";
 import { useHotkeys } from "@/lib/keyboard/use-hotkeys";
-import { CommandPalette, type PaletteCommand } from "@/components/palette/command-palette";
+import type { PaletteCommand } from "@/components/palette/command-palette";
 import { ComposeDialog, type ComposeDraft } from "./compose-dialog";
 import { FolderSidebar } from "./folder-sidebar";
 import { MessageList } from "./message-list";
 import { MessageView } from "./message-view";
-import { ShortcutHelp } from "./shortcut-help";
 import { useMailStream } from "./use-mail-stream";
 
 type Props = {
@@ -42,9 +42,6 @@ export function MailWorkspace({
   const folderId = params.folderId ?? "";
   const [compose, setCompose] = useState<ComposeDraft | null>(null);
   const [composeMailboxId, setComposeMailboxId] = useState(mailbox.id);
-  const [paletteOpen, setPaletteOpen] = useState(false);
-  const [paletteQuery, setPaletteQuery] = useState("");
-  const [helpOpen, setHelpOpen] = useState(false);
   const [layout, setLayout] = useState<MailLayout>({ sidebarCollapsed: false, listHidden: false });
   const searchRef = useRef<HTMLInputElement>(null);
   const searchDirty = useRef(false);
@@ -262,12 +259,7 @@ export function MailWorkspace({
   }, [setMailLayout]);
 
   useHotkeys("global", {
-    palette: () => {
-      setPaletteQuery("");
-      setPaletteOpen(true);
-    },
     search: () => searchRef.current?.focus(),
-    help: () => setHelpOpen(true),
     compose: () => {
       setComposeMailboxId(mailbox.id);
       setCompose(EMPTY_DRAFT);
@@ -333,15 +325,16 @@ export function MailWorkspace({
 
   const commands = useMemo<PaletteCommand[]>(
     () => [
-      { id: "compose", label: "Compose message", hint: "C", group: "Actions", run: () => setCompose(EMPTY_DRAFT) },
+      { id: "compose", label: "Compose message", hint: "C", group: "Actions", keywords: ["new", "write"], run: () => setCompose(EMPTY_DRAFT) },
       { id: "archive", label: "Archive selected", hint: "E", group: "Actions", run: archive },
       { id: "trash", label: "Move selected to trash", hint: "#", group: "Actions", run: trash },
-      { id: "sync", label: "Sync now", group: "Actions", run: () => void syncNow() },
+      { id: "sync", label: "Sync now", hint: "⇧R", group: "Actions", keywords: ["refresh", "imap"], run: () => void syncNow() },
       {
         id: "sidebar",
         label: layout.sidebarCollapsed ? "Expand folder sidebar" : "Collapse folder sidebar",
         hint: "[",
         group: "Application",
+        keywords: ["rail", "folders", "nav"],
         run: toggleSidebar,
       },
       {
@@ -349,22 +342,22 @@ export function MailWorkspace({
         label: layout.listHidden ? "Show message list" : "Read full width",
         hint: "]",
         group: "Application",
+        keywords: ["focus", "wide", "list"],
         run: toggleList,
       },
-      { id: "help", label: "Keyboard shortcuts", hint: "?", group: "Application", run: () => setHelpOpen(true) },
-      { id: "settings", label: "Open settings", group: "Application", run: () => router.push("/settings") },
-      {
-        id: "signout",
-        label: "Sign out",
-        group: "Application",
-        run: async () => {
-          await fetch("/api/auth/logout", { method: "POST" });
-          router.replace("/login");
-        },
-      },
     ],
-    [archive, trash, syncNow, router, layout.sidebarCollapsed, layout.listHidden, toggleSidebar, toggleList],
+    [archive, trash, syncNow, layout.sidebarCollapsed, layout.listHidden, toggleSidebar, toggleList],
   );
+
+  useEffect(() => {
+    const store = usePaletteStore.getState();
+    store.setMailbox(mailbox);
+    store.setExtras(commands);
+    return () => {
+      store.setMailbox(null);
+      store.setExtras([]);
+    };
+  }, [mailbox, commands]);
 
   return (
     <div className="flex h-full">
@@ -379,10 +372,7 @@ export function MailWorkspace({
           setCompose(EMPTY_DRAFT);
         }}
         onSync={() => void syncNow()}
-        onOpenPalette={() => {
-          setPaletteQuery("");
-          setPaletteOpen(true);
-        }}
+        onOpenPalette={() => usePaletteStore.getState().openPalette()}
       />
 
       <MessageList
@@ -408,17 +398,6 @@ export function MailWorkspace({
           </p>
         </section>
       )}
-
-      <CommandPalette
-        open={paletteOpen}
-        initialQuery={paletteQuery}
-        mailbox={mailbox}
-        mailboxes={mailboxes}
-        commands={commands}
-        onClose={() => setPaletteOpen(false)}
-      />
-
-      <ShortcutHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
 
       {compose && (
         <ComposeDialog

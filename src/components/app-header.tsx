@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { PublicMailbox } from "@/lib/mail/mailboxes";
 import { AccountMenu } from "./account-menu";
+import { CommandCenter } from "./palette/command-center";
 
 type Props = {
   email: string;
@@ -38,6 +39,7 @@ export function AppHeader({ email, name, mailboxes, context }: Props) {
             Settings
           </Link>
         )}
+        <CommandCenter mailboxes={mailboxes} />
         <AccountMenu email={email} name={name} mailboxes={mailboxes} />
       </div>
     </header>

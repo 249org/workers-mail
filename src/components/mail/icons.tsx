@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-type IconName =
+export type IconName =
   | "inbox"
   | "sent"
   | "drafts"
@@ -14,7 +14,10 @@ type IconName =
   | "expand"
   | "list"
   | "mailbox"
-  | "sync";
+  | "sync"
+  | "seen"
+  | "unseen"
+  | "star";
 
 const PATHS: Record<IconName, ReactNode> = {
   inbox: (
@@ -101,6 +104,21 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M20 12a8 8 0 1 1-2.2-5.5" />
       <path d="M20 5v5h-5" />
     </>
+  ),
+  seen: (
+    <>
+      <path d="M4 10l8-5 8 5v9H4z" />
+      <path d="M4 10l8 6 8-6" />
+    </>
+  ),
+  unseen: (
+    <>
+      <rect x="3" y="6" width="18" height="13" rx="1" />
+      <path d="M3 8l9 6 9-6" />
+    </>
+  ),
+  star: (
+    <path d="M12 4.2l2.2 5.1 5.5.5-4.2 3.7 1.2 5.4L12 16.3 7.3 18.9l1.2-5.4-4.2-3.7 5.5-.5z" />
   ),
 };
 

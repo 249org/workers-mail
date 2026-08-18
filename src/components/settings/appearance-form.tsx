@@ -1,67 +1,30 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import {
-  applyAppearance,
-  DEFAULT_APPEARANCE,
   PALETTES,
-  persistAppearanceLocal,
-  readStoredAppearance,
   SCHEMES,
-  type AppearancePrefs,
   type PaletteId,
   type SchemeId,
 } from "@/lib/appearance";
+import { useAppearanceStore } from "@/lib/appearance-store";
 
 export function AppearanceForm() {
-  const [prefs, setPrefs] = useState<AppearancePrefs>(DEFAULT_APPEARANCE);
+  const prefs = useAppearanceStore((state) => state.prefs);
+  const setPrefs = useAppearanceStore((state) => state.setPrefs);
+  const hydrate = useAppearanceStore((state) => state.hydrate);
 
   useEffect(() => {
-    const local = readStoredAppearance();
-    setPrefs(local);
-    applyAppearance(local);
-
-    let cancelled = false;
-    void fetch("/api/appearance")
-      .then((response) => (response.ok ? response.json() : null))
-      .then((payload) => {
-        if (cancelled) return;
-        const saved = (payload as { prefs?: AppearancePrefs | null } | null)?.prefs;
-        if (saved) {
-          setPrefs(saved);
-          applyAppearance(saved);
-          persistAppearanceLocal(saved);
-          return;
-        }
-        persistAppearanceLocal(local);
-        void fetch("/api/appearance", {
-          method: "PUT",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(local),
-        });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  function choose(next: AppearancePrefs) {
-    setPrefs(next);
-    applyAppearance(next);
-    persistAppearanceLocal(next);
-    void fetch("/api/appearance", {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(next),
-    });
-  }
+    void hydrate();
+  }, [hydrate]);
 
   return (
     <div className="flex flex-col gap-8">
       <section>
         <h2 className="section-title">Light and dark</h2>
         <p className="mt-1 text-[13px] text-muted-foreground">
-          System follows the operating system. Light and dark stay put.
+          System follows the operating system. Light and dark stay put. Same choices live in{" "}
+          <span className="kbd">⌘K</span>.
         </p>
         <div className="scheme-toggle mt-4" role="radiogroup" aria-label="Colour scheme">
           {SCHEMES.map((scheme) => {
@@ -74,7 +37,7 @@ export function AppearanceForm() {
                 aria-checked={active}
                 className="scheme-toggle-btn"
                 data-active={active ? "true" : undefined}
-                onClick={() => choose({ ...prefs, scheme: scheme.id as SchemeId })}
+                onClick={() => setPrefs({ ...prefs, scheme: scheme.id as SchemeId })}
               >
                 {scheme.name}
               </button>
@@ -98,7 +61,7 @@ export function AppearanceForm() {
                   type="button"
                   className="palette-tile"
                   data-active={active ? "true" : undefined}
-                  onClick={() => choose({ ...prefs, palette: palette.id as PaletteId })}
+                  onClick={() => setPrefs({ ...prefs, palette: palette.id as PaletteId })}
                 >
                   <span className="palette-preview" aria-hidden>
                     <span style={{ background: palette.paper }} />

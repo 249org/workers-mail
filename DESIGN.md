@@ -110,7 +110,7 @@ Panel radius 4px. Inputs `rounded-lg` (8px), height 40px. Buttons `rounded-full`
 - **Fields:** transparent fill, hairline border, focus primary + 3px ring at 15% primary.
 - **Lists:** `list-frame` — hairline outer, hairline between rows, no card radius stack.
 - **Selected row / nav:** accent-subtle fill, primary text. No 2px accent bar.
-- **Palette:** unanimated. Hairline panel, shadow allowed because it floats.
+- **Palette:** unanimated. Hairline panel, shadow allowed because it floats. ⌘K is the control surface for appearance (light, dark, system, colour templates), every settings page, and mail actions.
 
 ## Do's and Don'ts
 
