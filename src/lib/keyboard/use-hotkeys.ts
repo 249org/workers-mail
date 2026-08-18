@@ -107,7 +107,7 @@ function handle(combo: string, event: KeyboardEvent, typing: boolean): boolean {
 
   for (const registration of stack) {
     for (const shortcut of usable) {
-      if (shortcut.scope !== registration.scope) continue;
+      if (!scopeAllows(shortcut.scope, registration.scope)) continue;
       const handler = registration.handlers.current[shortcut.action];
       if (!handler) continue;
       event.preventDefault();
@@ -124,6 +124,14 @@ function handle(combo: string, event: KeyboardEvent, typing: boolean): boolean {
 
 export function comboFromEvent(event: KeyboardEvent): string | null {
   return comboFor(event);
+}
+
+/**
+ * Modals overlay every other scope, so they may handle a global binding they
+ * opted into (Escape to close) without taking list or reader keys they did not.
+ */
+export function scopeAllows(shortcutScope: Scope, registrationScope: Scope): boolean {
+  return shortcutScope === registrationScope || registrationScope === "modal";
 }
 
 function comboFor(event: KeyboardEvent): string | null {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatComboHint, formatKeys, SHORTCUTS } from "@/lib/keyboard/shortcuts";
-import { internals } from "@/lib/keyboard/use-hotkeys";
+import { internals, scopeAllows } from "@/lib/keyboard/use-hotkeys";
 
 const { comboFor, isSequencePrefix } = internals;
 
@@ -85,6 +85,13 @@ describe("shortcut map", () => {
   it("opens compose with c only, and keeps f for forward", () => {
     expect(SHORTCUTS.find((shortcut) => shortcut.action === "compose")?.keys).toEqual(["c"]);
     expect(SHORTCUTS.find((shortcut) => shortcut.action === "forward")?.keys).toEqual(["f"]);
+  });
+
+  it("lets a modal handle Escape even though back is a global binding", () => {
+    expect(scopeAllows("global", "modal")).toBe(true);
+    expect(scopeAllows("modal", "modal")).toBe(true);
+    expect(scopeAllows("list", "global")).toBe(false);
+    expect(scopeAllows("reader", "list")).toBe(false);
   });
 
   it("keeps every sequence binding under the go prefix", () => {

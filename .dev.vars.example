@@ -1,4 +1,9 @@
-MAIL_ENCRYPTION_KEY=""
-CLOUDFLARE_API_TOKEN=""
-CLOUDFLARE_ACCOUNT_ID=""
-AUTH_SECRET=""
+# Required. Encrypts IMAP, SMTP, and authenticator secrets.
+# openssl rand -hex 32
+MAIL_ENCRYPTION_KEY=
+
+# Optional. Auto-provisions Email Routing. Zone:Read, DNS:Read, Email Routing Rules:Edit.
+CLOUDFLARE_API_TOKEN=
+
+# Optional. Used with CLOUDFLARE_API_TOKEN for domain provisioning.
+CLOUDFLARE_ACCOUNT_ID=

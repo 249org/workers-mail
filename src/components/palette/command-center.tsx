@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { PublicMailbox } from "@/lib/mail/mailboxes";
 import { useAppearanceStore } from "@/lib/appearance-store";
 import { usePrivacyStore } from "@/lib/privacy-store";
+import { useSignatureStore } from "@/lib/signature-store";
 import { appearanceCommands, settingsCommands } from "@/lib/palette/catalog";
 import { usePaletteStore } from "@/lib/palette/store";
 import { useHotkeys } from "@/lib/keyboard/use-hotkeys";
@@ -34,12 +35,14 @@ export function CommandCenter({ mailboxes }: Props) {
   const hydrateAppearance = useAppearanceStore((state) => state.hydrate);
   const hydrateShortcuts = useShortcutStore((state) => state.hydrate);
   const hydratePrivacy = usePrivacyStore((state) => state.hydrate);
+  const hydrateSignature = useSignatureStore((state) => state.hydrate);
 
   useEffect(() => {
     void hydrateAppearance();
     void hydrateShortcuts();
     void hydratePrivacy();
-  }, [hydrateAppearance, hydrateShortcuts, hydratePrivacy]);
+    void hydrateSignature();
+  }, [hydrateAppearance, hydrateShortcuts, hydratePrivacy, hydrateSignature]);
 
   useEffect(() => {
     if (!TUTORIAL_EVERY_LOAD) return;

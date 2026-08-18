@@ -12,13 +12,14 @@ import {
   parseAppearance,
 } from "@/lib/appearance";
 import { parsePrivacy } from "@/lib/privacy";
+import { parseSignature } from "@/lib/signature";
 import { Toaster } from "sonner";
 
 export default async function SettingsLayout({ children }: { children: React.ReactNode }) {
-  const { user, db } = await requireUser();
+  const { user, db, env: cloudflare } = await requireUser();
   const appearance = parseAppearance((await cookies()).get(APPEARANCE_COOKIE)?.value);
 
-  const [mailboxes, domainRows, contactRows, keyRows, accountRows] = await Promise.all([
+  const [mailboxes, domainRows, contactRows, keyRows, accountRows, signatureStored] = await Promise.all([
     listMailboxes(db, user.id),
     db.select({ n: count() }).from(domains).where(eq(domains.ownerId, user.id)),
     db.select({ n: count() }).from(contacts).where(eq(contacts.ownerId, user.id)),
@@ -31,12 +32,22 @@ export default async function SettingsLayout({ children }: { children: React.Rea
       .from(users)
       .where(eq(users.id, user.id))
       .limit(1),
+    cloudflare.SESSION_STORE.get(`signature:${user.id}`),
   ]);
 
   const palette = PALETTES.find((item) => item.id === appearance.palette)?.name ?? "Meridian";
   const scheme = SCHEMES.find((item) => item.id === appearance.scheme)?.name ?? "System";
 
   const privacy = parsePrivacy(accountRows[0]?.privacyPrefs);
+  let signatureOn = false;
+  if (signatureStored) {
+    try {
+      const signature = parseSignature(JSON.parse(signatureStored));
+      signatureOn = signature.enabled && Boolean(signature.text.trim() || Object.keys(signature.byMailbox).length);
+    } catch {
+      signatureOn = false;
+    }
+  }
 
   const index: SettingsIndex = {
     appearance: `${palette} · ${scheme}`,
@@ -47,6 +58,7 @@ export default async function SettingsLayout({ children }: { children: React.Rea
     keyCount: Number(keyRows[0]?.n ?? 0),
     twoFactor: Boolean(accountRows[0]?.totpEnabledAt),
     remoteImages: privacy.remoteImages,
+    signatureOn,
   };
 
   return (

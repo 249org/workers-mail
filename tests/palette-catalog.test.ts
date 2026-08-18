@@ -34,6 +34,7 @@ describe("palette catalog", () => {
     expect(commands.some((command) => command.label === "Open API keys")).toBe(true);
     expect(commands.some((command) => command.label === "Open privacy settings")).toBe(true);
     expect(commands.some((command) => command.label === "Open security settings")).toBe(true);
+    expect(commands.some((command) => command.label === "Open signature settings")).toBe(true);
     commands.find((command) => command.id === "settings-/settings/domains")?.run();
     expect(hrefs).toContain("/settings/domains");
   });

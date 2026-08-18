@@ -47,6 +47,13 @@ export const SETTINGS_PAGES = [
     group: "Mail",
   },
   {
+    href: "/settings/signature",
+    label: "Signature",
+    command: "Open signature settings",
+    keywords: ["sign-off", "footer", "closing", "signature"],
+    group: "Mail",
+  },
+  {
     href: "/settings/contacts",
     label: "Contacts",
     command: "Open contacts",
@@ -78,7 +85,10 @@ export const SETTINGS_PAGES = [
 
 const NAV_GROUPS = [
   { label: "Workspace", hrefs: ["/settings", "/settings/appearance", "/settings/shortcuts"] },
-  { label: "Mail", hrefs: ["/settings/domains", "/settings/mailboxes", "/settings/contacts"] },
+  {
+    label: "Mail",
+    hrefs: ["/settings/domains", "/settings/mailboxes", "/settings/signature", "/settings/contacts"],
+  },
   { label: "Account", hrefs: ["/settings/privacy", "/settings/security", "/settings/api-keys"] },
 ] as const;
 
@@ -91,6 +101,7 @@ export type SettingsIndex = {
   keyCount: number;
   twoFactor: boolean;
   remoteImages: "ask" | "allow";
+  signatureOn: boolean;
 };
 
 export function SettingsNav({ index }: { index: SettingsIndex }) {
@@ -140,6 +151,8 @@ function hintFor(href: string, index: SettingsIndex): string {
       return index.domainCount === 0 ? "None connected" : `${index.domainCount} connected`;
     case "/settings/mailboxes":
       return index.mailboxHint;
+    case "/settings/signature":
+      return index.signatureOn ? "On" : "None";
     case "/settings/contacts":
       return index.contactCount === 0 ? "Empty" : `${index.contactCount} people`;
     case "/settings/privacy":

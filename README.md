@@ -1,21 +1,47 @@
+<div align="center">
+
 # Workers Mail
 
-A self-hosted mail workspace that runs entirely on your own Cloudflare account. It gives
-you real inboxes on your own domains through Email Routing, and can also read existing
-mailboxes elsewhere over IMAP.
+**Your mail. Your Cloudflare account. Nobody else hosts it.**
+
+A keyboard-first mailbox that runs entirely on Workers — native inboxes on domains you
+already operate, plus IMAP for mail that still lives at Gmail, Outlook, Fastmail, one.com,
+or anywhere else that speaks the protocol.
+
+<br />
+
+<a href="https://deploy.workers.cloudflare.com/?url=https://github.com/249org/workers-mail">
+  <img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare" height="56" />
+</a>
+
+<br />
+
+One click clones this repo to your GitHub, provisions **D1, R2, KV, Queues, and Durable Objects**
+on your account, applies the schema, and deploys the Worker. You will be asked for a
+`MAIL_ENCRYPTION_KEY` (run `openssl rand -hex 32`) so IMAP passwords are never stored in the clear.
+
+Requires [Workers Paid](https://developers.cloudflare.com/workers/platform/pricing/) — Durable Objects and Queues are not on the free plan.
+
+</div>
+
+---
+
+Read, search, and send without handing the mailbox to a third-party host. Cloudflare cannot
+be an IMAP server, so hosted mail is Email Routing plus this Worker; other providers are
+read as a client. Credentials stay encrypted with a key you hold.
 
 - **Native mailboxes** — addresses on a domain you already run on Cloudflare. Inbound mail
-  arrives through Email Routing, outbound goes through the `send_email` binding.
-- **External IMAP mailboxes** — Gmail, Outlook, Fastmail, cPanel and anything else that
-  speaks IMAP. Credentials are encrypted at rest, polled from a per-mailbox Durable Object,
-  and sent through SMTP over `cloudflare:sockets`.
+  arrives through Email Routing; outbound goes through the `send_email` binding.
+- **External IMAP** — existing accounts. Passwords are encrypted at rest, polled from a
+  per-mailbox Durable Object, and sent through SMTP over `cloudflare:sockets`.
+- **Keyboard-first** — `j`/`k` to move, `e` to archive, `c` to compose, `⌘K` for commands
+  and search. Mutations land locally before the network, so the list never waits.
+- **Yours to lock down** — TOTP, session control, remote images blocked until you ask,
+  HTML sanitised before it reaches the browser.
 
-Cloudflare cannot run an IMAP or POP server, so this is not one. Hosted mail is Email
-Routing plus Workers; external accounts are read as a client.
-
-The client is keyboard-first. Every action has a binding, `⌘K` opens a palette that
-merges commands, search and jump-to, and mutations commit locally before the network
-call so the interface never waits on a round trip.
+After deploy, open the Worker URL. Connect an IMAP mailbox (that creates the owner) or
+register a password and add mailboxes later. Once an account exists, the screen is sign-in
+only.
 
 ## Architecture
 
@@ -63,7 +89,7 @@ dispatcher reads, so it cannot fall out of date.
 | `/` | Focus search |
 | `⌘Z` | Undo the last archive or trash |
 | `⌘Enter` | Send |
-| `g` then `i` `t` `d` `a` `,` | Inbox, sent, drafts, archive, settings |
+| `g` then `i` `s` `d` `a` `,` | Inbox, sent, drafts, archive, settings |
 
 ### Search operators
 
@@ -97,6 +123,12 @@ connect flow is the one place with any flourish. All of it collapses to opacity 
 
 ## Setup
 
+The [Deploy to Cloudflare](https://deploy.workers.cloudflare.com/?url=https://github.com/249org/workers-mail)
+button above is the intended path. It reads `wrangler.jsonc`, creates every binding this
+app needs, runs D1 migrations, and sets up Workers Builds so later pushes redeploy.
+
+To do the same from your machine:
+
 ### 1. Install
 
 ```bash
@@ -105,41 +137,27 @@ npm install
 
 ### 2. Create the resources
 
+Skip this if Wrangler already provisioned them on deploy. Otherwise:
+
 ```bash
 npx wrangler d1 create workers-mail
-```
-
-```bash
 npx wrangler r2 bucket create workers-mail
-```
-
-```bash
 npx wrangler kv namespace create SESSION_STORE
-```
-
-```bash
 npx wrangler queues create workers-mail-ingest
-```
-
-```bash
 npx wrangler queues create workers-mail-ingest-dlq
 ```
 
-Copy the D1 `database_id` and the KV `id` from the command output into `wrangler.jsonc`,
-replacing `REPLACE_WITH_D1_DATABASE_ID` and `REPLACE_WITH_KV_NAMESPACE_ID`.
+Copy the D1 `database_id` and the KV `id` from the command output into `wrangler.jsonc`.
 
 ### 3. Apply the schema
 
 ```bash
 npm run db:migrate:local
-```
-
-```bash
 npm run db:migrate
 ```
 
 Migrations live in `migrations/` and are generated from `src/lib/db/schema.ts` with
-`npm run db:generate`.
+`npm run db:generate`. `npm run deploy` applies remote migrations before shipping.
 
 ### 4. Set the secrets
 
@@ -147,21 +165,18 @@ Migrations live in `migrations/` and are generated from `src/lib/db/schema.ts` w
 npx wrangler secret put MAIL_ENCRYPTION_KEY
 ```
 
-A long random string. It encrypts IMAP and SMTP passwords with AES-GCM. Without it,
-external mailboxes are refused rather than stored in the clear — losing it means
-reconnecting every IMAP account.
+A long random string (`openssl rand -hex 32`). It encrypts IMAP and SMTP passwords with
+AES-GCM. Without it, external mailboxes are refused rather than stored in the clear —
+losing it means reconnecting every IMAP account.
 
 ```bash
 npx wrangler secret put CLOUDFLARE_API_TOKEN
-```
-
-Optional, but needed to provision domains automatically. It requires
-`Zone:Read`, `DNS:Read` and `Email Routing Rules:Edit` on the zones you plan to use.
-Without it, domain verification tells you which DNS records to add by hand.
-
-```bash
 npx wrangler secret put CLOUDFLARE_ACCOUNT_ID
 ```
+
+Optional, but needed to provision domains automatically. The token requires
+`Zone:Read`, `DNS:Read` and `Email Routing Rules:Edit` on the zones you plan to use.
+Without it, domain verification tells you which DNS records to add by hand.
 
 For local development, put the same values in a `.dev.vars` file — see
 [`.dev.vars.example`](.dev.vars.example). It is git-ignored.
@@ -172,11 +187,7 @@ For local development, put the same values in a `.dev.vars` file — see
 npm run deploy
 ```
 
-Open the deployed URL. The first visit offers two ways to finish setup: connect an
-existing mailbox over IMAP, which creates the workspace owner and their first mailbox
-together after verifying the credentials against the real server, or create an
-account with a password and add mailboxes afterwards. Once an account exists both
-paths close and the screen becomes sign-in only.
+Open the deployed URL and connect a mailbox or create the first account.
 
 ## Connecting a domain
 
@@ -234,7 +245,7 @@ npm run preview
 | --- | --- |
 | `npm run dev` | Next dev server with local bindings |
 | `npm run preview` | Full OpenNext build, served on workerd |
-| `npm run deploy` | Build and deploy the Worker |
+| `npm run deploy` | Apply D1 migrations, then build and deploy the Worker |
 | `npm run db:generate` | Regenerate migrations from the Drizzle schema |
 | `npm run db:migrate` / `:local` | Apply migrations remotely or locally |
 | `npm run typecheck` | `tsc --noEmit` |

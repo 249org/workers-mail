@@ -7,10 +7,10 @@
     "dev": "next dev",
     "build": "next build",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
-    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "deploy": "npm run db:migrate && opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "db:generate": "drizzle-kit generate",
-    "db:migrate:local": "wrangler d1 migrations apply workers-mail --local",
-    "db:migrate": "wrangler d1 migrations apply workers-mail --remote",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:migrate": "wrangler d1 migrations apply DB --remote",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
@@ -38,5 +38,36 @@
     "typescript": "^5.9.2",
     "vitest": "^4.1.10",
     "wrangler": "^4.123.0"
+  },
+  "cloudflare": {
+    "bindings": {
+      "MAIL_ENCRYPTION_KEY": {
+        "description": "Required. Encrypts IMAP, SMTP, and authenticator secrets. Generate with `openssl rand -hex 32`. Losing it means reconnecting every mailbox."
+      },
+      "CLOUDFLARE_API_TOKEN": {
+        "description": "Optional. Auto-provisions Email Routing and DNS checks. Needs **Zone:Read**, **DNS:Read**, and **Email Routing Rules:Edit**."
+      },
+      "CLOUDFLARE_ACCOUNT_ID": {
+        "description": "Optional. Your Cloudflare account ID, used with the API token for domain provisioning."
+      },
+      "DB": {
+        "description": "D1 database for users, mailboxes, the message index, contacts, and API keys. Created automatically on deploy."
+      },
+      "MAIL_BUCKET": {
+        "description": "R2 bucket for raw `.eml` files and attachments. Created automatically on deploy."
+      },
+      "SESSION_STORE": {
+        "description": "KV namespace for sessions, rate limits, and shortcut overrides. Created automatically on deploy."
+      },
+      "MAIL_INGEST": {
+        "description": "Queue that parses inbound MIME and notifies the mailbox Durable Object."
+      },
+      "MAILBOX": {
+        "description": "Durable Object — one instance per mailbox for IMAP polling and live updates."
+      },
+      "EMAIL": {
+        "description": "Send Email binding for native (non-IMAP) outbound mail."
+      }
+    }
   }
 }

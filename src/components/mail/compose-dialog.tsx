@@ -4,6 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import type { PublicMailbox } from "@/lib/mail/mailboxes";
 import { useHotkeys } from "@/lib/keyboard/use-hotkeys";
 import { formatBytes } from "@/lib/format";
+import {
+  applySignature,
+  shouldIncludeSignature,
+  signatureText,
+} from "@/lib/signature";
+import { useSignatureStore } from "@/lib/signature-store";
 
 export type ComposeDraft = {
   draftId?: string;
@@ -51,12 +57,33 @@ export function ComposeDialog({
   const [sending, setSending] = useState(false);
   const [mounted, setMounted] = useState(false);
   const draftId = useRef(draft.draftId);
+  const lastDraft = useRef(draft);
   const title = MODE_LABEL[draft.mode ?? "compose"];
+  const signaturePrefs = useSignatureStore((state) => state.prefs);
+  const signatureReady = useSignatureStore((state) => state.ready);
+  const hydrateSignature = useSignatureStore((state) => state.hydrate);
 
   useEffect(() => {
-    setForm(draft);
+    void hydrateSignature();
+  }, [hydrateSignature]);
+
+  useEffect(() => {
+    const draftChanged = lastDraft.current !== draft;
+    lastDraft.current = draft;
     draftId.current = draft.draftId;
-  }, [draft]);
+
+    setForm((current) => {
+      const source = draftChanged ? draft : current;
+      if (!signatureReady) return source;
+      const include = shouldIncludeSignature(signaturePrefs, source.mode);
+      const text = applySignature(
+        source.text,
+        include ? signatureText(signaturePrefs, mailbox.id) : "",
+      );
+      if (text === source.text && source === current) return current;
+      return { ...source, text };
+    });
+  }, [draft, mailbox.id, signaturePrefs, signatureReady]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => setMounted(true));
