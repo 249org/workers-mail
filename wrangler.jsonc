@@ -1,0 +1,90 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "workers-mail",
+  "main": "worker/index.ts",
+  "compatibility_date": "2025-09-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+
+  "observability": { "enabled": true },
+
+  // Resolves to the OpenNext build output; see worker/next-handler.d.ts.
+  "alias": {
+    "next-handler": "./.open-next/worker.js"
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "workers-mail",
+      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  "r2_buckets": [
+    {
+      "binding": "MAIL_BUCKET",
+      "bucket_name": "workers-mail"
+    }
+  ],
+
+  "kv_namespaces": [
+    {
+      "binding": "SESSION_STORE",
+      "id": "REPLACE_WITH_KV_NAMESPACE_ID"
+    }
+  ],
+
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MAILBOX",
+        "class_name": "MailboxDurableObject"
+      }
+    ]
+  },
+
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["MailboxDurableObject"]
+    }
+  ],
+
+  "queues": {
+    "producers": [
+      {
+        "binding": "MAIL_INGEST",
+        "queue": "workers-mail-ingest"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "workers-mail-ingest",
+        "max_batch_size": 10,
+        "max_batch_timeout": 5,
+        "max_retries": 3,
+        "dead_letter_queue": "workers-mail-ingest-dlq"
+      }
+    ]
+  },
+
+  "send_email": [
+    {
+      "name": "EMAIL"
+    }
+  ],
+
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  },
+
+  "vars": {
+    "APP_NAME": "Workers Mail"
+  }
+}

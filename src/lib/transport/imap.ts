@@ -1,0 +1,234 @@
+import { connect, type ImapSession } from "edgeport/imap";
+import { eq } from "drizzle-orm";
+import type { Database } from "@/lib/db";
+import { folders, mailboxes } from "@/lib/db/schema";
+import { parseMime } from "@/lib/mail/mime";
+import { storeMessage } from "@/lib/mail/store";
+import { upsertRemoteFolder, type Folder, type Mailbox } from "@/lib/mail/mailboxes";
+import { imapCredentials } from "./credentials";
+
+const INCREMENTAL_BATCH = 40;
+const BACKFILL_BATCH = 60;
+const SPECIAL_FOLDERS: Array<{ match: RegExp; role: Folder["role"]; name: string }> = [
+  { match: /^inbox$/i, role: "inbox", name: "Inbox" },
+  { match: /sent/i, role: "sent", name: "Sent" },
+  { match: /draft/i, role: "drafts", name: "Drafts" },
+  { match: /(trash|deleted)/i, role: "trash", name: "Trash" },
+  { match: /(archive|all mail)/i, role: "archive", name: "Archive" },
+];
+
+export type SyncDeps = {
+  db: Database;
+  bucket: R2Bucket;
+  encryptionKey: string | undefined;
+};
+
+export type SyncSummary = {
+  stored: number;
+  scanned: number;
+  folders: number;
+  backfillComplete: boolean;
+  errors: string[];
+};
+
+export type SyncOptions = {
+  /** Walk older messages instead of only picking up new UIDs. */
+  backfill?: boolean;
+  /** Cap the number of folders touched in one pass so a run fits inside a DO alarm. */
+  maxFolders?: number;
+};
+
+export async function testImapConnection(credentials: {
+  hostname: string;
+  port: number;
+  tls: "implicit" | "starttls";
+  username: string;
+  password: string;
+}): Promise<string[]> {
+  const session = await connect({
+    hostname: credentials.hostname,
+    port: credentials.port,
+    tls: credentials.tls,
+    auth: { username: credentials.username, password: credentials.password },
+    timeoutMs: 15_000,
+  });
+  try {
+    return await session.listMailboxes();
+  } finally {
+    await session.close();
+  }
+}
+
+export async function syncMailbox(
+  deps: SyncDeps,
+  mailbox: Mailbox,
+  options: SyncOptions = {},
+): Promise<SyncSummary> {
+  const summary: SyncSummary = {
+    stored: 0,
+    scanned: 0,
+    folders: 0,
+    backfillComplete: mailbox.backfillComplete,
+    errors: [],
+  };
+
+  const credentials = await imapCredentials(mailbox, deps.encryptionKey);
+  const session = await connect({
+    hostname: credentials.hostname,
+    port: credentials.port,
+    tls: credentials.tls,
+    auth: { username: credentials.username, password: credentials.password },
+    timeoutMs: 20_000,
+  });
+
+  try {
+    const remotePaths = await session.listMailboxes();
+    const tracked = await trackFolders(deps.db, mailbox.id, remotePaths);
+    const selected = tracked.slice(0, options.maxFolders ?? tracked.length);
+
+    let allCaughtUp = true;
+    for (const folder of selected) {
+      try {
+        const result = await syncFolder(deps, session, mailbox, folder, options.backfill ?? false);
+        summary.stored += result.stored;
+        summary.scanned += result.scanned;
+        summary.folders += 1;
+        if (!result.caughtUp) allCaughtUp = false;
+      } catch (error) {
+        summary.errors.push(`${folder.name}: ${describe(error)}`);
+        allCaughtUp = false;
+      }
+    }
+
+    summary.backfillComplete = allCaughtUp && selected.length === tracked.length;
+    return summary;
+  } finally {
+    await session.close();
+  }
+}
+
+async function syncFolder(
+  deps: SyncDeps,
+  session: ImapSession,
+  mailbox: Mailbox,
+  folder: Folder,
+  backfill: boolean,
+): Promise<{ stored: number; scanned: number; caughtUp: boolean }> {
+  const path = folder.remotePath ?? folder.name;
+  const status = await session.select(path);
+
+  // A changed UIDVALIDITY invalidates every stored UID for the folder; restart both cursors.
+  let lastUid = folder.lastUid ?? 0;
+  let oldestUid = folder.oldestUid ?? 0;
+  if (folder.uidValidity !== null && folder.uidValidity !== status.uidValidity) {
+    lastUid = 0;
+    oldestUid = 0;
+    await deps.db
+      .update(folders)
+      .set({ uidValidity: status.uidValidity, lastUid: null, oldestUid: null })
+      .where(eq(folders.id, folder.id));
+  } else if (folder.uidValidity === null) {
+    await deps.db
+      .update(folders)
+      .set({ uidValidity: status.uidValidity })
+      .where(eq(folders.id, folder.id));
+  }
+
+  if (status.exists === 0) return { stored: 0, scanned: 0, caughtUp: true };
+
+  const uids = (await session.search({ all: true })).sort((a, b) => a - b);
+
+  // Forward pass picks up new arrivals; backfill walks down from the oldest UID held.
+  const pending = backfill
+    ? uids.filter((uid) => (oldestUid === 0 ? uid < lastUid || lastUid === 0 : uid < oldestUid))
+    : uids.filter((uid) => uid > lastUid);
+
+  if (pending.length === 0) return { stored: 0, scanned: 0, caughtUp: true };
+
+  const batchSize = backfill ? BACKFILL_BATCH : INCREMENTAL_BATCH;
+  const batch = backfill ? pending.slice(-batchSize) : pending.slice(0, batchSize);
+  const fetched = await session.fetch(batch, { flags: true, body: true, size: true });
+
+  let stored = 0;
+  let highest = lastUid;
+  let lowest = oldestUid;
+  for (const message of fetched) {
+    if (!message.body) continue;
+    const parsed = await parseMime(message.body);
+    const result = await storeMessage(deps.db, deps.bucket, parsed, {
+      mailboxId: mailbox.id,
+      folderId: folder.id,
+      ownerId: mailbox.ownerId,
+      raw: message.body,
+      size: message.size ?? message.body.byteLength,
+      seen: message.flags.includes("\\Seen"),
+      remoteUid: message.uid,
+    });
+    if (result.created) stored += 1;
+    if (message.uid > highest) highest = message.uid;
+    if (lowest === 0 || message.uid < lowest) lowest = message.uid;
+  }
+
+  const cursor: Partial<Folder> = {};
+  if (highest > lastUid) cursor.lastUid = highest;
+  if (lowest !== oldestUid) cursor.oldestUid = lowest;
+  if (Object.keys(cursor).length > 0) {
+    await deps.db.update(folders).set(cursor).where(eq(folders.id, folder.id));
+  }
+
+  return {
+    stored,
+    scanned: fetched.length,
+    caughtUp: batch.length === pending.length,
+  };
+}
+
+async function trackFolders(
+  db: Database,
+  mailboxId: string,
+  remotePaths: string[],
+): Promise<Folder[]> {
+  const tracked: Folder[] = [];
+  for (const path of remotePaths) {
+    const leaf = path.split(/[/.]/).pop() ?? path;
+    const special = SPECIAL_FOLDERS.find((entry) => entry.match.test(path));
+    const folder = await upsertRemoteFolder(
+      db,
+      mailboxId,
+      special?.name ?? leaf,
+      path,
+      special?.role ?? "custom",
+    );
+    tracked.push(folder);
+  }
+  // Inbox first, then the rest, so a truncated pass still refreshes what users look at.
+  return tracked.sort((a, b) => rank(a) - rank(b));
+}
+
+function rank(folder: Folder): number {
+  if (folder.role === "inbox") return 0;
+  if (folder.role === "sent") return 1;
+  if (folder.role === "archive") return 2;
+  return 3;
+}
+
+export async function markSyncState(
+  db: Database,
+  mailboxId: string,
+  state: "idle" | "syncing" | "error",
+  detail?: string,
+): Promise<void> {
+  await db
+    .update(mailboxes)
+    .set({
+      syncState: state,
+      syncError: state === "error" ? (detail ?? "Sync failed") : null,
+      ...(state === "idle" ? { lastSyncedAt: Math.floor(Date.now() / 1000) } : {}),
+    })
+    .where(eq(mailboxes.id, mailboxId));
+}
+
+export function describe(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
