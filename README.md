@@ -4,9 +4,8 @@
 
 **Your mail. Your Cloudflare account. Nobody else hosts it.**
 
-A keyboard-first mailbox that runs entirely on Workers — native inboxes on domains you
-already operate, plus IMAP for mail that still lives at Gmail, Outlook, Fastmail, one.com,
-or anywhere else that speaks the protocol.
+Keep Gmail. Keep Outlook. Keep the inbox you already have. Read them all from a mailbox
+that lives on *your* Cloudflare account — not Google’s, not Microsoft’s, not ours.
 
 <br />
 
@@ -26,22 +25,63 @@ Requires [Workers Paid](https://developers.cloudflare.com/workers/platform/prici
 
 ---
 
-Read, search, and send without handing the mailbox to a third-party host. Cloudflare cannot
-be an IMAP server, so hosted mail is Email Routing plus this Worker; other providers are
-read as a client. Credentials stay encrypted with a key you hold.
+## IMAP is the competitive edge
 
-- **Native mailboxes** — addresses on a domain you already run on Cloudflare. Inbound mail
-  arrives through Email Routing; outbound goes through the `send_email` binding.
-- **External IMAP** — existing accounts. Passwords are encrypted at rest, polled from a
-  per-mailbox Durable Object, and sent through SMTP over `cloudflare:sockets`.
+> [!IMPORTANT]
+> **IMAP on a Cloudflare Worker.** Cloudflare can receive mail and send mail. It cannot
+> *be* an IMAP server. Every other “mail on Workers” project stops there — native domains
+> only. Workers Mail goes further: it is an IMAP **client** that runs at the edge, so the
+> accounts you already have sit in the same inbox as the domains you already run.
+
+That is the gap this project exists to close.
+
+Cloudflare Email Routing is excellent for `you@yourdomain.com`. It cannot log into Gmail.
+It cannot open Outlook. It cannot talk to Fastmail, iCloud, Yahoo, or Zoho.
+Those inboxes stay somewhere else, and you still need another app to read them.
+
+Workers Mail signs in as a client. Your mail stays at the provider you already pay.
+A copy is indexed on storage **you** own (D1 and R2 on your account), so you can read,
+search, and reply from one keyboard-first workspace — without handing the mailbox to a
+third-party host.
+
+### What you can actually do
+
+| You want to… | What happens |
+| --- | --- |
+| Keep using Gmail, Outlook, Fastmail, iCloud, Yahoo, or Zoho | Connect the account. Mail stays there. You read and send from here. |
+| Use a custom domain already on Cloudflare | Native mailbox via Email Routing — no IMAP needed. |
+| Put every address in one place | One workspace, one search, one set of shortcuts. |
+| Not give the mailbox to another company | The Worker, the index, and the encrypted passwords all sit on your Cloudflare account. |
+| Know the login works before you save it | **Test connection** does a real IMAP sign-in and SMTP handshake first. |
+| Type as little as possible | Enter an address; common hosts fill in. App-password providers tell you up front. |
+
+In practice:
+
+- **Read** — new mail is checked every few seconds while a tab is open. When you are away,
+  a schedule checks every few minutes. Older mail fills in in the background, newest first,
+  so the inbox is useful immediately.
+- **Search** — operators you already know (`from:`, `is:unread`, `has:attachment`, `after:7d`)
+  run against the copy on your account, not a remote round-trip.
+- **Send** — replies go out through that account’s SMTP. Native Cloudflare addresses use
+  the `send_email` binding instead.
+- **Stay in control** — IMAP and SMTP passwords are encrypted with a key only you hold.
+  If the key is missing, connecting is refused rather than stored in the clear.
+
+Port 25 is blocked on Workers, so sending uses 587 (STARTTLS) or 465 (implicit TLS).
+Accounts with two-factor authentication need an app password, not the login password.
+
+After deploy, open the Worker URL. Connecting an IMAP mailbox creates the owner, or you
+can register a password and add mailboxes later. Once an account exists, the screen is
+sign-in only.
+
+### Also in the box
+
+- **Native mailboxes** — addresses on a domain you already run on Cloudflare. Inbound
+  through Email Routing; outbound through `send_email`.
 - **Keyboard-first** — `j`/`k` to move, `e` to archive, `c` to compose, `⌘K` for commands
-  and search. Mutations land locally before the network, so the list never waits.
+  and search. Changes land locally before the network, so the list never waits.
 - **Yours to lock down** — TOTP, session control, remote images blocked until you ask,
   HTML sanitised before it reaches the browser.
-
-After deploy, open the Worker URL. Connect an IMAP mailbox (that creates the owner) or
-register a password and add mailboxes later. Once an account exists, the screen is sign-in
-only.
 
 ## Architecture
 
@@ -212,9 +252,22 @@ Open the deployed URL and connect a mailbox or create the first account.
 
 ## Connecting an existing IMAP account
 
-**Settings → Mailboxes → Connect existing IMAP.** Common providers are filled in from the
-address you type. **Test connection** runs a real IMAP login and SMTP handshake before
-anything is saved.
+This is the path most people start with. You do not migrate off Gmail —
+you add it.
+
+**Settings → Mailboxes → Connect existing IMAP.** Type the address; the host and port
+fill in for known providers. **Test connection** does a real IMAP login and SMTP
+handshake before anything is saved.
+
+| Provider | Filled in from | Notes |
+| --- | --- | --- |
+| Gmail | `@gmail.com`, `@googlemail.com` | App password if 2FA is on |
+| Outlook | `@outlook.com`, `@hotmail.com`, `@live.com` | |
+| Yahoo | `@yahoo.com` | App password required |
+| Fastmail | `@fastmail.com` | App password scoped to IMAP and SMTP |
+| iCloud | `@icloud.com`, `@me.com` | App-specific password |
+| Zoho | `@zoho.com` | |
+| Anything else that speaks IMAP | Hosts typed by hand | Username is usually the full address |
 
 Two constraints worth knowing:
 
@@ -222,9 +275,9 @@ Two constraints worth knowing:
   rejects 25 at validation time rather than hanging on a socket timeout.
 - Accounts with two-factor authentication need an app password, not the login password.
 
-Sync runs on two cadences. While a browser tab is open the mailbox's Durable Object polls
-about every 20 seconds; when nothing is connected the cron trigger pokes it every five
-minutes and it uses the idle time to backfill older mail page by page.
+While a tab is open, the mailbox’s Durable Object checks for new mail every few seconds.
+When nobody is watching, a cron trigger pokes it every five minutes and older mail fills
+in page by page — newest first, so the inbox is current before the archive is.
 
 ## Local development
 
