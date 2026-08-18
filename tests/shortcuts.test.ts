@@ -77,6 +77,10 @@ describe("shortcut map", () => {
     expect(sequences.length).toBeGreaterThan(0);
     for (const combo of sequences) expect(combo.startsWith("g ")).toBe(true);
   });
+
+  it("jumps to Sent with g s", () => {
+    expect(SHORTCUTS.find((shortcut) => shortcut.action === "goSent")?.keys).toEqual(["g s"]);
+  });
 });
 
 describe("formatKeys", () => {

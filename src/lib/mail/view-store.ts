@@ -23,7 +23,7 @@ export type FolderSummary = {
   unread: number;
 };
 
-export type MailAction = "read" | "unread" | "flag" | "unflag" | "move" | "trash";
+export type MailAction = "read" | "unread" | "flag" | "unflag" | "move" | "trash" | "delete" | "empty-trash";
 
 type UndoEntry = {
   label: string;
@@ -110,6 +110,8 @@ type Actions = {
   star: (ids: string[], flagged: boolean) => void;
   moveTo: (ids: string[], folderId: string, label: string) => void;
   trash: (ids: string[]) => void;
+  deleteForever: (ids: string[]) => void;
+  emptyTrash: () => void;
   undo: () => Promise<boolean>;
 
   setSyncing: (syncing: boolean) => void;
@@ -309,6 +311,60 @@ export const useMailStore = create<State & Actions>((set, get) => ({
     get().removeLocally(ids, "Moved to trash", { action: "trash" });
   },
 
+  deleteForever: (ids) => {
+    if (ids.length === 0) return;
+    const state = get();
+    const removed = state.messages
+      .map((message, index) => ({ message, index }))
+      .filter((entry) => ids.includes(entry.message.id));
+    if (removed.length === 0) return;
+
+    const restore = () =>
+      set((current) => ({ messages: reinsert(current.messages, removed) }));
+
+    const loaded = new Map(state.loaded);
+    for (const id of ids) loaded.delete(id);
+
+    set({
+      messages: state.messages.filter((message) => !ids.includes(message.id)),
+      selectedId: selectionAfterRemoval(state.messages, ids, state.selectedId),
+      checked: new Set(),
+      loaded,
+    });
+
+    void send({ ids, action: "delete" }).then((ok) => {
+      if (!ok) restore();
+    });
+  },
+
+  emptyTrash: () => {
+    const state = get();
+    const trash = state.folders.find((folder) => folder.role === "trash");
+    if (!trash || state.folderId !== trash.id) return;
+
+    const snapshot = state.messages;
+    const snapshotCursor = state.cursor;
+    const snapshotSelected = state.selectedId;
+    const snapshotLoaded = state.loaded;
+    const loaded = new Map(state.loaded);
+    for (const message of snapshot) loaded.delete(message.id);
+    folderPages.delete(folderKey(state.mailboxId, trash.id, state.search));
+    set({ messages: [], selectedId: null, checked: new Set(), cursor: null, loaded });
+
+    void send({ action: "empty-trash" }).then((ok) => {
+      if (!ok) {
+        set({
+          messages: snapshot,
+          cursor: snapshotCursor,
+          selectedId: snapshotSelected,
+          loaded: snapshotLoaded,
+        });
+        return;
+      }
+      void get().refreshFolders();
+    });
+  },
+
   undo: async () => {
     const stack = [...get().undoStack];
     const entry = stack.pop();
@@ -438,15 +494,35 @@ function patchLocal(
   ids: string[],
   patch: Partial<MessageSummary>,
 ): void {
-  set((state) => ({
-    messages: state.messages.map((message) =>
+  set((state) => {
+    const messages = state.messages.map((message) =>
       ids.includes(message.id) ? { ...message, ...patch } : message,
-    ),
-  }));
+    );
+    const loaded = new Map(state.loaded);
+    for (const id of ids) {
+      const entry = loaded.get(id);
+      if (!entry) continue;
+      loaded.set(id, {
+        ...entry,
+        detail: { ...entry.detail, ...patch },
+        thread: entry.thread.map((item) =>
+          ids.includes(item.id) ? { ...item, ...patch } : item,
+        ),
+      });
+    }
+    if (state.mailboxId && state.folderId) {
+      folderPages.set(folderKey(state.mailboxId, state.folderId, state.search), {
+        messages,
+        cursor: state.cursor,
+        selectedId: state.selectedId,
+      });
+    }
+    return { messages, loaded };
+  });
 }
 
 async function send(body: {
-  ids: string[];
+  ids?: string[];
   action: MailAction;
   folderId?: string;
 }): Promise<boolean> {

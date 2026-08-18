@@ -26,7 +26,7 @@ export function ChromeButton({ icon, label, hint, danger, end, pressed, disabled
       disabled={disabled}
       onClick={onClick}
     >
-      <MailIcon name={icon} />
+      <MailIcon name={icon} filled={Boolean(pressed) && icon === "star"} />
     </button>
   );
 }

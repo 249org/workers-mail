@@ -147,16 +147,18 @@ const PATHS: Record<IconName, ReactNode> = {
 export function MailIcon({
   name,
   size = 16,
+  filled = false,
 }: {
   name: IconName;
   size?: number;
+  filled?: boolean;
 }) {
   return (
     <svg
       width={size}
       height={size}
       viewBox="0 0 24 24"
-      fill="none"
+      fill={filled ? "currentColor" : "none"}
       stroke="currentColor"
       strokeWidth="1.7"
       strokeLinecap="round"

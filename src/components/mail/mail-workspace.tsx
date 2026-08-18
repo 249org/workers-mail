@@ -69,6 +69,9 @@ export function MailWorkspace({
   const search = useMailStore((state) => state.search);
   const fetchPage = useMailStore((state) => state.fetchPage);
   const refreshFolders = useMailStore((state) => state.refreshFolders);
+  const inTrash = useMailStore(
+    (state) => state.folders.find((folder) => folder.id === state.folderId)?.role === "trash",
+  );
   const isMac = useIsMac();
   const shortcuts = useShortcutStore((state) => state.shortcuts);
   const hintFor = (action: "compose" | "archive" | "trash" | "syncNow" | "toggleSidebar" | "toggleList") => {
@@ -192,8 +195,14 @@ export function MailWorkspace({
   const trash = useCallback(() => {
     const store = useMailStore.getState();
     if (targetIds.length === 0) return;
-    store.trash(targetIds);
-    toast("Moved to trash", { action: { label: "Undo", onClick: () => void store.undo() } });
+    const inTrash = store.folders.find((folder) => folder.id === store.folderId)?.role === "trash";
+    if (inTrash) {
+      store.deleteForever(targetIds);
+      toast("Deleted forever");
+    } else {
+      store.trash(targetIds);
+      toast("Moved to trash", { action: { label: "Undo", onClick: () => void store.undo() } });
+    }
     void store.refreshFolders();
   }, [targetIds]);
 
@@ -337,7 +346,7 @@ export function MailWorkspace({
     () => [
       { id: "compose", label: "Compose message", hint: hintFor("compose"), group: "Actions", keywords: ["new", "write"], run: () => setCompose(EMPTY_DRAFT) },
       { id: "archive", label: "Archive selected", hint: hintFor("archive"), group: "Actions", run: archive },
-      { id: "trash", label: "Move selected to trash", hint: hintFor("trash"), group: "Actions", run: trash },
+      { id: "trash", label: inTrash ? "Delete selected forever" : "Move selected to trash", hint: hintFor("trash"), group: "Actions", run: trash },
       { id: "sync", label: "Sync now", hint: hintFor("syncNow"), group: "Actions", keywords: ["refresh", "imap"], run: () => void syncNow() },
       {
         id: "sidebar",
@@ -356,7 +365,7 @@ export function MailWorkspace({
         run: toggleList,
       },
     ],
-    [archive, trash, syncNow, layout.sidebarCollapsed, layout.listHidden, toggleSidebar, toggleList, shortcuts, isMac],
+    [archive, trash, syncNow, inTrash, layout.sidebarCollapsed, layout.listHidden, toggleSidebar, toggleList, shortcuts, isMac],
   );
 
   useEffect(() => {

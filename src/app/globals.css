@@ -195,10 +195,24 @@ aside[data-collapsed] .btn-icon {
   cursor: pointer;
 }
 
-.check:checked {
+.check:checked,
+.check:indeterminate {
   border-color: var(--primary);
   background-color: var(--primary);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M2.4 6.2L4.9 8.7L9.6 3.4' stroke='%23fff' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+.check:indeterminate {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M2.5 6h7' stroke='%23fff' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+html[data-scheme="dark"][data-palette="ink"] .check:checked,
+html[data-scheme="dark"][data-palette="ink"] .check:indeterminate {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M2.4 6.2L4.9 8.7L9.6 3.4' stroke='%23111111' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+html[data-scheme="dark"][data-palette="ink"] .check:indeterminate {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M2.5 6h7' stroke='%23111111' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E");
 }
 
 .check:focus-visible {
@@ -345,6 +359,10 @@ button.field {
   border-radius: 0.375rem;
 }
 
+.btn-icon[aria-pressed="true"] {
+  color: var(--foreground);
+}
+
 /* Instant label — no delay, unlike native title tooltips. */
 .tip {
   position: relative;
@@ -375,6 +393,20 @@ button.field {
   left: auto;
   right: 0;
   transform: none;
+}
+
+/* Collapsed rail sits on the window edge — labels open to the right so they are not clipped. */
+aside[data-collapsed] {
+  position: relative;
+  z-index: 20;
+  overflow: visible;
+}
+
+aside[data-collapsed] .tip::after {
+  top: 50%;
+  left: calc(100% + 8px);
+  right: auto;
+  transform: translateY(-50%);
 }
 
 .tip:hover::after,

@@ -67,11 +67,11 @@ export const PALETTES: PaletteSwatch[] = [
   {
     id: "ink",
     name: "Ink",
-    note: "Near-black type, gold for emphasis.",
-    paper: "#F4F4F2",
+    note: "Black and white. No other inks.",
+    paper: "#FAFAFA",
     ink: "#18181B",
     primary: "#18181B",
-    highlight: "#B45309",
+    highlight: "#18181B",
   },
   {
     id: "dusk",

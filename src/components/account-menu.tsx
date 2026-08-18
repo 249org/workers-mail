@@ -101,6 +101,14 @@ export function AccountMenu({ email, name, mailboxes }: Props) {
 
           <div className="py-1">
             <Link
+              href="/settings"
+              role="menuitem"
+              className="account-item"
+              onClick={() => setOpen(false)}
+            >
+              Settings
+            </Link>
+            <Link
               href="/settings/mailboxes/new"
               role="menuitem"
               className="account-item"

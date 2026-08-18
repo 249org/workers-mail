@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { displayName, formatAddressList } from "@/lib/mail/address";
 import { useMailStore } from "@/lib/mail/view-store";
 import { formatBytes, formatFullDate, initialsOf } from "@/lib/format";
+import { toast } from "sonner";
 import { ChromeButton } from "./chrome-button";
 
 type Props = {
@@ -18,6 +19,10 @@ export function MessageView({ messageId, onReply, listHidden, onToggleList }: Pr
   const load = useMailStore((state) => state.load);
   const select = useMailStore((state) => state.select);
   const trash = useMailStore((state) => state.trash);
+  const deleteForever = useMailStore((state) => state.deleteForever);
+  const folders = useMailStore((state) => state.folders);
+  const folderId = useMailStore((state) => state.folderId);
+  const inTrash = folders.find((folder) => folder.id === folderId)?.role === "trash";
   const star = useMailStore((state) => state.star);
   const [showImages, setShowImages] = useState(false);
 
@@ -79,15 +84,23 @@ export function MessageView({ messageId, onReply, listHidden, onToggleList }: Pr
               icon="star"
               label={detail.flagged ? "Unstar" : "Star"}
               hint="S"
+              pressed={detail.flagged}
               onClick={() => star([detail.id], !detail.flagged)}
             />
             <ChromeButton
               icon="trash"
-              label="Move to trash"
+              label={inTrash ? "Delete forever" : "Move to trash"}
               hint="#"
               danger
               end
-              onClick={() => trash([detail.id])}
+              onClick={() => {
+                if (inTrash) {
+                  deleteForever([detail.id]);
+                  toast("Deleted forever");
+                } else {
+                  trash([detail.id]);
+                }
+              }}
             />
           </div>
         </div>

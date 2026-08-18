@@ -9,7 +9,7 @@ import { folderInMailbox, ownedMessageIds } from "@/lib/mail/queries";
 type BulkBody = {
   mailboxId?: string;
   ids?: string[];
-  action?: "read" | "unread" | "flag" | "unflag" | "move" | "trash" | "delete";
+  action?: "read" | "unread" | "flag" | "unflag" | "move" | "trash" | "delete" | "empty-trash";
   folderId?: string;
 };
 
@@ -23,6 +23,22 @@ export async function POST(request: Request): Promise<Response> {
     }
     const mailbox = await getOwnedMailbox(db, user.id, body.mailboxId);
     if (!mailbox) throw new ApiError(404, "Mailbox not found");
+
+    if (body.action === "empty-trash") {
+      const trash = await folderByRole(db, mailbox.id, "trash");
+      if (!trash) throw new ApiError(409, "This mailbox has no trash folder");
+      const rows = await db
+        .select({ id: messages.id })
+        .from(messages)
+        .where(and(eq(messages.mailboxId, mailbox.id), eq(messages.folderId, trash.id)));
+      const trashIds = rows.map((row) => row.id);
+      if (trashIds.length === 0) return Response.json({ updated: 0 });
+      await purgeObjects(db, env.MAIL_BUCKET, trashIds);
+      await db
+        .delete(messages)
+        .where(and(eq(messages.mailboxId, mailbox.id), eq(messages.folderId, trash.id)));
+      return Response.json({ updated: trashIds.length });
+    }
 
     const ids = await ownedMessageIds(db, mailbox.id, body.ids ?? []);
     if (ids.length === 0) return Response.json({ updated: 0 });

@@ -132,6 +132,8 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
     }
 
     const now = Date.now();
+    // A killed isolate can persist a lock far in the future; never skip new mail for that.
+    if (this.state.syncingUntil > now + SYNC_LOCK_MS) this.state.syncingUntil = 0;
     if (this.state.syncingUntil > now) return;
 
     const db = createDb(this.env.DB);

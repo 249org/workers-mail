@@ -4,9 +4,20 @@ import Link from "next/link";
 import type { PublicMailbox } from "@/lib/mail/mailboxes";
 import { navigateMailFolder, useMailStore } from "@/lib/mail/view-store";
 import { formatRelative } from "@/lib/format";
+import { primaryCombo } from "@/lib/keyboard/bindings";
+import { formatComboHint, type ShortcutAction } from "@/lib/keyboard/shortcuts";
+import { useShortcutStore } from "@/lib/keyboard/store";
 import { ChromeButton } from "./chrome-button";
 import { folderIconName, MailIcon } from "./icons";
+import { useIsMac } from "./key-caps";
 import type { StreamState } from "./use-mail-stream";
+
+const JUMP_HINT: Record<string, ShortcutAction> = {
+  inbox: "goInbox",
+  sent: "goSent",
+  drafts: "goDrafts",
+  archive: "goArchive",
+};
 
 type Props = {
   mailbox: PublicMailbox;
@@ -32,6 +43,16 @@ export function FolderSidebar({
   const syncing = useMailStore((state) => state.syncing);
   const syncError = useMailStore((state) => state.syncError);
   const lastSyncedAt = useMailStore((state) => state.lastSyncedAt);
+  const shortcuts = useShortcutStore((state) => state.shortcuts);
+  const isMac = useIsMac();
+  const hint = (action: ShortcutAction) => {
+    const combo = primaryCombo(action, shortcuts);
+    return combo ? formatComboHint(combo, isMac) : undefined;
+  };
+  const labeled = (label: string, action: ShortcutAction) => {
+    const keys = hint(action);
+    return keys ? `${label} (${keys})` : label;
+  };
 
   return (
     <aside
@@ -45,7 +66,7 @@ export function FolderSidebar({
             className="tip btn btn-primary btn-icon"
             onClick={onCompose}
             aria-label="Compose"
-            data-tip="Compose (C)"
+            data-tip={labeled("Compose", "compose")}
           >
             <MailIcon name="compose" />
           </button>
@@ -83,7 +104,7 @@ export function FolderSidebar({
           }
           onClick={onOpenPalette}
           aria-label="Search"
-          data-tip={collapsed ? "Search (⌘K)" : undefined}
+          data-tip={collapsed ? labeled("Search", "palette") : undefined}
         >
           {collapsed ? (
             <MailIcon name="search" />
@@ -96,18 +117,20 @@ export function FolderSidebar({
         </button>
       </div>
 
-      <nav className={`scroll-thin min-h-0 flex-1 overflow-y-auto py-2 ${collapsed ? "px-2" : "px-2"}`}>
+      <nav className={`min-h-0 flex-1 py-2 px-2 ${collapsed ? "overflow-visible" : "scroll-thin overflow-y-auto"}`}>
         {folders.map((folder) => {
           const active = folder.id === activeFolderId;
           const unread = folder.unread > 0 ? (folder.unread > 99 ? "99+" : String(folder.unread)) : null;
+          const jump = JUMP_HINT[folder.role];
+          const tip = collapsed ? (jump ? labeled(folder.name, jump) : folder.name) : undefined;
           return (
             <Link
               key={folder.id}
               href={`/mail/${mailbox.id}/${folder.id}`}
-              className="nav-row"
+              className={`nav-row${collapsed ? " tip" : ""}`}
               data-active={active ? "true" : undefined}
               data-compact={collapsed ? "true" : undefined}
-              title={collapsed ? folder.name : undefined}
+              data-tip={tip}
               aria-label={unread ? `${folder.name}, ${folder.unread} unread` : folder.name}
               onClick={(event) => {
                 if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
@@ -131,10 +154,10 @@ export function FolderSidebar({
               <Link
                 key={entry.id}
                 href={`/mail/${entry.id}`}
-                className="nav-row"
+                className={`nav-row${collapsed ? " tip" : ""}`}
                 data-active={entry.id === mailbox.id ? "true" : undefined}
                 data-compact={collapsed ? "true" : undefined}
-                title={collapsed ? entry.address : undefined}
+                data-tip={collapsed ? entry.address : undefined}
                 aria-label={entry.address}
               >
                 <span className="flex min-w-0 items-center gap-2">
@@ -150,8 +173,16 @@ export function FolderSidebar({
       <div className={`border-t border-border py-3 text-[13px] text-muted-foreground ${collapsed ? "px-2" : "px-3"}`}>
         <div className={`flex items-center gap-3 ${collapsed ? "flex-col" : "justify-between"}`}>
           <span
-            className="flex min-w-0 items-center gap-2"
-            title={streamState === "open" ? "Live" : streamState === "polling" ? "Polling" : "Connecting"}
+            className={`flex min-w-0 items-center gap-2${collapsed ? " tip" : ""}`}
+            data-tip={
+              collapsed
+                ? streamState === "open"
+                  ? "Live"
+                  : streamState === "polling"
+                    ? "Polling"
+                    : "Connecting"
+                : undefined
+            }
           >
             <span
               aria-hidden

@@ -73,8 +73,8 @@ export const SHORTCUTS: Shortcut[] = [
   { action: "send", keys: ["mod+enter"], label: "Send", group: "Compose", scope: "modal", worksWhileTyping: true },
 
   { action: "goInbox", keys: ["g i"], label: "Inbox", group: "Jump to", scope: "global" },
-  { action: "goStarred", keys: ["g s"], label: "Starred", group: "Jump to", scope: "global" },
-  { action: "goSent", keys: ["g t"], label: "Sent", group: "Jump to", scope: "global" },
+  { action: "goSent", keys: ["g s"], label: "Sent", group: "Jump to", scope: "global" },
+  { action: "goStarred", keys: ["g f"], label: "Starred", group: "Jump to", scope: "global" },
   { action: "goDrafts", keys: ["g d"], label: "Drafts", group: "Jump to", scope: "global" },
   { action: "goArchive", keys: ["g a"], label: "Archive", group: "Jump to", scope: "global" },
   { action: "goSettings", keys: ["g ,"], label: "Settings", group: "Jump to", scope: "global" },

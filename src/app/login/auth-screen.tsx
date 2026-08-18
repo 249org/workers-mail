@@ -22,8 +22,10 @@ export function AuthScreen({ setupNeeded, encryptionReady }: Props) {
     <main className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
       <div className="w-full max-w-[28rem]">
         <header className="rise-in mb-7 text-center">
-          <p className="label mb-2">Self-hosted on Cloudflare</p>
-          <h1 className="page-title">Workers Mail</h1>
+          <h1 className="flex justify-center">
+            <span className="sr-only">Workers Mail</span>
+            <BrandLockup size="lg" />
+          </h1>
           <p className="mt-2 text-[13px] text-muted-foreground">
             {setupNeeded
               ? "Connect with your mailbox email, password, and server settings."

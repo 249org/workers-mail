@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { displayName } from "@/lib/mail/address";
 import type { MessageSummary } from "@/lib/mail/queries";
 import { navigateMailFolder, useMailStore, type FolderSummary } from "@/lib/mail/view-store";
 import { formatMessageDate } from "@/lib/format";
+import { toast } from "sonner";
 import { ChromeButton } from "./chrome-button";
 
 type Props = {
@@ -31,11 +32,12 @@ export function MessageList({
   const mailboxId = useMailStore((state) => state.mailboxId);
   const folderId = useMailStore((state) => state.folderId);
   const folders = useMailStore((state) => state.folders);
+  const currentFolder = folders.find((folder) => folder.id === folderId);
+  const inTrash = currentFolder?.role === "trash";
 
   const select = useMailStore((state) => state.select);
   const setSearch = useMailStore((state) => state.setSearch);
   const toggleChecked = useMailStore((state) => state.toggleChecked);
-  const toggleAllChecked = useMailStore((state) => state.toggleAllChecked);
   const fetchPage = useMailStore((state) => state.fetchPage);
   const prefetchAround = useMailStore((state) => state.prefetchAround);
 
@@ -78,9 +80,12 @@ export function MessageList({
             <span className="kbd">/</span>
           </span>
         </div>
+        {inTrash && messages.length > 0 && <EmptyTrashButton />}
       </div>
 
-      {checked.size > 0 && <BulkBar count={checked.size} onToggleAll={toggleAllChecked} />}
+      {checked.size > 0 && (
+        <BulkBar count={checked.size} total={messages.length} inTrash={inTrash} />
+      )}
 
       <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
         {messages.length === 0 && !loading && (
@@ -259,24 +264,107 @@ function EmptyFolder({
   );
 }
 
-function BulkBar({ count, onToggleAll }: { count: number; onToggleAll: () => void }) {
-  const checked = useMailStore((state) => state.checked);
+function BulkBar({
+  count,
+  total,
+  inTrash,
+}: {
+  count: number;
+  total: number;
+  inTrash: boolean;
+}) {
   const star = useMailStore((state) => state.star);
   const markRead = useMailStore((state) => state.markRead);
   const trash = useMailStore((state) => state.trash);
+  const deleteForever = useMailStore((state) => state.deleteForever);
+  const checked = useMailStore((state) => state.checked);
+  const messages = useMailStore((state) => state.messages);
   const ids = [...checked];
+  const allStarred = ids.length > 0 && ids.every((id) => messages.find((message) => message.id === id)?.flagged);
 
   return (
-    <div className="relative z-10 flex shrink-0 items-center gap-2 border-b border-border bg-secondary px-2 py-1">
-      <button type="button" className="btn btn-quiet !px-2.5" onClick={onToggleAll}>
+    <div className="relative z-10 flex shrink-0 items-center gap-2 border-b border-border bg-card px-3 py-1">
+      <SelectAllBox checkedCount={count} total={total} />
+      <p className="text-[13px] text-[var(--ink-muted)]">
         {count} selected
-      </button>
+      </p>
       <div className="ml-auto flex items-center">
         <ChromeButton icon="seen" label="Mark read" onClick={() => markRead(ids, true)} />
         <ChromeButton icon="unseen" label="Mark unread" hint="U" onClick={() => markRead(ids, false)} />
-        <ChromeButton icon="star" label="Star" hint="S" onClick={() => star(ids, true)} />
-        <ChromeButton icon="trash" label="Move to trash" hint="#" danger end onClick={() => trash(ids)} />
+        <ChromeButton
+          icon="star"
+          label={allStarred ? "Unstar" : "Star"}
+          hint="S"
+          pressed={allStarred}
+          onClick={() => star(ids, !allStarred)}
+        />
+        {inTrash ? (
+          <button
+            type="button"
+            className="btn btn-danger !h-8 !px-3 text-[12px]"
+            onClick={() => {
+              deleteForever(ids);
+              toast("Deleted forever");
+            }}
+          >
+            Delete forever
+          </button>
+        ) : (
+          <ChromeButton icon="trash" label="Move to trash" hint="#" danger end onClick={() => trash(ids)} />
+        )}
       </div>
     </div>
+  );
+}
+
+function SelectAllBox({ checkedCount, total }: { checkedCount: number; total: number }) {
+  const toggleAllChecked = useMailStore((state) => state.toggleAllChecked);
+  const ref = useRef<HTMLInputElement>(null);
+  const all = total > 0 && checkedCount === total;
+  const some = checkedCount > 0 && !all;
+
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = some;
+  }, [some]);
+
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      className="check !mt-0"
+      checked={all}
+      onChange={toggleAllChecked}
+      aria-label="Select all"
+    />
+  );
+}
+
+function EmptyTrashButton() {
+  const emptyTrash = useMailStore((state) => state.emptyTrash);
+  const [armed, setArmed] = useState(false);
+
+  useEffect(() => {
+    if (!armed) return;
+    const timer = window.setTimeout(() => setArmed(false), 4000);
+    return () => window.clearTimeout(timer);
+  }, [armed]);
+
+  return (
+    <button
+      type="button"
+      className={`btn shrink-0 !h-8 !px-3 text-[12px] ${armed ? "btn-danger" : "btn-ghost"}`}
+      onBlur={() => setArmed(false)}
+      onClick={() => {
+        if (!armed) {
+          setArmed(true);
+          return;
+        }
+        emptyTrash();
+        toast("Trash emptied");
+        setArmed(false);
+      }}
+    >
+      {armed ? "Confirm empty" : "Empty trash"}
+    </button>
   );
 }

@@ -6,6 +6,7 @@ import { parseMime } from "@/lib/mail/mime";
 import { storeMessage } from "@/lib/mail/store";
 import { upsertRemoteFolder, folderByRole, type Folder, type Mailbox } from "@/lib/mail/mailboxes";
 import { imapCredentials } from "./credentials";
+import { imapUidSet } from "./imap-uid-set";
 
 const INCREMENTAL_BATCH = 40;
 const BACKFILL_BATCH = 12;
@@ -161,10 +162,8 @@ async function syncFolder(
 
   if (status.exists === 0) return { stored: 0, scanned: 0, caughtUp: true };
 
-  const uids = await discoverUids(session, {
-    lastUid,
-    preferRecent: !backfill || folder.role === "inbox",
-  });
+  const preferRecent = !backfill || folder.role === "inbox";
+  const uids = await discoverUids(session, { lastUid, preferRecent });
   const knownUids = uidValidityReset ? new Set<number>() : await remoteUidsFor(deps.db, folder.id);
   const missing = uids.filter((uid) => !knownUids.has(uid)).sort((a, b) => a - b);
   if (missing.length === 0) {
@@ -211,6 +210,29 @@ async function syncFolder(
   };
 }
 
+async function newestUid(session: ImapSession): Promise<number> {
+  const fetched = await session.fetch(imapUidSet("*"), { flags: true });
+  const high = fetched.reduce((max, message) => (message.uid > max ? message.uid : max), 0);
+  if (high === 0) throw new Error("IMAP FETCH * returned no UID");
+  return high;
+}
+
+async function uidsAfter(session: ImapSession, lastUid: number): Promise<number[]> {
+  const high = await newestUid(session);
+  if (high <= lastUid) return [];
+
+  // A huge FLAGS range is as bad as SEARCH ALL on a 7k-message inbox; use a short SINCE window.
+  if (high - lastUid > 200) {
+    const recent = await session.search({ since: new Date(Date.now() - 2 * 86_400_000) });
+    const unseen = await session.search({ unseen: true });
+    return [...new Set([...recent, ...unseen, high])].filter((uid) => uid > lastUid);
+  }
+
+  const range = await session.fetch(imapUidSet(`${lastUid + 1}:${high}`), { flags: true });
+  const uids = range.map((message) => message.uid).filter((uid) => uid > lastUid);
+  return uids.length > 0 ? uids : [high];
+}
+
 async function discoverUids(
   session: ImapSession,
   options: { lastUid: number; preferRecent: boolean },
@@ -221,13 +243,25 @@ async function discoverUids(
     for (const uid of uids) found.add(uid);
   }
 
+  // Incremental: never SEARCH ALL. one.com truncates that result oldest-first, so a mailbox
+  // whose cursor is already at 9166 will never see 9167, and the full scan can hang the poll.
+  if (options.preferRecent && options.lastUid > 0) {
+    try {
+      return await uidsAfter(session, options.lastUid);
+    } catch {
+      add(await session.search({ since: new Date(Date.now() - 2 * 86_400_000) }));
+      add(await session.search({ unseen: true }));
+      return [...found].filter((uid) => uid > options.lastUid);
+    }
+  }
+
   if (options.preferRecent) {
-    // SEARCH ALL is often truncated; recent windows still return today's mail.
-    for (const days of [14, 90, 400]) {
+    for (const days of [2, 14, 90]) {
       add(await session.search({ since: new Date(Date.now() - days * 86_400_000) }));
-      if (found.size > 0 && Math.max(...found) > options.lastUid) break;
+      if (found.size > 0) break;
     }
     add(await session.search({ unseen: true }));
+    if (found.size > 0) return [...found];
   }
 
   add(await session.search({ all: true }));

@@ -94,7 +94,7 @@ Operate mode: three-pane mail, settings as a ruled document, login as a framed s
 
 Meridian is the default. Primary is interactive: buttons, selected nav, unread dots, focus. Accent-subtle tints selected and active rows. Accent-wash is hover on ghost controls and stat cells. Highlight is for icon wells, required asterisks, and identity initials — never routine status. Status stays success / warning / destructive. Extra hues exist only as operator-chosen templates in Settings → Appearance, never as one-off component colours.
 
-Dark is night paper of the same pigment, not a neon invert. Canvas and card step apart; hairlines and muted type are mixed from night ink so panes still read. Primary stays the light ink (white text on the pill). Ink is the exception: gold becomes the action colour after dark, because a black pill vanishes on charcoal.
+Dark is night paper of the same pigment, not a neon invert. Canvas and card step apart; hairlines and muted type are mixed from night ink so panes still read. Primary stays the light ink (white text on the pill). Ink is black and white only: the pill is black on paper, white on charcoal, so it still reads. No gold, no brown.
 
 ## Typography
 

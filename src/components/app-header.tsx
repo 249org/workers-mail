@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { PublicMailbox } from "@/lib/mail/mailboxes";
+import { BrandLockup } from "./brand/wordmark";
 import { AccountMenu } from "./account-menu";
 import { CommandCenter } from "./palette/command-center";
 
@@ -14,8 +15,8 @@ export function AppHeader({ email, name, mailboxes, context }: Props) {
   return (
     <header className="flex shrink-0 items-center justify-between gap-4 border-b border-border bg-card px-8 py-3">
       <div className="flex items-center gap-3">
-        <Link href="/mail" className="text-[14px] font-semibold tracking-tight">
-          Workers Mail
+        <Link href="/mail" className="brand-home" aria-label="Workers Mail">
+          <BrandLockup />
         </Link>
         {context === "settings" ? (
           <span className="font-mono text-[10px] tracking-[0.14em] text-muted-foreground uppercase">
@@ -30,13 +31,9 @@ export function AppHeader({ email, name, mailboxes, context }: Props) {
         )}
       </div>
       <div className="flex items-center gap-2">
-        {context === "settings" ? (
+        {context === "settings" && (
           <Link href="/mail" className="btn btn-ghost">
             Back to mail
-          </Link>
-        ) : (
-          <Link href="/settings" className="btn btn-ghost">
-            Settings
           </Link>
         )}
         <CommandCenter mailboxes={mailboxes} />

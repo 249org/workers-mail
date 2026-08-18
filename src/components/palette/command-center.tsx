@@ -8,11 +8,9 @@ import { appearanceCommands, settingsCommands } from "@/lib/palette/catalog";
 import { usePaletteStore } from "@/lib/palette/store";
 import { useHotkeys } from "@/lib/keyboard/use-hotkeys";
 import { useShortcutStore } from "@/lib/keyboard/store";
-import { primaryCombo } from "@/lib/keyboard/bindings";
 import { CommandPalette } from "./command-palette";
 import { ShortcutHelp } from "@/components/mail/shortcut-help";
 import { OnboardingTour } from "@/components/mail/onboarding-tour";
-import { KeyCaps, useIsMac } from "@/components/mail/key-caps";
 import { useOnboardingStore } from "@/lib/onboarding-store";
 import { TUTORIAL_EVERY_LOAD } from "@/lib/onboarding";
 
@@ -24,7 +22,6 @@ type Props = {
 
 export function CommandCenter({ mailboxes }: Props) {
   const router = useRouter();
-  const isMac = useIsMac();
   const open = usePaletteStore((state) => state.open);
   const query = usePaletteStore((state) => state.query);
   const mailbox = usePaletteStore((state) => state.mailbox);
@@ -35,7 +32,6 @@ export function CommandCenter({ mailboxes }: Props) {
   const setPrefs = useAppearanceStore((state) => state.setPrefs);
   const hydrateAppearance = useAppearanceStore((state) => state.hydrate);
   const hydrateShortcuts = useShortcutStore((state) => state.hydrate);
-  const shortcuts = useShortcutStore((state) => state.shortcuts);
 
   useEffect(() => {
     void hydrateAppearance();
@@ -72,19 +68,8 @@ export function CommandCenter({ mailboxes }: Props) {
     });
   }, [prefs, setPrefs, extras, router]);
 
-  const paletteCombo = primaryCombo("palette", shortcuts);
-
   return (
     <>
-      <button
-        type="button"
-        className="btn btn-quiet !px-2"
-        onClick={() => usePaletteStore.getState().openPalette()}
-        title="Command palette"
-        aria-label="Open command palette"
-      >
-        {paletteCombo ? <KeyCaps combo={paletteCombo} isMac={isMac} /> : <span className="kbd">⌘K</span>}
-      </button>
       <CommandPalette
         open={open}
         initialQuery={query}
