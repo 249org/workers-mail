@@ -41,7 +41,7 @@ export function ShortcutHelp({ open, onClose }: { open: boolean; onClose: () => 
       />
 
       <div
-        className="overlay-panel card relative flex max-h-[80vh] w-full max-w-2xl flex-col overflow-hidden"
+        className="overlay-panel panel relative flex max-h-[80vh] w-full max-w-2xl flex-col overflow-hidden"
         data-open={mounted}
         style={{ boxShadow: "var(--shadow-pop)" }}
       >

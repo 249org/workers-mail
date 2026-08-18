@@ -37,11 +37,7 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
       return new Response("Expected a WebSocket upgrade", { status: 426 });
     }
 
-    await this.load();
-    if (!this.state.mailboxId) {
-      this.state.mailboxId = mailboxId;
-      await this.persist();
-    }
+    await this.rememberMailbox(mailboxId);
 
     const pair = new WebSocketPair();
     const [client, server] = [pair[0], pair[1]];
@@ -49,6 +45,16 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
     server.serializeAttachment({ mailboxId });
 
     server.send(JSON.stringify({ type: "sync", state: this.state.lastState } satisfies MailboxEvent));
+    // First open (and a stuck / failed previous pass) should pull mail immediately,
+    // not wait for the 20s alarm — that alarm never ran for this mailbox in production.
+    const lockExpired = this.state.syncingUntil < Date.now();
+    if (
+      !this.state.lastSyncedAt ||
+      this.state.lastState === "error" ||
+      (this.state.lastState === "syncing" && lockExpired)
+    ) {
+      this.kickSync({ backfill: true });
+    }
     await this.scheduleNextPoll();
 
     return new Response(null, { status: 101, webSocket: client });
@@ -69,7 +75,9 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
       return;
     }
     if (command.type === "sync") {
-      await this.runSync({ backfill: false });
+      // IMAP does not belong on the WebSocket handler — a 30s ping already collides
+      // with an in-flight fetch. Kick the pass and let the alarm / waitUntil finish it.
+      this.kickSync({ backfill: false });
     }
   }
 
@@ -104,9 +112,10 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
   }
 
   /** Entry point used by the cron poke and by manual refreshes from the UI. */
-  async poke(options: { backfill?: boolean } = {}): Promise<SyncStatus> {
-    await this.load();
-    await this.runSync({ backfill: options.backfill ?? false });
+  async poke(options: { backfill?: boolean; mailboxId?: string } = {}): Promise<SyncStatus> {
+    if (options.mailboxId) await this.rememberMailbox(options.mailboxId);
+    else await this.load();
+    this.kickSync({ backfill: options.backfill ?? false });
     await this.scheduleNextPoll();
     return this.status();
   }
@@ -114,7 +123,10 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
   private async runSync(options: { backfill: boolean }): Promise<void> {
     await this.load();
     const mailboxId = this.state.mailboxId;
-    if (!mailboxId) return;
+    if (!mailboxId) {
+      console.warn("mailbox sync skipped: Durable Object has no mailboxId");
+      return;
+    }
 
     const now = Date.now();
     if (this.state.syncingUntil > now) return;
@@ -139,7 +151,7 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
 
       this.state.lastState = summary.errors.length > 0 ? "error" : "idle";
       this.state.lastError = summary.errors[0] ?? null;
-      this.state.lastSyncedAt = Date.now();
+      this.state.lastSyncedAt = Math.floor(Date.now() / 1000);
 
       await db
         .update(mailboxes)
@@ -147,7 +159,20 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
         .where(eq(mailboxes.id, mailboxId));
       await markSyncState(db, mailboxId, this.state.lastState, this.state.lastError ?? undefined);
 
-      this.broadcast({ type: "sync", state: this.state.lastState, stored: summary.stored });
+      this.broadcast({
+        type: "sync",
+        state: this.state.lastState,
+        stored: summary.stored,
+        error: this.state.lastError ?? undefined,
+      });
+      console.info("mailbox sync finished", {
+        mailboxId,
+        stored: summary.stored,
+        scanned: summary.scanned,
+        folders: summary.folders,
+        backfillComplete: summary.backfillComplete,
+        errors: summary.errors,
+      });
     } catch (error) {
       this.state.lastState = "error";
       this.state.lastError = describe(error);
@@ -159,13 +184,31 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
     }
   }
 
+  /** Fire-and-forget so RPC / WebSocket handlers are not pinned to IMAP I/O. */
+  private kickSync(options: { backfill: boolean }): void {
+    this.ctx.waitUntil(
+      this.runSync(options).catch((error) => {
+        console.error("mailbox sync failed", { error: describe(error) });
+      }),
+    );
+  }
+
+  private async rememberMailbox(mailboxId: string): Promise<void> {
+    await this.load();
+    if (this.state.mailboxId === mailboxId) return;
+    this.state.mailboxId = mailboxId;
+    await this.persist();
+  }
+
   private async scheduleNextPoll(): Promise<void> {
     const watching = this.ctx.getWebSockets().length > 0;
     const existing = await this.ctx.storage.getAlarm();
-    const target = Date.now() + (watching ? ACTIVE_POLL_MS : IDLE_POLL_MS);
+    const now = Date.now();
+    const target = now + (watching ? ACTIVE_POLL_MS : IDLE_POLL_MS);
 
-    // Keep an earlier alarm rather than pushing it out on every reconnect.
-    if (existing !== null && existing <= target) return;
+    // Keep an earlier *future* alarm; a timestamp already in the past is dead and
+    // must be replaced or the object never wakes again.
+    if (existing !== null && existing > now && existing <= target) return;
     await this.ctx.storage.setAlarm(target);
   }
 
@@ -183,7 +226,13 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
   private async load(): Promise<void> {
     if (this.loaded) return;
     const stored = await this.ctx.storage.get<State>("state");
-    if (stored) this.state = stored;
+    if (stored) {
+      this.state = stored;
+      // Older builds stored this as Date.now() milliseconds.
+      if (this.state.lastSyncedAt && this.state.lastSyncedAt > 1_000_000_000_000) {
+        this.state.lastSyncedAt = Math.floor(this.state.lastSyncedAt / 1000);
+      }
+    }
     this.loaded = true;
   }
 

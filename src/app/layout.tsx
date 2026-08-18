@@ -1,5 +1,22 @@
 import type { Metadata, Viewport } from "next";
+import { Geist, Geist_Mono, Newsreader } from "next/font/google";
 import "./globals.css";
+
+const geistSans = Geist({
+  subsets: ["latin"],
+  variable: "--font-geist-sans",
+});
+
+const geistMono = Geist_Mono({
+  subsets: ["latin"],
+  variable: "--font-geist-mono",
+});
+
+const newsreader = Newsreader({
+  subsets: ["latin"],
+  variable: "--font-newsreader",
+  style: ["normal", "italic"],
+});
 
 export const metadata: Metadata = {
   title: "Workers Mail",
@@ -10,15 +27,25 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#0f1216" },
+    { media: "(prefers-color-scheme: light)", color: "#F9F9F8" },
+    { media: "(prefers-color-scheme: dark)", color: "#111113" },
   ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} ${newsreader.variable}`}>
+      <body className="font-sans antialiased">
+        {/*
+          THESIS: Mail is a drawing — hairline regions vs pill controls — not a stack of floating cards.
+          OWN-WORLD: Meridian. Warm off-white field #F9F9F8, cool slate-blue primary, terracotta highlight. Geist Sans 13px, Newsreader titles, Geist Mono eyebrows. Radius 4px on panels; rounded-full only on buttons.
+          STORY: The operator reads and sends mail on their own Cloudflare account; chrome recedes into paper.
+          FIRST VIEWPORT: Ruled header, three hairline panes, Compose as a pill. Login is a framed sheet on the field.
+          FORM: Brief-pinned Meridian, Operate mode. Seed: operator-pinned.
+          FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md
+        */}
+        {children}
+      </body>
     </html>
   );
 }

@@ -118,7 +118,7 @@ export function NewMailboxForm({ domains }: { domains: DomainOption[] }) {
         </TabButton>
       </div>
 
-      <div className="card mt-4 p-5">
+      <div className="panel mt-4 p-5">
         {kind === "native" ? (
           domains.length === 0 ? (
             <p className="text-sm text-[var(--ink-muted)]">
@@ -263,10 +263,10 @@ function TabButton({
     <button
       type="button"
       onClick={onClick}
-      className="rounded-md px-3 py-1.5 text-sm"
+      className="rounded-full px-3 py-1.5 text-[13px]"
       style={{
-        background: active ? "var(--accent-soft)" : "transparent",
-        color: active ? "var(--accent)" : "var(--ink-muted)",
+        background: active ? "var(--accent-subtle)" : "transparent",
+        color: active ? "var(--primary)" : "var(--muted-foreground)",
         fontWeight: active ? 600 : 400,
       }}
     >

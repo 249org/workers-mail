@@ -28,7 +28,7 @@ export function MessageView({ messageId, onReply }: Props) {
 
   if (!loaded) {
     return (
-      <section className="flex min-w-0 flex-1 items-center justify-center bg-[var(--raised)]">
+      <section className="flex min-w-0 flex-1 items-center justify-center bg-card">
         <p className="text-[13px] text-[var(--ink-muted)]">Loading</p>
       </section>
     );
@@ -38,8 +38,8 @@ export function MessageView({ messageId, onReply }: Props) {
   const files = detail.attachments.filter((file) => !file.inline);
 
   return (
-    <section className="scroll-thin flex min-w-0 flex-1 flex-col overflow-y-auto bg-[var(--raised)]">
-      <header className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--raised)] px-6 py-4">
+    <section className="scroll-thin flex min-w-0 flex-1 flex-col overflow-y-auto bg-card">
+      <header className="sticky top-0 z-10 border-b border-border bg-card/90 px-6 py-4 backdrop-blur-md">
         <div className="flex items-start justify-between gap-4">
           <h1 className="text-[17px] font-semibold tracking-[-0.01em]">
             {detail.subject || "(no subject)"}
@@ -60,8 +60,8 @@ export function MessageView({ messageId, onReply }: Props) {
         <div className="mt-3 flex items-start gap-3">
           <span
             aria-hidden
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold"
-            style={{ background: "var(--accent-soft)", color: "var(--accent)" }}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-sm text-[11px] font-semibold"
+            style={{ background: "var(--highlight-subtle)", color: "var(--highlight)" }}
           >
             {initialsOf(displayName(detail.from))}
           </span>

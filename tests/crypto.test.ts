@@ -44,4 +44,9 @@ describe("password hashing", () => {
   it("rejects a malformed stored hash", async () => {
     expect(await verifyPassword("x", "garbage")).toBe(false);
   });
+
+  it("stores a Worker-legal iteration count", async () => {
+    const stored = await hashPassword("secret");
+    expect(stored.split("$")[1]).toBe("100000");
+  });
 });

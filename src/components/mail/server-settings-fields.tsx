@@ -16,7 +16,7 @@ type Props = {
 
 export function ServerSettingsFields({ value, onChange }: Props) {
   return (
-    <div className="mb-3.5 grid grid-cols-2 gap-3 rounded-md border border-[var(--border)] bg-[var(--surface)] p-3">
+    <div className="mb-3.5 grid grid-cols-2 gap-3 border border-border bg-background p-3" style={{ borderRadius: 4 }}>
       <div>
         <label className="label" htmlFor="imap-host">
           IMAP host

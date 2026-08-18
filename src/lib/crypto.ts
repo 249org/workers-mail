@@ -1,4 +1,5 @@
-const PBKDF2_ITERATIONS = 210_000;
+/** Workers Web Crypto refuses PBKDF2 above 100_000 iterations. */
+const PBKDF2_ITERATIONS = 100_000;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
@@ -67,8 +68,14 @@ export async function hashPassword(password: string): Promise<string> {
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
   const [scheme, iterations, saltPart, hashPart] = stored.split("$");
   if (scheme !== "pbkdf2" || !iterations || !saltPart || !hashPart) return false;
-  const derived = await deriveBits(password, fromBase64(saltPart), Number(iterations));
-  return timingSafeEqual(derived, fromBase64(hashPart));
+  const count = Number(iterations);
+  if (!Number.isInteger(count) || count < 1 || count > PBKDF2_ITERATIONS) return false;
+  try {
+    const derived = await deriveBits(password, fromBase64(saltPart), count);
+    return timingSafeEqual(derived, fromBase64(hashPart));
+  } catch {
+    return false;
+  }
 }
 
 async function deriveBits(

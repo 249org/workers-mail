@@ -2,6 +2,7 @@ import { desc, eq } from "drizzle-orm";
 import { requireUser } from "@/lib/auth/server";
 import { contacts } from "@/lib/db/schema";
 import { ContactList } from "@/components/settings/contact-list";
+import { PageHeader } from "@/components/settings/page-header";
 
 export default async function ContactsPage() {
   const { user, db } = await requireUser();
@@ -15,10 +16,9 @@ export default async function ContactsPage() {
 
   return (
     <div>
-      <h1 className="text-lg font-semibold tracking-tight">Contacts</h1>
-      <p className="mt-1 text-sm text-[var(--ink-muted)]">
+      <PageHeader title="Contacts">
         Collected automatically from the mail you receive and send.
-      </p>
+      </PageHeader>
       <ContactList
         contacts={rows.map((contact) => ({
           id: contact.id,

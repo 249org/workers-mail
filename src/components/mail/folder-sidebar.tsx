@@ -27,39 +27,45 @@ export function FolderSidebar({
   const activeFolderId = useMailStore((state) => state.folderId);
   const syncing = useMailStore((state) => state.syncing);
   const syncError = useMailStore((state) => state.syncError);
+  const lastSyncedAt = useMailStore((state) => state.lastSyncedAt);
 
   return (
-    <aside className="flex w-52 shrink-0 flex-col border-r border-[var(--border)] bg-[var(--surface)]">
-      <div className="space-y-1.5 p-2.5">
+    <aside className="flex w-56 shrink-0 flex-col border-r border-border bg-card">
+      <div className="flex flex-col gap-2 px-3 pt-3 pb-2">
         <button type="button" className="btn btn-primary w-full" onClick={onCompose}>
           Compose
-          <span className="kbd" style={{ background: "transparent", color: "inherit", opacity: 0.75 }}>
+          <span
+            className="kbd"
+            style={{
+              background: "transparent",
+              color: "inherit",
+              borderColor: "color-mix(in srgb, white 32%, transparent)",
+              opacity: 0.85,
+            }}
+          >
             C
           </span>
         </button>
-        <button type="button" className="btn btn-ghost w-full !justify-between" onClick={onOpenPalette}>
-          <span className="text-[var(--ink-muted)]">Search</span>
+        <button type="button" className="field flex items-center justify-between" onClick={onOpenPalette}>
+          <span className="text-[var(--ink-faint)]">Search</span>
           <span className="kbd">⌘K</span>
         </button>
       </div>
 
-      <nav className="scroll-thin min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+      <nav className="scroll-thin min-h-0 flex-1 overflow-y-auto px-3 py-2">
         {folders.map((folder) => {
           const active = folder.id === activeFolderId;
           return (
             <Link
               key={folder.id}
               href={`/mail/${mailbox.id}/${folder.id}`}
-              className="mb-0.5 flex items-center justify-between rounded-md px-2.5 py-1.5 text-[13px]"
-              style={{
-                background: active ? "var(--selected)" : "transparent",
-                color: active ? "var(--accent)" : "var(--ink)",
-                fontWeight: active ? 600 : 400,
-              }}
+              prefetch={false}
+              className="nav-row"
+              data-active={active ? "true" : undefined}
             >
               <span className="truncate">{folder.name}</span>
               {folder.unread > 0 && (
-                <span className="ml-2 shrink-0 text-[11px] tabular-nums text-[var(--ink-muted)]">
+                <span className="shrink-0 tabular-nums text-[var(--ink-muted)]">
                   {folder.unread}
                 </span>
               )}
@@ -68,43 +74,42 @@ export function FolderSidebar({
         })}
 
         {mailboxes.length > 1 && (
-          <div className="mt-5">
+          <div className="mt-4">
             <p className="label px-2.5">Mailboxes</p>
             {mailboxes.map((entry) => (
               <Link
                 key={entry.id}
                 href={`/mail/${entry.id}`}
-                className="mb-0.5 block truncate rounded-md px-2.5 py-1.5 text-[13px]"
-                style={{
-                  color: entry.id === mailbox.id ? "var(--ink)" : "var(--ink-muted)",
-                  fontWeight: entry.id === mailbox.id ? 600 : 400,
-                }}
+                className="nav-row"
+                data-active={entry.id === mailbox.id ? "true" : undefined}
               >
-                {entry.address}
+                <span className="truncate">{entry.address}</span>
               </Link>
             ))}
           </div>
         )}
       </nav>
 
-      <div className="border-t border-[var(--border)] p-2.5 text-[11px] text-[var(--ink-muted)]">
-        <div className="flex items-center justify-between gap-2">
-          <span className="flex items-center gap-1.5">
+      <div className="border-t border-border px-3 py-3 text-[13px] text-muted-foreground">
+        <div className="flex items-center justify-between gap-3">
+          <span className="flex min-w-0 items-center gap-2">
             <span
               aria-hidden
-              className="inline-block h-1.5 w-1.5 rounded-full"
+              className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
               style={{
                 background: streamState === "open" ? "var(--success)" : "var(--warning)",
               }}
             />
-            {streamState === "open" ? "Live" : streamState === "polling" ? "Polling" : "Connecting"}
+            <span className="truncate">
+              {streamState === "open" ? "Live" : streamState === "polling" ? "Polling" : "Connecting"}
+            </span>
           </span>
           {mailbox.type === "external_imap" && (
             <button
               type="button"
               onClick={onSync}
               disabled={syncing}
-              className="text-[var(--accent)] disabled:opacity-50"
+              className="shrink-0 text-primary disabled:opacity-50"
             >
               {syncing ? "Syncing" : "Sync"}
             </button>
@@ -112,7 +117,9 @@ export function FolderSidebar({
         </div>
 
         {mailbox.type === "external_imap" && (
-          <p className="mt-1.5 truncate">Synced {formatRelative(mailbox.lastSyncedAt)}</p>
+          <p className="mt-1.5 truncate text-[var(--ink-faint)]">
+            Synced {formatRelative(lastSyncedAt)}
+          </p>
         )}
         {syncError && <p className="mt-1.5 text-[var(--danger)]">{syncError}</p>}
       </div>

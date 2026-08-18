@@ -37,11 +37,11 @@ export function ContactList({ contacts }: { contacts: Contact[] }) {
       />
 
       {filtered.length === 0 ? (
-        <p className="card mt-4 p-6 text-center text-sm text-[var(--ink-muted)]">
+        <p className="list-frame mt-4 p-6 text-center text-[13px] text-muted-foreground">
           {contacts.length === 0 ? "No contacts collected yet." : "Nothing matched that filter."}
         </p>
       ) : (
-        <ul className="card mt-4 divide-y divide-[var(--border)]">
+        <ul className="list-frame mt-4">
           {filtered.map((contact) => (
             <li key={contact.id} className="flex items-center justify-between gap-4 p-4">
               <div className="min-w-0">

@@ -1,9 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { displayName } from "@/lib/mail/address";
 import type { MessageSummary } from "@/lib/mail/queries";
-import { useMailStore } from "@/lib/mail/view-store";
+import { useMailStore, type FolderSummary } from "@/lib/mail/view-store";
 import { formatMessageDate } from "@/lib/format";
 
 type Props = {
@@ -18,6 +19,9 @@ export function MessageList({ onOpenSearch, searchRef }: Props) {
   const loading = useMailStore((state) => state.loading);
   const cursor = useMailStore((state) => state.cursor);
   const search = useMailStore((state) => state.search);
+  const mailboxId = useMailStore((state) => state.mailboxId);
+  const folderId = useMailStore((state) => state.folderId);
+  const folders = useMailStore((state) => state.folders);
 
   const select = useMailStore((state) => state.select);
   const setSearch = useMailStore((state) => state.setSearch);
@@ -37,8 +41,8 @@ export function MessageList({ onOpenSearch, searchRef }: Props) {
   }, [selectedId]);
 
   return (
-    <section className="flex w-full shrink-0 flex-col border-r border-[var(--border)] bg-[var(--raised)] md:w-[21rem] lg:w-[25rem]">
-      <div className="shrink-0 border-b border-[var(--border)] p-2">
+    <section className="flex w-full shrink-0 flex-col border-r border-border bg-card md:w-[21rem] lg:w-[25rem]">
+      <div className="shrink-0 border-b border-[var(--border)] p-2.5">
         <div className="relative">
           <input
             ref={searchRef}
@@ -47,10 +51,10 @@ export function MessageList({ onOpenSearch, searchRef }: Props) {
             placeholder="Search, or try from:sam is:unread"
             onChange={(event) => setSearch(event.target.value)}
             onFocus={onOpenSearch}
-            className="field !py-1.5 pr-14 text-[13px]"
+            className="field pr-12"
             aria-label="Search messages"
           />
-          <span className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2">
+          <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2">
             <span className="kbd">/</span>
           </span>
         </div>
@@ -60,9 +64,12 @@ export function MessageList({ onOpenSearch, searchRef }: Props) {
 
       <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
         {messages.length === 0 && !loading && (
-          <p className="p-8 text-center text-[13px] text-[var(--ink-muted)]">
-            {search ? "Nothing matched that search." : "Nothing here yet."}
-          </p>
+          <EmptyFolder
+            search={search}
+            mailboxId={mailboxId}
+            folderId={folderId}
+            folders={folders}
+          />
         )}
 
         <ul ref={listRef} role="listbox" aria-label="Messages" tabIndex={-1}>
@@ -124,10 +131,9 @@ function Row({
         tabIndex={-1}
         onClick={onSelect}
         onMouseEnter={onHover}
-        className="flex cursor-pointer gap-2 border-b border-[var(--border)] px-3 py-2"
+        className="flex cursor-pointer gap-2 border-b border-border px-3 py-2"
         style={{
-          background: active ? "var(--selected)" : "transparent",
-          boxShadow: active ? "inset 2px 0 0 var(--accent)" : "none",
+          background: active ? "var(--accent-subtle)" : "transparent",
         }}
       >
         <input
@@ -188,6 +194,44 @@ function Row({
         </div>
       </div>
     </li>
+  );
+}
+
+function EmptyFolder({
+  search,
+  mailboxId,
+  folderId,
+  folders,
+}: {
+  search: string;
+  mailboxId: string;
+  folderId: string;
+  folders: FolderSummary[];
+}) {
+  const folder = folders.find((entry) => entry.id === folderId);
+  const inbox = folders.find((entry) => entry.role === "inbox");
+  const copy =
+    search.trim().length > 0
+      ? "Nothing matched that search."
+      : folder?.role === "drafts"
+        ? "No drafts."
+        : folder?.role === "trash"
+          ? "Trash is empty."
+          : folder?.role === "sent"
+            ? "No sent mail."
+            : folder?.role === "archive"
+              ? "Archive is empty."
+              : "Nothing here yet.";
+
+  return (
+    <div className="px-6 py-10 text-center">
+      <p className="text-[13px] text-[var(--ink-muted)]">{copy}</p>
+      {!search && folder?.role !== "inbox" && inbox && (
+        <Link href={`/mail/${mailboxId}/${inbox.id}`} prefetch={false} className="btn btn-ghost mt-4">
+          Open Inbox
+        </Link>
+      )}
+    </div>
   );
 }
 

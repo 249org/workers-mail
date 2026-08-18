@@ -47,6 +47,7 @@ type State = {
   undoStack: UndoEntry[];
   syncing: boolean;
   syncError: string | null;
+  lastSyncedAt: number | null;
 };
 
 type Actions = {
@@ -58,6 +59,8 @@ type Actions = {
     cursor: number | null;
     search: string;
     selectedId: string | null;
+    lastSyncedAt: number | null;
+    syncError: string | null;
   }) => void;
 
   setSearch: (value: string) => void;
@@ -101,6 +104,7 @@ export const useMailStore = create<State & Actions>((set, get) => ({
   undoStack: [],
   syncing: false,
   syncError: null,
+  lastSyncedAt: null,
 
   hydrate: (input) => {
     const current = get();
@@ -108,11 +112,19 @@ export const useMailStore = create<State & Actions>((set, get) => ({
     const changedView =
       current.mailboxId !== input.mailboxId || current.folderId !== input.folderId;
 
+    // A cached empty RSC payload must not wipe messages the live socket already loaded.
+    const keepMessages =
+      !changedView && current.messages.length > 0 && input.messages.length === 0;
+
     set({
       ...input,
+      messages: keepMessages ? current.messages : input.messages,
+      cursor: keepMessages ? current.cursor : input.cursor,
       checked: changedView ? new Set() : current.checked,
       loaded: changedView ? new Map() : current.loaded,
-      selectedId: input.selectedId ?? input.messages[0]?.id ?? null,
+      selectedId: keepMessages
+        ? current.selectedId
+        : (input.selectedId ?? input.messages[0]?.id ?? null),
     });
   },
 
@@ -272,8 +284,15 @@ export const useMailStore = create<State & Actions>((set, get) => ({
 
     const response = await fetch(`/api/mailboxes/${mailboxId}`);
     if (!response.ok) return;
-    const payload = (await response.json()) as { folders: FolderSummary[] };
-    set({ folders: payload.folders });
+    const payload = (await response.json()) as {
+      mailbox?: { lastSyncedAt: number | null; syncError: string | null };
+      folders: FolderSummary[];
+    };
+    set({
+      folders: payload.folders,
+      lastSyncedAt: payload.mailbox?.lastSyncedAt ?? get().lastSyncedAt,
+      syncError: payload.mailbox?.syncError ?? get().syncError,
+    });
   },
 
   /**

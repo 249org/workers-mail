@@ -284,7 +284,12 @@ export async function handleSetup(request: Request, env: CloudflareEnv): Promise
 
     // Start the first sync in the background so the inbox is filling on arrival.
     const stub = env.MAILBOX.get(env.MAILBOX.idFromName(mailboxId));
-    void stub.poke({ backfill: true }).catch(() => undefined);
+    void stub.poke({ backfill: true, mailboxId }).catch((error) => {
+      console.error("initial mailbox poke failed", {
+        mailboxId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
 
     const session = await createSession(env.SESSION_STORE, userId);
     return Response.json(

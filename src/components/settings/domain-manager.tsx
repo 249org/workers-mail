@@ -78,7 +78,7 @@ export function DomainManager({
 
   return (
     <div className="mt-6">
-      <div className="card p-4">
+      <div className="panel p-4">
         <label className="label" htmlFor="domain-name">
           Add a domain
         </label>
@@ -103,7 +103,7 @@ export function DomainManager({
       </div>
 
       {domains.length === 0 ? (
-        <p className="card mt-4 p-6 text-center text-sm text-[var(--ink-muted)]">
+        <p className="list-frame mt-4 p-6 text-center text-[13px] text-muted-foreground">
           No domains connected yet.
         </p>
       ) : (
@@ -141,7 +141,7 @@ function DomainCard({
   const [showRuleForm, setShowRuleForm] = useState(false);
 
   return (
-    <section className="card p-4">
+    <section className="panel p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold">{domain.name}</h2>

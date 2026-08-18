@@ -19,11 +19,12 @@ export function AuthScreen({ setupNeeded, encryptionReady }: Props) {
   const [mode, setMode] = useState<"signin" | "connect">(setupNeeded ? "connect" : "signin");
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[var(--surface)] px-4 py-10">
+    <main className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
       <div className="w-full max-w-[28rem]">
         <header className="rise-in mb-7 text-center">
-          <h1 className="text-[19px] font-semibold tracking-[-0.01em]">Workers Mail</h1>
-          <p className="mt-1 text-[13px] text-[var(--ink-muted)]">
+          <p className="label mb-2">Self-hosted on Cloudflare</p>
+          <h1 className="page-title">Workers Mail</h1>
+          <p className="mt-2 text-[13px] text-muted-foreground">
             {setupNeeded
               ? "Connect with your mailbox email, password, and server settings."
               : "Sign in with your mailbox email and password."}
@@ -31,7 +32,7 @@ export function AuthScreen({ setupNeeded, encryptionReady }: Props) {
         </header>
 
         {setupNeeded && (
-          <div className="rise-in mb-4 flex gap-1 rounded-lg border border-[var(--border)] bg-[var(--raised)] p-1">
+          <div className="rise-in mb-4 flex gap-1 border border-border bg-card p-1" style={{ borderRadius: 4 }}>
             <Tab active={mode === "connect"} onClick={() => setMode("connect")}>
               Connect account
             </Tab>
@@ -64,10 +65,10 @@ function Tab({
     <button
       type="button"
       onClick={onClick}
-      className="flex-1 rounded-md px-3 py-1.5 text-[13px]"
+      className="flex-1 rounded-full px-3 py-1.5 text-[13px]"
       style={{
-        background: active ? "var(--selected)" : "transparent",
-        color: active ? "var(--accent)" : "var(--ink-muted)",
+        background: active ? "var(--accent-subtle)" : "transparent",
+        color: active ? "var(--primary)" : "var(--muted-foreground)",
         fontWeight: active ? 600 : 400,
       }}
     >
@@ -111,9 +112,12 @@ function SignInForm({ setupNeeded }: { setupNeeded: boolean }) {
   return (
     <form
       onSubmit={onSubmit}
-      className="rise-in card p-5"
-      style={{ animationDelay: "60ms", boxShadow: "var(--shadow-sm)" }}
+      className="rise-in panel relative p-5"
     >
+      <span className="reg reg-tl" aria-hidden />
+      <span className="reg reg-tr" aria-hidden />
+      <span className="reg reg-bl" aria-hidden />
+      <span className="reg reg-br" aria-hidden />
       {setupNeeded && (
         <Field label="Your name" htmlFor="name">
           <input id="name" name="name" className="field" autoComplete="name" />
@@ -216,7 +220,11 @@ function ConnectForm({ encryptionReady }: { encryptionReady: boolean }) {
 
   if (!encryptionReady) {
     return (
-      <div className="rise-in card p-5">
+      <div className="rise-in panel relative p-5">
+        <span className="reg reg-tl" aria-hidden />
+        <span className="reg reg-tr" aria-hidden />
+        <span className="reg reg-bl" aria-hidden />
+        <span className="reg reg-br" aria-hidden />
         <p className="text-[13px] text-[var(--ink)]">
           Set the <code className="font-mono text-xs">MAIL_ENCRYPTION_KEY</code> secret
           before connecting a mailbox.
@@ -235,9 +243,12 @@ function ConnectForm({ encryptionReady }: { encryptionReady: boolean }) {
   return (
     <form
       onSubmit={onSubmit}
-      className="rise-in card p-5"
-      style={{ animationDelay: "60ms", boxShadow: "var(--shadow-sm)" }}
+      className="rise-in panel relative p-5"
     >
+      <span className="reg reg-tl" aria-hidden />
+      <span className="reg reg-tr" aria-hidden />
+      <span className="reg reg-bl" aria-hidden />
+      <span className="reg reg-br" aria-hidden />
       <Field label="Email address" htmlFor="address">
         <input
           id="address"

@@ -143,7 +143,7 @@ export function ComposeDialog({
     >
       <div className="overlay-backdrop absolute inset-0" data-open={mounted} />
       <div
-        className="overlay-panel card relative flex max-h-full w-full max-w-2xl flex-col overflow-hidden"
+        className="overlay-panel panel relative flex max-h-full w-full max-w-2xl flex-col overflow-hidden"
         data-open={mounted}
         style={{ boxShadow: "var(--shadow-pop)" }}
       >
@@ -248,7 +248,7 @@ export function ComposeDialog({
           )}
         </div>
 
-        <footer className="flex items-center gap-3 border-t border-[var(--border)] px-4 py-3">
+        <footer className="frost-bar flex items-center gap-3 px-4 py-3">
           <button type="button" className="btn btn-primary" onClick={send} disabled={sending}>
             {sending ? "Sending" : "Send"}
             <span className="kbd" style={{ background: "transparent", color: "inherit", opacity: 0.75 }}>

@@ -24,11 +24,11 @@ export function HealthPanel() {
   }, []);
 
   if (!checks) {
-    return <p className="card mt-3 p-4 text-sm text-[var(--ink-muted)]">Running checks…</p>;
+    return <p className="list-frame mt-3 p-4 text-[13px] text-muted-foreground">Running checks…</p>;
   }
 
   return (
-    <ul className="card mt-3 divide-y divide-[var(--border)]">
+    <ul className="list-frame mt-3">
       {checks.map((check) => (
         <li key={check.name} className="flex items-start gap-3 p-4">
           <span

@@ -13,7 +13,7 @@ export function MailboxList({ mailboxes }: { mailboxes: PublicMailbox[] }) {
 
   if (mailboxes.length === 0) {
     return (
-      <p className="card mt-6 p-6 text-center text-sm text-[var(--ink-muted)]">
+      <p className="list-frame mt-6 p-6 text-center text-[13px] text-muted-foreground">
         No mailboxes yet. Add a domain mailbox or connect an existing IMAP account.
       </p>
     );
@@ -28,7 +28,7 @@ export function MailboxList({ mailboxes }: { mailboxes: PublicMailbox[] }) {
   }
 
   return (
-    <ul className="card mt-6 divide-y divide-[var(--border)]">
+    <ul className="list-frame mt-6">
       {mailboxes.map((mailbox) => (
         <li key={mailbox.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
           <div className="min-w-0">

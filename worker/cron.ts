@@ -23,7 +23,10 @@ export async function pollExternalMailboxes(env: CloudflareEnv): Promise<void> {
       slice.map(async (mailbox) => {
         const stub = env.MAILBOX.get(env.MAILBOX.idFromName(mailbox.id));
         try {
-          await withTimeout(stub.poke({ backfill: !mailbox.backfillComplete }), POKE_TIMEOUT_MS);
+          await withTimeout(
+            stub.poke({ backfill: !mailbox.backfillComplete, mailboxId: mailbox.id }),
+            POKE_TIMEOUT_MS,
+          );
         } catch (error) {
           console.warn("scheduled poke failed", {
             mailboxId: mailbox.id,

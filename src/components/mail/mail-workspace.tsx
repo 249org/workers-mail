@@ -27,6 +27,8 @@ type Props = {
   initialCursor: number | null;
   initialSearch: string;
   initialSelectedId: string | null;
+  initialLastSyncedAt: number | null;
+  initialSyncError: string | null;
 };
 
 const EMPTY_DRAFT: ComposeDraft = { to: "", cc: "", bcc: "", subject: "", text: "" };
@@ -41,6 +43,8 @@ export function MailWorkspace({
   initialCursor,
   initialSearch,
   initialSelectedId,
+  initialLastSyncedAt,
+  initialSyncError,
 }: Props) {
   const router = useRouter();
   const [compose, setCompose] = useState<ComposeDraft | null>(null);
@@ -68,7 +72,12 @@ export function MailWorkspace({
       cursor: initialCursor,
       search: initialSearch,
       selectedId: initialSelectedId,
+      lastSyncedAt: initialLastSyncedAt,
+      syncError: initialSyncError,
     });
+    // Folder Links prefetch; an empty payload captured before IMAP landed would
+    // otherwise stick. Always re-read the folder from the API after hydrate.
+    void useMailStore.getState().fetchPage();
   }, [
     hydrate,
     mailbox.id,
@@ -78,6 +87,8 @@ export function MailWorkspace({
     initialCursor,
     initialSearch,
     initialSelectedId,
+    initialLastSyncedAt,
+    initialSyncError,
   ]);
 
   // Re-query on search, but never on the first render — the server already did it.
@@ -96,7 +107,7 @@ export function MailWorkspace({
       if (event.type === "sync") {
         store.setSyncing(event.state === "syncing");
         store.setSyncError(event.state === "error" ? (event.error ?? "Sync failed") : null);
-        if (event.state === "idle") {
+        if (event.state === "idle" || event.state === "error" || (event.stored ?? 0) > 0) {
           void store.fetchPage();
           void store.refreshFolders();
         }
@@ -111,6 +122,14 @@ export function MailWorkspace({
   );
 
   const streamState = useMailStream(mailbox.id, onEvent);
+
+  // Cached RSC payloads can keep an empty inbox on screen after IMAP has stored
+  // mail. Reload the list as soon as the live socket (or polling fallback) is up.
+  useEffect(() => {
+    if (streamState === "connecting") return;
+    void fetchPage();
+    void refreshFolders();
+  }, [streamState, fetchPage, refreshFolders]);
 
   const targetIds = useMemo(
     () => (checked.size > 0 ? [...checked] : selectedId ? [selectedId] : []),
@@ -303,8 +322,8 @@ export function MailWorkspace({
       {selectedId && messages.length > 0 ? (
         <MessageView messageId={selectedId} onReply={startReply} />
       ) : (
-        <section className="hidden flex-1 items-center justify-center bg-[var(--raised)] md:flex">
-          <p className="text-[13px] text-[var(--ink-muted)]">
+        <section className="hidden flex-1 items-center justify-center bg-card md:flex">
+          <p className="text-[13px] text-muted-foreground">
             Nothing selected. Press <span className="kbd">J</span> to start reading.
           </p>
         </section>

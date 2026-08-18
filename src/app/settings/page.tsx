@@ -6,6 +6,7 @@ import { domains } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { formatBytes, formatRelative } from "@/lib/format";
 import { HealthPanel } from "@/components/settings/health-panel";
+import { PageHeader } from "@/components/settings/page-header";
 
 export default async function SettingsOverviewPage() {
   const { user, db } = await requireUser();
@@ -32,21 +33,24 @@ export default async function SettingsOverviewPage() {
 
   return (
     <div>
-      <h1 className="text-lg font-semibold tracking-tight">Overview</h1>
-      <p className="mt-1 text-sm text-[var(--ink-muted)]">
+      <PageHeader title="Overview">
         Signed in as {user.email}. This deployment runs entirely on your Cloudflare account.
-      </p>
+      </PageHeader>
 
-      <div className="mt-6 grid gap-3 sm:grid-cols-3">
+      <div className="stat-strip relative">
+        <span className="reg reg-tl" aria-hidden />
+        <span className="reg reg-tr" aria-hidden />
+        <span className="reg reg-bl" aria-hidden />
+        <span className="reg reg-br" aria-hidden />
         <Stat label="Domains" value={String(domainRows.length)} />
         <Stat label="Mailboxes" value={String(mailboxes.length)} />
         <Stat label="Stored" value={formatBytes(totals.bytes)} hint={`${totals.messages} messages`} />
       </div>
 
       <section className="mt-8">
-        <h2 className="text-sm font-semibold">Mailboxes</h2>
+        <h2 className="section-title">Mailboxes</h2>
         {usage.length === 0 ? (
-          <p className="card mt-3 p-4 text-sm text-[var(--ink-muted)]">
+          <p className="list-frame mt-3 p-4 text-[13px] text-muted-foreground">
             No mailboxes yet.{" "}
             <Link href="/settings/mailboxes/new" className="text-[var(--accent)] hover:underline">
               Add one
@@ -54,7 +58,7 @@ export default async function SettingsOverviewPage() {
             .
           </p>
         ) : (
-          <ul className="card mt-3 divide-y divide-[var(--border)]">
+          <ul className="list-frame mt-3">
             {usage.map(({ mailbox, stats }) => (
               <li key={mailbox.id} className="flex items-center justify-between gap-4 p-4">
                 <div className="min-w-0">
@@ -76,7 +80,7 @@ export default async function SettingsOverviewPage() {
       </section>
 
       <section className="mt-8">
-        <h2 className="text-sm font-semibold">System checks</h2>
+        <h2 className="section-title">System checks</h2>
         <HealthPanel />
       </section>
     </div>
@@ -85,10 +89,10 @@ export default async function SettingsOverviewPage() {
 
 function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="card p-4">
+    <div>
       <p className="label mb-1">{label}</p>
-      <p className="text-xl font-semibold tracking-tight">{value}</p>
-      {hint && <p className="mt-0.5 text-xs text-[var(--ink-faint)]">{hint}</p>}
+      <p className="font-serif text-[30px] leading-none tracking-tight">{value}</p>
+      {hint && <p className="mt-1.5 text-[12px] text-muted-foreground">{hint}</p>}
     </div>
   );
 }

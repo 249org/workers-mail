@@ -70,9 +70,9 @@ export default {
   async scheduled(
     _event: ScheduledController,
     env: CloudflareEnv,
-    ctx: ExecutionContext,
+    _ctx: ExecutionContext,
   ): Promise<void> {
-    ctx.waitUntil(pollExternalMailboxes(env));
+    await pollExternalMailboxes(env);
   },
 } satisfies ExportedHandler<CloudflareEnv>;
 

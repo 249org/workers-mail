@@ -57,7 +57,7 @@ export function ApiKeyManager() {
 
   return (
     <div className="mt-6">
-      <div className="card p-4">
+      <div className="panel p-4">
         <label className="label" htmlFor="key-name">
           New key
         </label>
@@ -111,7 +111,7 @@ export function ApiKeyManager() {
       </div>
 
       {keys.length > 0 && (
-        <ul className="card mt-4 divide-y divide-[var(--border)]">
+        <ul className="list-frame mt-4">
           {keys.map((key) => (
             <li key={key.id} className="flex items-center justify-between gap-4 p-4">
               <div className="min-w-0">

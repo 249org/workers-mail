@@ -9,6 +9,9 @@ import {
 import { listMessages, unreadCounts } from "@/lib/mail/queries";
 import { MailWorkspace } from "@/components/mail/mail-workspace";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type PageProps = {
   params: Promise<{ mailboxId: string; folderId: string }>;
   searchParams: Promise<{ q?: string; message?: string }>;
@@ -47,6 +50,8 @@ export default async function FolderPage({ params, searchParams }: PageProps) {
       initialCursor={page.nextCursor}
       initialSearch={q ?? ""}
       initialSelectedId={message ?? null}
+      initialLastSyncedAt={mailbox.lastSyncedAt}
+      initialSyncError={mailbox.syncError}
     />
   );
 }

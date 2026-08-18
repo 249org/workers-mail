@@ -10,7 +10,7 @@ export function SignOutButton() {
   return (
     <button
       type="button"
-      className="btn btn-ghost !py-1.5 text-xs"
+      className="btn btn-ghost"
       disabled={pending}
       onClick={async () => {
         setPending(true);

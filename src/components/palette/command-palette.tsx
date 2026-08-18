@@ -145,19 +145,19 @@ export function CommandPalette({
       <Command
         label="Command palette"
         shouldFilter={false}
-        className="card relative flex max-h-[70vh] w-full max-w-xl flex-col overflow-hidden"
+        className="panel relative flex max-h-[70vh] w-full max-w-xl flex-col overflow-hidden"
         style={{ boxShadow: "var(--shadow-pop)" }}
       >
-        <div className="flex items-center gap-2 border-b border-[var(--border)] px-3">
+        <div className="flex items-center gap-2 border-b border-[var(--border)] p-2.5">
           <Command.Input
             ref={inputRef}
             value={query}
             onValueChange={setQuery}
             placeholder="Search messages, or > for commands"
-            className="w-full bg-transparent py-3 text-[14px] text-[var(--ink)] outline-none placeholder:text-[var(--ink-faint)]"
+            className="field min-w-0 flex-1"
           />
-          {searching && <span className="text-[11px] text-[var(--ink-faint)]">…</span>}
-          <span className="kbd">Esc</span>
+          {searching && <span className="shrink-0 text-[11px] text-[var(--ink-faint)]">…</span>}
+          <span className="kbd shrink-0">Esc</span>
         </div>
 
         <Command.List className="scroll-thin min-h-0 flex-1 overflow-y-auto p-1.5">
@@ -262,7 +262,7 @@ function Group({ heading, children }: { heading: string; children: React.ReactNo
   return (
     <Command.Group
       heading={heading}
-      className="mb-1 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:tracking-wide [&_[cmdk-group-heading]]:text-[var(--ink-faint)] [&_[cmdk-group-heading]]:uppercase"
+      className="mb-1 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:tracking-[0.15em] [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:uppercase"
     >
       {children}
     </Command.Group>
@@ -282,7 +282,7 @@ function Item({
     <Command.Item
       value={value}
       onSelect={onSelect}
-      className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-[13px] data-[selected=true]:bg-[var(--selected)] data-[selected=true]:text-[var(--accent)]"
+      className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-[13px] data-[selected=true]:bg-accent-subtle data-[selected=true]:text-primary"
     >
       {children}
     </Command.Item>

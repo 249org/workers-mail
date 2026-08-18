@@ -7,8 +7,10 @@ import { storeMessage } from "@/lib/mail/store";
 import { upsertRemoteFolder, type Folder, type Mailbox } from "@/lib/mail/mailboxes";
 import { imapCredentials } from "./credentials";
 
-const INCREMENTAL_BATCH = 40;
-const BACKFILL_BATCH = 60;
+const INCREMENTAL_BATCH = 20;
+const BACKFILL_BATCH = 12;
+/** Leave the isolate before a hung IMAP fetch can kill the whole pass. */
+const PASS_BUDGET_MS = 20_000;
 const SPECIAL_FOLDERS: Array<{ match: RegExp; role: Folder["role"]; name: string }> = [
   { match: /^inbox$/i, role: "inbox", name: "Inbox" },
   { match: /sent/i, role: "sent", name: "Sent" },
@@ -87,7 +89,12 @@ export async function syncMailbox(
     const selected = tracked.slice(0, options.maxFolders ?? tracked.length);
 
     let allCaughtUp = true;
+    const deadline = Date.now() + PASS_BUDGET_MS;
     for (const folder of selected) {
+      if (Date.now() > deadline) {
+        allCaughtUp = false;
+        break;
+      }
       try {
         const result = await syncFolder(deps, session, mailbox, folder, options.backfill ?? false);
         summary.stored += result.stored;
@@ -191,7 +198,9 @@ async function trackFolders(
   const tracked: Folder[] = [];
   for (const path of remotePaths) {
     const leaf = path.split(/[/.]/).pop() ?? path;
-    const special = SPECIAL_FOLDERS.find((entry) => entry.match.test(path));
+    const special = SPECIAL_FOLDERS.find(
+      (entry) => entry.match.test(path) || entry.match.test(leaf),
+    );
     const folder = await upsertRemoteFolder(
       db,
       mailboxId,

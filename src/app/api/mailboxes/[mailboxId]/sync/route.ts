@@ -19,7 +19,7 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
 
     const stub = env.MAILBOX.get(env.MAILBOX.idFromName(mailbox.id));
     const status = await withTimeout(
-      stub.poke({ backfill: !mailbox.backfillComplete }),
+      stub.poke({ backfill: !mailbox.backfillComplete, mailboxId: mailbox.id }),
       POKE_TIMEOUT_MS,
     ).catch(() => ({ state: "syncing" as const, lastSyncedAt: null, lastError: null, connections: 0 }));
 
