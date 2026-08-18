@@ -7,6 +7,7 @@ import { formatBytes } from "@/lib/format";
 
 export type ComposeDraft = {
   draftId?: string;
+  mode?: "compose" | "reply" | "replyAll" | "forward";
   to: string;
   cc: string;
   bcc: string;
@@ -26,6 +27,12 @@ type Props = {
   onSent: () => void;
 };
 
+const MODE_LABEL: Record<NonNullable<ComposeDraft["mode"]>, string> = {
+  compose: "New message",
+  reply: "Reply",
+  replyAll: "Reply all",
+  forward: "Forward",
+};
 const MAX_TOTAL_BYTES = 15 * 1024 * 1024;
 const AUTOSAVE_MS = 4_000;
 
@@ -44,6 +51,7 @@ export function ComposeDialog({
   const [sending, setSending] = useState(false);
   const [mounted, setMounted] = useState(false);
   const draftId = useRef(draft.draftId);
+  const title = MODE_LABEL[draft.mode ?? "compose"];
 
   useEffect(() => {
     setForm(draft);
@@ -139,7 +147,7 @@ export function ComposeDialog({
       className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-6"
       role="dialog"
       aria-modal="true"
-      aria-label="Compose message"
+      aria-label={title}
     >
       <div className="overlay-backdrop absolute inset-0" data-open={mounted} />
       <div
@@ -148,7 +156,7 @@ export function ComposeDialog({
         style={{ boxShadow: "var(--shadow-pop)" }}
       >
         <header className="flex items-center justify-between border-b border-[var(--border)] px-4 py-2.5">
-          <h2 className="text-sm font-semibold">New message</h2>
+          <h2 className="text-sm font-semibold">{title}</h2>
           <button
             type="button"
             onClick={onClose}

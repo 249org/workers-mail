@@ -70,6 +70,23 @@ describe("shortcut map", () => {
     }
   });
 
+  it("does not reuse a combo across mail scopes that are live together", () => {
+    const live = new Set(["global", "list", "reader"]);
+    const seen = new Map<string, string>();
+    for (const shortcut of SHORTCUTS) {
+      if (!live.has(shortcut.scope)) continue;
+      for (const combo of shortcut.keys) {
+        expect(seen.has(combo)).toBe(false);
+        seen.set(combo, shortcut.action);
+      }
+    }
+  });
+
+  it("opens compose with c only, and keeps f for forward", () => {
+    expect(SHORTCUTS.find((shortcut) => shortcut.action === "compose")?.keys).toEqual(["c"]);
+    expect(SHORTCUTS.find((shortcut) => shortcut.action === "forward")?.keys).toEqual(["f"]);
+  });
+
   it("keeps every sequence binding under the go prefix", () => {
     const sequences = SHORTCUTS.flatMap((shortcut) =>
       shortcut.keys.filter((combo) => combo.includes(" ")),

@@ -107,6 +107,7 @@ function handle(combo: string, event: KeyboardEvent, typing: boolean): boolean {
 
   for (const registration of stack) {
     for (const shortcut of usable) {
+      if (shortcut.scope !== registration.scope) continue;
       const handler = registration.handlers.current[shortcut.action];
       if (!handler) continue;
       event.preventDefault();

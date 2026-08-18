@@ -30,7 +30,14 @@ type Props = {
   initialSyncError: string | null;
 };
 
-const EMPTY_DRAFT: ComposeDraft = { to: "", cc: "", bcc: "", subject: "", text: "" };
+const EMPTY_DRAFT: ComposeDraft = {
+  mode: "compose",
+  to: "",
+  cc: "",
+  bcc: "",
+  subject: "",
+  text: "",
+};
 const SEARCH_DEBOUNCE_MS = 200;
 
 export function MailWorkspace({
@@ -229,6 +236,7 @@ export function MailWorkspace({
 
       setComposeMailboxId(mailbox.id);
       setCompose({
+        mode,
         to: recipients,
         cc: mode === "replyAll" ? formatAddressList(detail.cc) : "",
         bcc: "",
