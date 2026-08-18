@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { OauthButtons } from "@/components/auth/oauth-buttons";
 import {
   AccountKindPicker,
   type AccountKind,
@@ -11,10 +12,16 @@ import type { EasyProviderId } from "@/lib/transport/presets";
 
 type DomainOption = { id: string; name: string; status: string };
 
-export function NewMailboxForm({ domains }: { domains: DomainOption[] }) {
+export function NewMailboxForm({
+  domains,
+  oauth,
+}: {
+  domains: DomainOption[];
+  oauth: { google: boolean; microsoft: boolean };
+}) {
   const router = useRouter();
   const [stage, setStage] = useState<"kind" | "details">("kind");
-  const [kind, setKind] = useState<AccountKind>("gmail");
+  const [kind, setKind] = useState<AccountKind>("other");
   const [localPart, setLocalPart] = useState("");
   const [domainName, setDomainName] = useState(domains[0]?.name ?? "");
   const [displayName, setDisplayName] = useState("");
@@ -71,8 +78,29 @@ export function NewMailboxForm({ domains }: { domains: DomainOption[] }) {
     return (
       <div className="mt-6">
         <p className="login-step-index">Step 1 of 2</p>
+        <OauthButtons
+          intent="link"
+          google
+          microsoft
+          returnTo="/settings/mailboxes"
+        />
+        <p className="login-or">or</p>
         <AccountKindPicker value={kind} onChange={setKind} allowNative />
-        <button type="button" className="btn btn-primary mt-5" onClick={() => setStage("details")}>
+        <button
+          type="button"
+          className="btn btn-primary mt-5"
+          onClick={() => {
+            if (kind === "gmail" && oauth.google) {
+              window.location.href = "/api/oauth/google?intent=link&return=%2Fsettings%2Fmailboxes";
+              return;
+            }
+            if (kind === "outlook" && oauth.microsoft) {
+              window.location.href = "/api/oauth/microsoft?intent=link&return=%2Fsettings%2Fmailboxes";
+              return;
+            }
+            setStage("details");
+          }}
+        >
           Continue
         </button>
       </div>

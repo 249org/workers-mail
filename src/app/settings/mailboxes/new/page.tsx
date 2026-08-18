@@ -3,6 +3,8 @@ import { requireUser } from "@/lib/auth/server";
 import { domains } from "@/lib/db/schema";
 import { NewMailboxForm } from "@/components/settings/new-mailbox-form";
 import { PageHeader, SettingsBody } from "@/components/settings/page-header";
+import { oauthAvailability } from "@/lib/oauth/providers";
+import { env } from "@/lib/env";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Add a mailbox" };
@@ -19,11 +21,10 @@ export default async function NewMailboxPage() {
   return (
     <>
       <PageHeader title="Add a mailbox">
-        Link Gmail or Microsoft with an app password, add any other IMAP account, or create an
-        address on a domain you already run.
+        One-click Google or Microsoft, any other IMAP host, or an address on a domain you already run.
       </PageHeader>
       <SettingsBody>
-        <NewMailboxForm domains={available} />
+        <NewMailboxForm domains={available} oauth={oauthAvailability(env())} />
       </SettingsBody>
     </>
   );

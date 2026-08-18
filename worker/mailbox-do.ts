@@ -151,7 +151,7 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
 
     try {
       const summary = await syncMailbox(
-        { db, bucket: this.env.MAIL_BUCKET, encryptionKey: this.env.MAIL_ENCRYPTION_KEY },
+        { db, bucket: this.env.MAIL_BUCKET, env: this.env },
         mailbox,
         {
           backfill: options.backfill,

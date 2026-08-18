@@ -4,6 +4,7 @@ import { resolveRecipient } from "@/lib/mail/routing";
 import { pollExternalMailboxes } from "./cron";
 import { handleIngestBatch } from "./ingest";
 import { handleSend, handleSetup, handleTestConnection, handleForgotPassword } from "./routes";
+import { handleOauthCallback, handleOauthStart, parseOauthProvider } from "./oauth";
 import { handleStream } from "./stream";
 import type { IngestJob } from "./types";
 
@@ -27,6 +28,12 @@ export default {
     }
     if (url.pathname === "/api/auth/password/forgot" && request.method === "POST") {
       return handleForgotPassword(request, env);
+    }
+    const oauth = parseOauthProvider(url.pathname);
+    if (oauth && request.method === "GET") {
+      return oauth.callback
+        ? handleOauthCallback(request, env, oauth.provider)
+        : handleOauthStart(request, env, oauth.provider);
     }
 
     return nextHandler.fetch(request, env, ctx);

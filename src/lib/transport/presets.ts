@@ -109,12 +109,12 @@ export type EasyProvider = {
   helpLabel: string;
 };
 
-/** First-class connect options — hosts are filled in; the user types address + app password. */
+/** First-class connect options — one-click OAuth, not an app password. */
 export const EASY_PROVIDERS: EasyProvider[] = [
   {
     id: "gmail",
     label: "Google",
-    blurb: "Gmail and Google Workspace",
+    blurb: "One-click sign in",
     addressPlaceholder: "you@gmail.com",
     passwordLabel: "App password",
     passwordHint: "A 16-character password from Google — not the one you sign in with.",
@@ -124,7 +124,7 @@ export const EASY_PROVIDERS: EasyProvider[] = [
   {
     id: "outlook",
     label: "Microsoft",
-    blurb: "Outlook, Hotmail, and Microsoft 365",
+    blurb: "One-click sign in",
     addressPlaceholder: "you@outlook.com",
     passwordLabel: "App password",
     passwordHint: "From your Microsoft account if two-step verification is on.",

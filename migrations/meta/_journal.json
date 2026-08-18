@@ -15,6 +15,13 @@
       "when": 1787072930398,
       "tag": "0001_talented_freak",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1787079954341,
+      "tag": "0002_oauth_mailboxes",
+      "breakpoints": true
     }
   ]
 }

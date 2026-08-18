@@ -9,7 +9,7 @@ import { buildSnippet, parseMime } from "./mime";
 import { folderByRole, mailboxByAddress, type Mailbox } from "./mailboxes";
 import { canSendAs } from "./routing";
 import { storeMessage } from "./store";
-import { smtpCredentials } from "@/lib/transport/credentials";
+import { smtpAuth } from "@/lib/transport/credentials";
 import { sendViaSmtp } from "@/lib/transport/smtp";
 
 export class SendError extends Error {
@@ -37,7 +37,7 @@ export type SendDeps = {
   db: Database;
   bucket: R2Bucket;
   email: SendEmail;
-  encryptionKey: string | undefined;
+  env: CloudflareEnv;
 };
 
 export type LocalDelivery = {
@@ -93,7 +93,7 @@ export async function sendMessage(
 
   try {
     if (transport === "smtp") {
-      const credentials = await smtpCredentials(mailbox, deps.encryptionKey);
+      const credentials = await smtpAuth(mailbox, deps.env, deps.db);
       await sendViaSmtp(credentials, {
         from: mailbox.address,
         to: request.to.map((addr) => addr.address),

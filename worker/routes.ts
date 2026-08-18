@@ -10,7 +10,7 @@ import { buildRawMessage, generateMessageId } from "@/lib/mail/build";
 import { ensureDefaultFolders, getOwnedMailbox, listMailboxes } from "@/lib/mail/mailboxes";
 import { sendMessage, SendError } from "@/lib/mail/send";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
-import { smtpCredentials } from "@/lib/transport/credentials";
+import { smtpAuth } from "@/lib/transport/credentials";
 import { testImapConnection } from "@/lib/transport/imap";
 import { sendViaSmtp, testSmtpConnection } from "@/lib/transport/smtp";
 import { applyDiscoveredHosts } from "@/lib/transport/autodiscover";
@@ -79,7 +79,7 @@ export async function handleSend(request: Request, env: CloudflareEnv): Promise<
     }
 
     const result = await sendMessage(
-      { db, bucket: env.MAIL_BUCKET, email: env.EMAIL, encryptionKey: env.MAIL_ENCRYPTION_KEY },
+      { db, bucket: env.MAIL_BUCKET, email: env.EMAIL, env },
       mailbox,
       {
         to,
@@ -386,7 +386,7 @@ export async function handleForgotPassword(request: Request, env: CloudflareEnv)
       messageId: generateMessageId(domainOf(mailbox.address)),
     });
 
-    const credentials = await smtpCredentials(mailbox, env.MAIL_ENCRYPTION_KEY);
+    const credentials = await smtpAuth(mailbox, env, db);
     await sendViaSmtp(credentials, {
       from: mailbox.address,
       to: [user.email],

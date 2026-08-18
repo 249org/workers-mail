@@ -44,6 +44,18 @@
       "MAIL_ENCRYPTION_KEY": {
         "description": "Required. Encrypts IMAP, SMTP, and authenticator secrets. Generate with `openssl rand -hex 32`. Losing it means reconnecting every mailbox."
       },
+      "GOOGLE_CLIENT_ID": {
+        "description": "Optional. Google OAuth web client ID for one-click Gmail. Redirect URI: https://<host>/api/oauth/google/callback. Scope includes https://mail.google.com/"
+      },
+      "GOOGLE_CLIENT_SECRET": {
+        "description": "Optional. Google OAuth web client secret."
+      },
+      "MICROSOFT_CLIENT_ID": {
+        "description": "Optional. Microsoft identity application ID for one-click Outlook. Redirect URI: https://<host>/api/oauth/microsoft/callback"
+      },
+      "MICROSOFT_CLIENT_SECRET": {
+        "description": "Optional. Microsoft identity client secret."
+      },
       "CLOUDFLARE_API_TOKEN": {
         "description": "Optional. Auto-provisions Email Routing and DNS checks. Needs **Zone:Read**, **DNS:Read**, and **Email Routing Rules:Edit**."
       },

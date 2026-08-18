@@ -79,7 +79,7 @@ function KindChoice({
   );
 }
 
-function GoogleMark() {
+export function GoogleMark() {
   return (
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden>
       <path
@@ -106,7 +106,7 @@ function GoogleMark() {
   );
 }
 
-function MicrosoftMark() {
+export function MicrosoftMark() {
   return (
     <svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor" aria-hidden>
       <rect x="1" y="1" width="7.2" height="7.2" />

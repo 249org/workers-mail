@@ -3,15 +3,13 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { LoginShell } from "@/components/auth/login-shell";
-import { AccountKindPicker, type AccountKind } from "@/components/mail/account-kind-picker";
+import { OauthButtons } from "@/components/auth/oauth-buttons";
 import { LinkInboxWizard, type ImapDraft } from "@/components/mail/link-inbox-wizard";
 import { rememberSavedProfile } from "@/lib/auth/saved-profiles";
-import type { EasyProviderId } from "@/lib/transport/presets";
 
 export function FirstRun({ encryptionReady }: { encryptionReady: boolean }) {
   const router = useRouter();
-  const [phase, setPhase] = useState<"account" | "kind" | "link">("account");
-  const [kind, setKind] = useState<EasyProviderId | "other">("gmail");
+  const [phase, setPhase] = useState<"start" | "account" | "link">("start");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -63,17 +61,32 @@ export function FirstRun({ encryptionReady }: { encryptionReady: boolean }) {
     );
   }
 
+  if (phase === "start") {
+    return (
+      <LoginShell
+        heading="Get started"
+        lede="One click connects Gmail or Outlook. Or link any other IMAP host."
+      >
+        <OauthButtons intent="setup" google microsoft />
+        <p className="login-or">or</p>
+        <button type="button" className="btn btn-ghost w-full" onClick={() => setPhase("account")}>
+          Use another IMAP account
+        </button>
+      </LoginShell>
+    );
+  }
+
   if (phase === "account") {
     return (
       <LoginShell
         heading="Create your sign-in"
         lede="This password is for Workers Mail — not Gmail, not Outlook. You’ll use it to open the workspace."
       >
-        <p className="login-step-index">Step 1 of 3</p>
+        <p className="login-step-index">Step 1 of 2</p>
         <form
           onSubmit={(event: FormEvent) => {
             event.preventDefault();
-            setPhase("kind");
+            setPhase("link");
           }}
         >
           <div className="mb-3.5">
@@ -127,56 +140,30 @@ export function FirstRun({ encryptionReady }: { encryptionReady: boolean }) {
           <button type="submit" className="btn btn-primary w-full">
             Continue
           </button>
+          <button type="button" className="btn btn-ghost mt-3 w-full" onClick={() => setPhase("start")}>
+            Back
+          </button>
         </form>
       </LoginShell>
     );
   }
 
-  if (phase === "kind") {
-    return (
-      <LoginShell heading="Which inbox?" lede="You’ll link it next. One mailbox, one password.">
-        <p className="login-step-index">Step 2 of 3</p>
-        <AccountKindPicker
-          value={kind}
-          onChange={(next: AccountKind) => {
-            if (next === "native") return;
-            setKind(next);
-          }}
-        />
-        <div className="mt-5 flex gap-2">
-          <button type="button" className="btn btn-ghost" onClick={() => setPhase("account")}>
-            Back
-          </button>
-          <button type="button" className="btn btn-primary" onClick={() => setPhase("link")}>
-            Continue
-          </button>
-        </div>
-      </LoginShell>
-    );
-  }
-
-  const heading = kind === "gmail" ? "Link Gmail" : kind === "outlook" ? "Link Microsoft" : "Link IMAP";
-
   return (
     <LoginShell
-      heading={heading}
-      lede={
-        kind === "other"
-          ? "The password for this mailbox. The host is looked up from DNS — we will not guess it."
-          : "Google and Microsoft block the usual password. Continue, copy the app password, paste it here."
-      }
+      heading="Link IMAP"
+      lede="The password for this mailbox. The host is looked up from DNS — we will not guess it."
     >
-      <p className="login-step-index">Step 3 of 3</p>
+      <p className="login-step-index">Step 2 of 2</p>
       <LinkInboxWizard
         startAt="link"
-        initialKind={kind}
+        initialKind="other"
         initialAddress={email}
         submitting={submitting}
         error={error}
-        submitLabel={kind === "gmail" ? "Connect Gmail" : kind === "outlook" ? "Connect Microsoft" : "Connect inbox"}
+        submitLabel="Connect inbox"
         onBack={() => {
           setError(null);
-          setPhase("kind");
+          setPhase("account");
         }}
         onSubmit={(draft) => void connect(draft)}
       />

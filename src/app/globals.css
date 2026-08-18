@@ -123,6 +123,20 @@ body {
   box-shadow: none;
 }
 
+.oauth-stack {
+  display: grid;
+  gap: 0.5rem;
+}
+
+a.kind-choice {
+  text-decoration: none;
+  color: inherit;
+}
+
+a.kind-choice:hover {
+  border-color: var(--primary);
+}
+
 .kind-choice {
   display: flex;
   align-items: flex-start;

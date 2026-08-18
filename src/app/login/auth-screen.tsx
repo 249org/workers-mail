@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { FirstRun } from "@/components/auth/first-run";
 import { LoginShell } from "@/components/auth/login-shell";
+import { OauthButtons } from "@/components/auth/oauth-buttons";
 import { MailIcon } from "@/components/mail/icons";
 import {
   forgetSavedProfile,
@@ -15,22 +16,23 @@ import {
 type Props = {
   setupNeeded: boolean;
   encryptionReady: boolean;
+  oauth: { google: boolean; microsoft: boolean };
 };
 
-export function AuthScreen({ setupNeeded, encryptionReady }: Props) {
+export function AuthScreen({ setupNeeded, encryptionReady, oauth }: Props) {
   if (setupNeeded) return <FirstRun encryptionReady={encryptionReady} />;
 
   return (
     <LoginShell
       heading="Sign in"
-      lede="This is your Workers Mail password. After you’re in, link Gmail or Outlook from Settings."
+      lede="One click for Google or Microsoft. Or use your Workers Mail password."
     >
-      <SignInForm />
+      <SignInForm oauth={oauth} />
     </LoginShell>
   );
 }
 
-function SignInForm() {
+function SignInForm({ oauth }: { oauth: { google: boolean; microsoft: boolean } }) {
   const router = useRouter();
   const [step, setStep] = useState<"credentials" | "totp" | "forgot" | "forgot-sent">("credentials");
   const [pending, setPending] = useState(false);
@@ -46,6 +48,8 @@ function SignInForm() {
 
   useEffect(() => {
     setProfiles(readSavedProfiles());
+    const message = new URLSearchParams(window.location.search).get("oauth_error");
+    if (message) setError(message);
   }, []);
 
   function finish(signedInEmail: string) {
@@ -223,6 +227,9 @@ function SignInForm() {
   if (showPicker) {
     return (
       <div>
+        <OauthButtons intent="login" google microsoft />
+        <p className="login-or">or</p>
+        {error && <ErrorNote>{error}</ErrorNote>}
         <ul className="login-profiles">
           {profiles.map((profile, index) => (
             <li key={profile.email}>
@@ -264,6 +271,12 @@ function SignInForm() {
 
   return (
     <form onSubmit={onSubmit}>
+      {!lockedEmail ? (
+        <>
+          <OauthButtons intent="login" google microsoft />
+          <p className="login-or">or</p>
+        </>
+      ) : null}
       {lockedEmail ? (
         <div className="mb-3.5">
           <p className="label">Email</p>

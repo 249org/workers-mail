@@ -71,6 +71,8 @@ export const mailboxes = sqliteTable("mailboxes", {
   smtpTls: text("smtp_tls", { enum: ["implicit", "starttls"] }),
   smtpUser: text("smtp_user"),
   smtpPassword: text("smtp_password"),
+  oauthProvider: text("oauth_provider", { enum: ["google", "microsoft"] }),
+  oauthTokens: text("oauth_tokens"),
 
   syncState: text("sync_state", { enum: ["idle", "syncing", "error"] })
     .notNull()

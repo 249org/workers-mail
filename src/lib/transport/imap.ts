@@ -1,11 +1,12 @@
-import { connect, type ImapSession } from "edgeport/imap";
+import { type ImapSession } from "edgeport/imap";
 import { and, eq, isNotNull } from "drizzle-orm";
 import type { Database } from "@/lib/db";
 import { folders, mailboxes, messages } from "@/lib/db/schema";
 import { parseMime } from "@/lib/mail/mime";
 import { storeMessage } from "@/lib/mail/store";
 import { upsertRemoteFolder, folderByRole, type Folder, type Mailbox } from "@/lib/mail/mailboxes";
-import { imapCredentials } from "./credentials";
+import { imapAuth, type MailAuth } from "./credentials";
+import { openImap } from "./oauth-connect";
 import { imapUidSet } from "./imap-uid-set";
 
 const INCREMENTAL_BATCH = 40;
@@ -23,7 +24,7 @@ const SPECIAL_FOLDERS: Array<{ match: RegExp; role: Folder["role"]; name: string
 export type SyncDeps = {
   db: Database;
   bucket: R2Bucket;
-  encryptionKey: string | undefined;
+  env: CloudflareEnv;
 };
 
 export type SyncSummary = {
@@ -43,20 +44,12 @@ export type SyncOptions = {
   inboxOnly?: boolean;
 };
 
-export async function testImapConnection(credentials: {
-  hostname: string;
-  port: number;
-  tls: "implicit" | "starttls";
-  username: string;
-  password: string;
-}): Promise<string[]> {
-  const session = await connect({
-    hostname: credentials.hostname,
-    port: credentials.port,
-    tls: credentials.tls,
-    auth: { username: credentials.username, password: credentials.password },
-    timeoutMs: 15_000,
-  });
+export async function testImapConnection(
+  credentials: MailAuth | Omit<MailAuth, "mechanism">,
+): Promise<string[]> {
+  const session = await openImap(
+    "mechanism" in credentials ? credentials : { ...credentials, mechanism: "password" },
+  );
   try {
     return await session.listMailboxes();
   } finally {
@@ -77,14 +70,8 @@ export async function syncMailbox(
     errors: [],
   };
 
-  const credentials = await imapCredentials(mailbox, deps.encryptionKey);
-  const session = await connect({
-    hostname: credentials.hostname,
-    port: credentials.port,
-    tls: credentials.tls,
-    auth: { username: credentials.username, password: credentials.password },
-    timeoutMs: 20_000,
-  });
+  const credentials = await imapAuth(mailbox, deps.env, deps.db);
+  const session = await openImap(credentials);
 
   try {
     if (options.inboxOnly) {
