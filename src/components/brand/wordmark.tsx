@@ -12,15 +12,15 @@ export function BrandLockup({ size = "sm" }: Props) {
   const clip = `${uid}-clip`;
 
   return (
-    <svg
-      className="brand-lockup"
-      data-size={size}
-      viewBox="0 0 220 45"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-      focusable="false"
-    >
+    <span className="brand-lockup" data-size={size}>
+      <svg
+        className="brand-mark-svg"
+        viewBox="0 0 46 45"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        aria-hidden="true"
+        focusable="false"
+      >
       <defs>
         <linearGradient id={gradInk} x1="23" y1="0.358" x2="23" y2="44.358" gradientUnits="userSpaceOnUse">
           <stop stopColor="#2B2D2F" />
@@ -78,20 +78,9 @@ export function BrandLockup({ size = "sm" }: Props) {
         <path d={MARK_BADGE} />
         <path d={MARK_BADGE_SOFT} opacity="0.4" />
       </g>
-
-      <text
-        className="brand-letters"
-        x="54"
-        y="29.6"
-        fill="currentColor"
-        fontFamily="var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif"
-        fontSize="15.5"
-        fontWeight="600"
-        letterSpacing="-0.03em"
-      >
-        Workers Mail
-      </text>
-    </svg>
+      </svg>
+      <span className="brand-letters">Workers Mail</span>
+    </span>
   );
 }
 

@@ -50,7 +50,6 @@ function ResetPasswordForm() {
       <div className="w-full max-w-[28rem]">
         <header className="rise-in mb-7 text-center">
           <h1 className="flex justify-center">
-            <span className="sr-only">Workers Mail</span>
             <BrandLockup size="lg" />
           </h1>
           <p className="mt-2 text-[13px] text-muted-foreground">Choose a new password for this workspace.</p>

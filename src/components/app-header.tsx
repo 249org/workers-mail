@@ -19,12 +19,10 @@ export function AppHeader({ email, name, mailboxes, context }: Props) {
           <BrandLockup />
         </Link>
         {context === "settings" ? (
-          <span className="font-mono text-[10px] tracking-[0.14em] text-muted-foreground uppercase">
-            Settings
-          </span>
+          <span className="text-[13px] text-muted-foreground">Settings</span>
         ) : (
           mailboxes.length > 0 && (
-            <span className="hidden font-mono text-[10px] tracking-[0.14em] text-muted-foreground uppercase sm:inline">
+            <span className="hidden text-[13px] text-muted-foreground sm:inline">
               {mailboxes.length} mailbox{mailboxes.length === 1 ? "" : "es"}
             </span>
           )
