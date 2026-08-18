@@ -72,9 +72,9 @@ html[data-palette="harbor"] {
   --ink-faint: #7a8d88;
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.04);
   --shadow-pop: 0 8px 32px rgb(0 0 0 / 0.08);
-  --night-background: #121918;
-  --night-foreground: #e8efed;
-  --night-card: #1a2422;
+  --night-background: #161817;
+  --night-foreground: #eceee9;
+  --night-card: #1e2021;
   --night-primary: #0f766e;
   --night-primary-foreground: #ffffff;
   --night-highlight: #d09060;
@@ -103,9 +103,9 @@ html[data-palette="grove"] {
   --ink-faint: #7d8878;
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.04);
   --shadow-pop: 0 8px 32px rgb(0 0 0 / 0.08);
-  --night-background: #141712;
-  --night-foreground: #e8eee4;
-  --night-card: #1c221a;
+  --night-background: #161714;
+  --night-foreground: #eeede8;
+  --night-card: #1e1f1c;
   --night-primary: #2f6b4f;
   --night-primary-foreground: #ffffff;
   --night-highlight: #c9864a;

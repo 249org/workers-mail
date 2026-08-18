@@ -33,6 +33,7 @@ export type MessageDetail = MessageSummary & {
     mimeType: string;
     size: number;
     inline: boolean;
+    contentId: string | null;
   }>;
 };
 
@@ -111,6 +112,7 @@ export async function getMessage(
       mimeType: file.mimeType,
       size: file.size,
       inline: file.inline,
+      contentId: file.contentId,
     })),
   };
 }

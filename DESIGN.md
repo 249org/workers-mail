@@ -35,6 +35,12 @@ typography:
     fontWeight: 400
     lineHeight: 1.5
     letterSpacing: "normal"
+  reading:
+    fontFamily: "Geist Sans, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "16px"
+    fontWeight: 400
+    lineHeight: 1.7
+    letterSpacing: "normal"
   eyebrow:
     fontFamily: "Geist Mono, ui-monospace, monospace"
     fontSize: "10px"
@@ -92,11 +98,11 @@ Dark is night paper of the same pigment, not a neon invert. Canvas and card step
 
 ## Typography
 
-UI and body: Geist Sans, 13px, antialiased, `rlig` + `calt` + tabular nums. Page titles: Newsreader 28px, tracking-tight — settings headers and login wordmark only, never row labels or buttons. Eyebrows and field labels: Geist Mono 10px, uppercase, tracking 0.14–0.16em, muted. Section titles 14px semibold. Stat numerals 30px Newsreader.
+UI chrome: Geist Sans, 13px, antialiased, `rlig` + `calt` + tabular nums. Page titles: Newsreader 28px, tracking-tight — settings headers, login wordmark, and the reading-pane subject (the title of the letter). Never Newsreader on row labels or buttons. Eyebrows and field labels: Geist Mono 10px, uppercase, tracking 0.14–0.16em, muted. Section titles 14px semibold. Stat numerals 30px Newsreader. Message body is a reading role, not UI density: Geist Sans 16px, line-height 1.7, measure 65ch (42rem). In the letter, all-caps section lines and HTML `h2` use the mono eyebrow. Dark body adds a hair of tracking and leading.
 
 ## Layout
 
-8px grid. App chrome `px-8`. Mail is three hairline-split panes; the page never scrolls — panes do. Each pane starts with a 56px toolbar so search and reading actions sit on one axis. The folder rail collapses to a 56px icon strip (`[`) — that control lives on the list, to the left of search; Compose fills the sidebar toolbar. The message list can hide so the reader fills the remaining width (`]`, Enter) — that control lives on the reader. Settings is an index and a spread: a paper rail of destinations with a live one-line status, and a full-height card page for the open topic. The spread head holds the Newsreader title; the body is a ruled ledger or form that fills the pane. Stats sit in a ruled strip of cells (borders on children, no outer double line). Empty states are centered, with a highlight-subtle icon well.
+8px grid. App chrome `px-8`. Mail is three hairline-split panes; the page never scrolls — panes do. Each pane starts with a 56px toolbar so search and reading actions sit on one axis. The folder rail collapses to a 56px icon strip (`[`) — that control lives on the list, to the left of search; Compose fills the sidebar toolbar. The message list can hide so the reader fills the remaining width (`]`, Enter) — that control lives on the reader. Only the 56px reader toolbar sticks; the letterhead (Newsreader subject, byline, date) scrolls away. The letter itself is a centered 42rem sheet, not edge-to-edge UI text. Settings is an index and a spread: a paper rail of destinations with a live one-line status, and a full-height card page for the open topic. The spread head holds the Newsreader title; the body is a ruled ledger or form that fills the pane. Stats sit in a ruled strip of cells (borders on children, no outer double line). Empty states are centered, with a highlight-subtle icon well.
 
 ## Elevation & Depth
 
@@ -115,6 +121,7 @@ Panel radius 4px. Inputs `rounded-lg` (8px), height 40px. Buttons `rounded-full`
 - **Palette:** unanimated. Hairline panel, shadow allowed because it floats. ⌘K is the control surface for appearance (light, dark, system, colour templates), every settings page, and mail actions.
 - **Tour:** framed sheet over the workspace, registration marks, a three-pane sketch. Skip is always visible. Keyboard actions inside the tour do not animate.
 - **Shortcut settings:** ruled list-frame rows. Click a binding to listen; primary ring while recording.
+- **Reader:** sticky 56px toolbar (actions + truncated subject). The letter is `.message-sheet`, max 42rem, centered. Newsreader subject, byline, then 16px body for plaintext. HTML mail keeps its own tables, colours, and buttons; remote images stay blocked until Show images. All-caps section lines in plaintext render as mono eyebrows. No shadow on the sheet.
 
 ## Do's and Don'ts
 

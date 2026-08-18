@@ -3,7 +3,12 @@
 import { create } from "zustand";
 import type { MessageDetail, MessageSummary } from "./queries";
 
-export type MessageBody = { html: string; blockedImages: number; text: string };
+export type MessageBody = {
+  html: string;
+  blockedImages: number;
+  text: string;
+  kind: "plain" | "html";
+};
 
 export type LoadedMessage = {
   detail: MessageDetail;

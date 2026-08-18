@@ -29,12 +29,12 @@ export function MessageView({ messageId, onReply, listHidden, onToggleList }: Pr
     if (!loaded) void load(messageId);
   }, [loaded, load, messageId]);
 
-  const pad = listHidden ? "px-8 md:px-10" : "px-4";
+  const chromePad = listHidden ? "px-8 md:px-10" : "px-4";
 
   if (!loaded) {
     return (
       <section className="flex min-w-0 flex-1 flex-col bg-card">
-        <div className={`pane-toolbar border-b border-border`} data-wide={listHidden ? "" : undefined}>
+        <div className="pane-toolbar border-b border-border" data-wide={listHidden ? "" : undefined}>
           <ChromeButton
             icon={listHidden ? "list" : "expand"}
             label={listHidden ? "Show message list" : "Read full width"}
@@ -44,12 +44,18 @@ export function MessageView({ messageId, onReply, listHidden, onToggleList }: Pr
           />
           <p className="text-[13px] text-muted-foreground">Loading</p>
         </div>
+        <div className="message-sheet" aria-hidden>
+          <div className="message-skeleton" />
+          <div className="message-skeleton message-skeleton-short" />
+          <div className="message-skeleton" />
+        </div>
       </section>
     );
   }
 
   const { detail, thread, body } = loaded;
-  const files = detail.attachments.filter((file) => !file.inline);
+  const files = detail.attachments.filter((file) => !file.inline && !file.contentId);
+  const sentAt = new Date(detail.sentAt * 1000);
 
   return (
     <section className="scroll-thin flex min-w-0 flex-1 flex-col overflow-y-auto bg-card">
@@ -62,9 +68,9 @@ export function MessageView({ messageId, onReply, listHidden, onToggleList }: Pr
             pressed={listHidden}
             onClick={onToggleList}
           />
-          <h1 className="min-w-0 flex-1 truncate text-[14px] font-semibold tracking-[-0.01em]">
+          <p className="min-w-0 flex-1 truncate text-[13px] font-medium tracking-[-0.01em] text-muted-foreground">
             {detail.subject || "(no subject)"}
-          </h1>
+          </p>
           <div className="flex shrink-0 items-center">
             <ChromeButton icon="reply" label="Reply" hint="R" onClick={() => onReply("reply")} />
             <ChromeButton icon="replyAll" label="Reply all" hint="A" onClick={() => onReply("replyAll")} />
@@ -85,35 +91,10 @@ export function MessageView({ messageId, onReply, listHidden, onToggleList }: Pr
             />
           </div>
         </div>
-
-        <div className={`flex items-start gap-3 pb-3 ${pad}`}>
-          <span
-            aria-hidden
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-sm text-[11px] font-semibold"
-            style={{ background: "var(--highlight-subtle)", color: "var(--highlight)" }}
-          >
-            {initialsOf(displayName(detail.from))}
-          </span>
-          <div className="min-w-0 text-[13px]">
-            <p className="truncate">
-              <span className="font-medium">{displayName(detail.from)}</span>{" "}
-              <span className="text-muted-foreground">&lt;{detail.from.address}&gt;</span>
-            </p>
-            <p className="truncate text-muted-foreground">
-              To {formatAddressList(detail.to) || "undisclosed recipients"}
-            </p>
-            {detail.cc.length > 0 && (
-              <p className="truncate text-muted-foreground">
-                Cc {formatAddressList(detail.cc)}
-              </p>
-            )}
-            <p className="text-muted-foreground">{formatFullDate(detail.sentAt)}</p>
-          </div>
-        </div>
       </header>
 
       {thread.length > 1 && (
-        <div className={`flex flex-wrap items-center gap-1.5 border-b border-border py-2 ${pad}`}>
+        <div className={`flex flex-wrap items-center gap-1.5 border-b border-border py-2 ${chromePad}`}>
           <span className="text-[13px] text-muted-foreground">{thread.length} in thread</span>
           {thread.map((entry) => (
             <button
@@ -133,7 +114,7 @@ export function MessageView({ messageId, onReply, listHidden, onToggleList }: Pr
       )}
 
       {body && body.blockedImages > 0 && !showImages && (
-        <div className={`flex items-center justify-between gap-3 border-b border-border bg-secondary py-2 text-[13px] ${pad}`}>
+        <div className={`flex items-center justify-between gap-3 border-b border-border bg-secondary py-2 text-[13px] ${chromePad}`}>
           <span className="text-muted-foreground">
             {body.blockedImages} remote image{body.blockedImages === 1 ? "" : "s"} blocked.
           </span>
@@ -150,33 +131,72 @@ export function MessageView({ messageId, onReply, listHidden, onToggleList }: Pr
         </div>
       )}
 
-      <div className={`py-5 ${pad}`}>
+      <article className="message-sheet">
+        <header className="message-letterhead">
+          <h1 className="page-title message-subject">
+            {detail.subject || "(no subject)"}
+          </h1>
+          <div className="message-byline">
+            <span
+              aria-hidden
+              className="message-avatar"
+              style={{ background: "var(--highlight-subtle)", color: "var(--highlight)" }}
+            >
+              {initialsOf(displayName(detail.from))}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline justify-between gap-4">
+                <p className="truncate font-medium">{displayName(detail.from)}</p>
+                <time
+                  className="message-date"
+                  dateTime={sentAt.toISOString()}
+                >
+                  {formatFullDate(detail.sentAt)}
+                </time>
+              </div>
+              <p className="truncate text-muted-foreground">&lt;{detail.from.address}&gt;</p>
+              <p className="truncate text-muted-foreground">
+                To {formatAddressList(detail.to) || "undisclosed recipients"}
+              </p>
+              {detail.cc.length > 0 && (
+                <p className="truncate text-muted-foreground">
+                  Cc {formatAddressList(detail.cc)}
+                </p>
+              )}
+            </div>
+          </div>
+        </header>
+
         {body ? (
-          <div className="message-body" dangerouslySetInnerHTML={{ __html: body.html }} />
+          <div
+            className="message-body"
+            data-kind={body.kind ?? "html"}
+            dangerouslySetInnerHTML={{ __html: body.html }}
+          />
         ) : (
           <p className="text-[13px] text-muted-foreground">Loading message</p>
         )}
-      </div>
 
-      {files.length > 0 && (
-        <div className={`border-t border-border py-4 ${pad}`}>
-          <p className="label">Attachments</p>
-          <ul className="flex flex-wrap gap-2">
-            {files.map((file) => (
-              <li key={file.id}>
-                <a
-                  href={`/api/attachments/${file.id}`}
-                  className="card flex items-center gap-2 px-3 py-2 text-[13px]"
-                  download={file.filename}
-                >
-                  <span className="truncate">{file.filename}</span>
-                  <span className="shrink-0 text-muted-foreground">{formatBytes(file.size)}</span>
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+        {files.length > 0 && (
+          <footer className="message-files">
+            <p className="label">Attachments</p>
+            <ul className="flex flex-wrap gap-2">
+              {files.map((file) => (
+                <li key={file.id}>
+                  <a
+                    href={`/api/attachments/${file.id}`}
+                    className="card flex items-center gap-2 px-3 py-2 text-[13px]"
+                    download={file.filename}
+                  >
+                    <span className="truncate">{file.filename}</span>
+                    <span className="shrink-0 text-muted-foreground">{formatBytes(file.size)}</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </footer>
+        )}
+      </article>
     </section>
   );
 }

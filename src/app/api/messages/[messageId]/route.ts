@@ -3,9 +3,9 @@ import { ApiError, authenticate, errorResponse, readJson } from "@/lib/auth/api"
 import { env as cloudflareEnv } from "@/lib/env";
 import { messages } from "@/lib/db/schema";
 import { getOwnedMailbox } from "@/lib/mail/mailboxes";
+import { parseMime, stripHtml, type ParsedAttachment } from "@/lib/mail/mime";
 import { getMessage, listThread } from "@/lib/mail/queries";
-import { parseMime, stripHtml } from "@/lib/mail/mime";
-import { plainTextToHtml, sanitizeMessageHtml } from "@/lib/mail/sanitize";
+import { plainTextToHtml, sanitizeMessageHtml, inlineSrcMap, normalizeCid } from "@/lib/mail/sanitize";
 
 type Params = { params: Promise<{ messageId: string }> };
 type PatchBody = { mailboxId?: string; seen?: boolean; flagged?: boolean; folderId?: string };
@@ -51,7 +51,12 @@ async function renderBody(
 ) {
   if (!detail) return null;
   if (!detail.rawKey) {
-    return { html: plainTextToHtml(detail.snippet), blockedImages: 0, text: detail.snippet };
+    return {
+      html: plainTextToHtml(detail.snippet),
+      blockedImages: 0,
+      text: detail.snippet,
+      kind: "plain" as const,
+    };
   }
 
   const object = await bucket.get(detail.rawKey);
@@ -60,20 +65,48 @@ async function renderBody(
       html: plainTextToHtml("The stored copy of this message is no longer available."),
       blockedImages: 0,
       text: "",
+      kind: "plain" as const,
     };
   }
 
   const parsed = await parseMime(await object.arrayBuffer());
+  const fromHtml = Boolean(parsed.html?.trim());
   const sanitized = sanitizeMessageHtml(
-    parsed.html ?? plainTextToHtml(parsed.text),
+    fromHtml ? parsed.html! : plainTextToHtml(parsed.text),
     allowRemoteImages,
+    cidMapFrom(detail.attachments, parsed.attachments),
   );
 
   return {
     html: sanitized.html,
     blockedImages: sanitized.blockedImages,
     text: parsed.text || stripHtml(parsed.html ?? ""),
+    kind: fromHtml ? ("html" as const) : ("plain" as const),
   };
+}
+
+function cidMapFrom(
+  stored: Array<{ id: string; filename: string; contentId: string | null }>,
+  parsed: ParsedAttachment[],
+) {
+  const unused = [...stored];
+  const files = parsed.map((att) => {
+    const cid = att.contentId ? normalizeCid(att.contentId) : "";
+    const idx = unused.findIndex((file) => {
+      if (cid && file.contentId && normalizeCid(file.contentId) === cid) return true;
+      return file.filename === att.filename;
+    });
+    const file = (idx >= 0 ? unused.splice(idx, 1)[0] : unused.shift()) ?? null;
+    if (!file) return null;
+    return {
+      id: file.id,
+      filename: att.filename || file.filename,
+      contentId: file.contentId ?? att.contentId ?? null,
+    };
+  }).filter((file): file is NonNullable<typeof file> => Boolean(file));
+
+  for (const leftover of unused) files.push(leftover);
+  return inlineSrcMap(files);
 }
 
 export async function PATCH(request: Request, { params }: Params): Promise<Response> {

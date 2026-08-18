@@ -552,31 +552,193 @@ button.field {
   color: var(--foreground);
 }
 
-.message-body {
-  color: var(--foreground);
-  font-size: 13px;
-  line-height: 1.65;
-  overflow-wrap: anywhere;
+/* The letter: measured column, reading type. Chrome stays 13px; this does not. */
+.message-sheet {
+  width: 100%;
+  max-width: 42rem;
+  margin-inline: auto;
+  padding: 2rem 1.25rem 3.5rem;
+  font-size: 16px;
 }
 
-.message-body a {
+section:has(> header .pane-toolbar[data-wide]) .message-sheet {
+  padding-inline: 1.5rem;
+  padding-top: 2.5rem;
+  padding-bottom: 4.5rem;
+}
+
+.message-letterhead {
+  padding-bottom: 1.75rem;
+  margin-bottom: 1.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.message-subject {
+  margin: 0 0 1.25rem;
+  overflow-wrap: break-word;
+  text-wrap: pretty;
+}
+
+.message-byline {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.message-avatar {
+  display: flex;
+  height: 2.25rem;
+  width: 2.25rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.25rem;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.message-date {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+.message-skeleton {
+  height: 0.7rem;
+  margin-bottom: 0.7rem;
+  border-radius: 0.25rem;
+  background: var(--secondary);
+}
+
+.message-skeleton-short {
+  width: 62%;
+}
+
+.message-files {
+  margin-top: 2.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+}
+
+.message-body {
+  overflow-x: auto;
+  overflow-wrap: break-word;
+}
+
+.message-body[data-kind="plain"] {
+  color: var(--foreground);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.message-body[data-kind="plain"] h2,
+.message-body[data-kind="plain"] hr {
+  white-space: normal;
+}
+
+.message-body[data-kind="plain"] a {
   color: var(--primary);
   text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
 }
 
-.message-body p {
-  margin: 0 0 0.85em;
+.message-body[data-kind="plain"] p {
+  margin: 0 0 0.9em;
 }
 
-.message-body ul,
-.message-body ol {
-  margin: 0 0 0.85em 1.25em;
+.message-body[data-kind="plain"] p:last-child,
+.message-body[data-kind="plain"] h1:last-child,
+.message-body[data-kind="plain"] h2:last-child,
+.message-body[data-kind="plain"] ul:last-child,
+.message-body[data-kind="plain"] ol:last-child,
+.message-body[data-kind="plain"] table:last-child,
+.message-body[data-kind="plain"] pre:last-child,
+.message-body[data-kind="plain"] blockquote:last-child {
+  margin-bottom: 0;
+}
+
+.message-body[data-kind="plain"] h1,
+.message-body[data-kind="plain"] h2,
+.message-body[data-kind="plain"] h3,
+.message-body[data-kind="plain"] h4 {
+  color: var(--foreground);
+  text-wrap: pretty;
+}
+
+.message-body[data-kind="plain"] h1 {
+  font-size: 1.2em;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  margin: 1.5em 0 0.55em;
+}
+
+.message-body[data-kind="plain"] h2,
+.message-body[data-kind="plain"] p:has(> strong:only-child),
+.message-body[data-kind="plain"] p:has(> b:only-child) {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  line-height: 1.4;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  margin: 2em 0 0.7em;
+}
+
+.message-body[data-kind="plain"] p:has(> strong:only-child) strong,
+.message-body[data-kind="plain"] p:has(> b:only-child) b {
+  font-weight: 500;
+}
+
+.message-body[data-kind="plain"] h3,
+.message-body[data-kind="plain"] h4 {
+  font-size: 0.95em;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 1.4em 0 0.45em;
+}
+
+.message-body[data-kind="plain"] h1:first-child,
+.message-body[data-kind="plain"] h2:first-child,
+.message-body[data-kind="plain"] h3:first-child,
+.message-body[data-kind="plain"] p:first-child {
+  margin-top: 0;
+}
+
+.message-body[data-kind="plain"] ul,
+.message-body[data-kind="plain"] ol {
+  margin: 0 0 0.9em 1.2em;
+  padding: 0;
   list-style: revert;
 }
 
-.message-body blockquote {
-  margin: 0.85em 0;
-  padding-left: 0.9em;
+.message-body[data-kind="plain"] li {
+  margin: 0.2em 0;
+}
+
+.message-body[data-kind="plain"] li + li {
+  margin-top: 0.15em;
+}
+
+.message-body[data-kind="plain"] hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 1.75em 0;
+}
+
+.message-body[data-kind="plain"] blockquote {
+  margin: 1.1em 0;
+  padding: 0 0 0 0.9em;
   border-left: 1px solid var(--border);
   color: var(--muted-foreground);
 }
@@ -586,18 +748,115 @@ button.field {
   height: auto;
 }
 
-.message-body table {
-  max-width: 100%;
-  border-collapse: collapse;
+.message-body[data-kind="plain"] img {
+  margin: 0.6em 0;
+  border-radius: 0.25rem;
 }
 
-.message-body pre {
-  overflow-x: auto;
-  padding: 0.75rem;
+.message-body img[src^="cid:"],
+.message-body img:not([src]) {
+  display: none;
+}
+
+.message-body[data-kind="plain"] table {
+  width: 100%;
+  max-width: 100%;
+  margin: 1.1em 0;
+  border-collapse: collapse;
+  font-size: 0.875em;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+}
+
+.message-body[data-kind="plain"] th,
+.message-body[data-kind="plain"] td {
+  padding: 0.45em 0.7em;
+  border: 1px solid var(--border);
+  vertical-align: top;
+  text-align: left;
+}
+
+.message-body[data-kind="plain"] th {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  background: var(--secondary);
+}
+
+.message-body[data-kind="plain"] pre,
+.message-body[data-kind="plain"] code {
+  font-family: var(--font-mono);
+}
+
+.message-body[data-kind="plain"] code {
+  font-size: 0.82em;
+  padding: 0.1em 0.35em;
   border-radius: 0.25rem;
   background: var(--secondary);
-  font-family: var(--font-mono);
-  font-size: 12px;
+}
+
+.message-body[data-kind="plain"] pre {
+  overflow-x: auto;
+  margin: 1em 0;
+  padding: 0.85rem 1rem;
+  border-radius: 0.25rem;
+  background: var(--secondary);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.message-body[data-kind="plain"] pre code {
+  padding: 0;
+  background: none;
+}
+
+/* Designed HTML mail keeps its own tables, colours, and buttons. */
+.message-body[data-kind="html"] {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--foreground);
+}
+
+.message-body[data-kind="html"] a {
+  color: inherit;
+}
+
+.message-body[data-kind="html"] table {
+  max-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.message-body[data-kind="html"] td,
+.message-body[data-kind="html"] th {
+  border: none;
+  background: none;
+}
+
+.message-body[data-kind="html"] img {
+  margin: 0;
+  border-radius: 0;
+  display: inline-block;
+}
+
+.message-body[data-kind="html"] img[data-blocked] {
+  background: var(--secondary);
+  vertical-align: middle;
+}
+
+html[data-scheme="dark"] .message-body[data-kind="plain"] {
+  letter-spacing: 0.008em;
+  line-height: 1.75;
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-scheme="system"] .message-body[data-kind="plain"] {
+    letter-spacing: 0.008em;
+    line-height: 1.75;
+  }
 }
 
 .overlay-backdrop {
