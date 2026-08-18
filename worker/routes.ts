@@ -1,8 +1,13 @@
 import { ApiError, authenticate, errorResponse, readJson } from "@/lib/auth/api";
-import { parseAddressList } from "@/lib/mail/address";
-import { getOwnedMailbox } from "@/lib/mail/mailboxes";
+import { createSession, hasAnyUser, sessionCookie } from "@/lib/auth/session";
+import { encryptSecret, hashPassword } from "@/lib/crypto";
+import { createDb } from "@/lib/db";
+import { mailboxes, users } from "@/lib/db/schema";
+import { newId } from "@/lib/ids";
+import { isEmailAddress, normalizeAddress, parseAddressList } from "@/lib/mail/address";
+import { ensureDefaultFolders, getOwnedMailbox } from "@/lib/mail/mailboxes";
 import { sendMessage, SendError } from "@/lib/mail/send";
-import { rateLimit } from "@/lib/rate-limit";
+import { clientKey, rateLimit } from "@/lib/rate-limit";
 import { testImapConnection } from "@/lib/transport/imap";
 import { testSmtpConnection } from "@/lib/transport/smtp";
 import {
@@ -169,4 +174,141 @@ function decodeBase64(value: string): Uint8Array {
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   return bytes;
+}
+
+type SetupBody = {
+  name?: string;
+  address?: string;
+  password?: string;
+  loginPassword?: string;
+  imap?: TransportInput;
+  smtp?: TransportInput;
+};
+
+/**
+ * First-run onboarding: verify a real IMAP/SMTP account, then create the workspace
+ * owner and their first mailbox together. It lives in the Worker because the
+ * verification opens sockets, which only resolve inside workerd.
+ *
+ * The `hasAnyUser` check here is the security boundary, not the UI that hides the
+ * form: once an account exists this endpoint is closed for good.
+ */
+export async function handleSetup(request: Request, env: CloudflareEnv): Promise<Response> {
+  try {
+    const limit = await rateLimit(env.SESSION_STORE, clientKey(request, "setup"), 5, 900);
+    if (!limit.allowed) throw new ApiError(429, "Too many attempts. Try again shortly.");
+
+    const db = createDb(env.DB);
+    if (await hasAnyUser(db)) {
+      throw new ApiError(403, "This workspace is already set up.");
+    }
+
+    const body = await readJson<SetupBody>(request);
+    const address = normalizeAddress(body.address ?? "");
+    const password = body.password ?? "";
+    const loginPassword = body.loginPassword ?? "";
+
+    if (!isEmailAddress(address)) throw new ApiError(400, "Enter a valid email address.");
+    if (!password) throw new ApiError(400, "Enter the account password.");
+    if (loginPassword.length < 10) {
+      throw new ApiError(400, "Choose a sign-in password of at least 10 characters.");
+    }
+    if (!env.MAIL_ENCRYPTION_KEY) {
+      throw new ApiError(503, "Set the MAIL_ENCRYPTION_KEY secret before connecting a mailbox.");
+    }
+
+    const imap = validateImapSettings({
+      host: body.imap?.host,
+      port: body.imap?.port,
+      tls: body.imap?.tls,
+      username: body.imap?.username || address,
+    });
+    const smtp = validateSmtpSettings({
+      host: body.smtp?.host,
+      port: body.smtp?.port,
+      tls: body.smtp?.tls,
+      username: body.smtp?.username || imap.username,
+    });
+
+    // Prove the credentials work before anything is persisted.
+    const folders = await testImapConnection({
+      hostname: imap.host,
+      port: imap.port,
+      tls: imap.tls,
+      username: imap.username,
+      password,
+    }).catch((error: unknown) => {
+      throw new ApiError(502, `IMAP sign-in failed: ${describeError(error)}`);
+    });
+
+    await testSmtpConnection({
+      hostname: smtp.host,
+      port: smtp.port,
+      tls: smtp.tls,
+      username: smtp.username,
+      password: body.smtp?.password || password,
+    }).catch((error: unknown) => {
+      throw new ApiError(502, `SMTP sign-in failed: ${describeError(error)}`);
+    });
+
+    const userId = newId("usr");
+    await db.insert(users).values({
+      id: userId,
+      email: address,
+      name: body.name?.trim() || null,
+      passwordHash: await hashPassword(loginPassword),
+      role: "admin",
+    });
+
+    const mailboxId = newId("mbx");
+    await db.insert(mailboxes).values({
+      id: mailboxId,
+      ownerId: userId,
+      type: "external_imap",
+      address,
+      displayName: body.name?.trim() || null,
+      imapHost: imap.host,
+      imapPort: imap.port,
+      imapTls: imap.tls,
+      imapUser: imap.username,
+      imapPassword: await encryptSecret(password, env.MAIL_ENCRYPTION_KEY),
+      smtpHost: smtp.host,
+      smtpPort: smtp.port,
+      smtpTls: smtp.tls,
+      smtpUser: smtp.username,
+      smtpPassword: await encryptSecret(
+        body.smtp?.password || password,
+        env.MAIL_ENCRYPTION_KEY,
+      ),
+    });
+    await ensureDefaultFolders(db, mailboxId);
+
+    // Start the first sync in the background so the inbox is filling on arrival.
+    const stub = env.MAILBOX.get(env.MAILBOX.idFromName(mailboxId));
+    void stub.poke({ backfill: true }).catch(() => undefined);
+
+    const session = await createSession(env.SESSION_STORE, userId);
+    return Response.json(
+      { mailboxId, folders: folders.length },
+      {
+        status: 201,
+        headers: {
+          "set-cookie": sessionCookie(
+            session.token,
+            session.maxAge,
+            new URL(request.url).protocol === "https:",
+          ),
+        },
+      },
+    );
+  } catch (error) {
+    if (error instanceof TransportConfigError) {
+      return Response.json({ error: error.message }, { status: 400 });
+    }
+    return errorResponse(error);
+  }
+}
+
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

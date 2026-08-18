@@ -2,17 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { presetFor, tlsForImapPort, tlsForSmtpPort } from "@/lib/transport/presets";
 
 type DomainOption = { id: string; name: string; status: string };
 type Check = { ok: boolean; detail: string; folders?: string[] };
-
-const IMAP_PRESETS: Record<string, { imapHost: string; smtpHost: string }> = {
-  "gmail.com": { imapHost: "imap.gmail.com", smtpHost: "smtp.gmail.com" },
-  "outlook.com": { imapHost: "outlook.office365.com", smtpHost: "smtp.office365.com" },
-  "hotmail.com": { imapHost: "outlook.office365.com", smtpHost: "smtp.office365.com" },
-  "yahoo.com": { imapHost: "imap.mail.yahoo.com", smtpHost: "smtp.mail.yahoo.com" },
-  "fastmail.com": { imapHost: "imap.fastmail.com", smtpHost: "smtp.fastmail.com" },
-};
 
 export function NewMailboxForm({ domains }: { domains: DomainOption[] }) {
   const router = useRouter();
@@ -36,12 +29,14 @@ export function NewMailboxForm({ domains }: { domains: DomainOption[] }) {
 
   function applyPreset(value: string) {
     setAddress(value);
-    const domain = value.split("@")[1]?.toLowerCase() ?? "";
-    const preset = IMAP_PRESETS[domain];
-    if (preset && !imapHost) {
-      setImapHost(preset.imapHost);
-      setSmtpHost(preset.smtpHost);
-    }
+    if (imapHost) return;
+
+    const preset = presetFor(value);
+    if (!preset) return;
+    setImapHost(preset.imapHost);
+    setImapPort(preset.imapPort);
+    setSmtpHost(preset.smtpHost);
+    setSmtpPort(preset.smtpPort);
   }
 
   function imapPayload() {
@@ -50,14 +45,14 @@ export function NewMailboxForm({ domains }: { domains: DomainOption[] }) {
       imap: {
         host: imapHost,
         port: imapPort,
-        tls: imapPort === 143 ? ("starttls" as const) : ("implicit" as const),
+        tls: tlsForImapPort(imapPort),
         username: address,
         password,
       },
       smtp: {
         host: smtpHost,
         port: smtpPort,
-        tls: smtpPort === 465 ? ("implicit" as const) : ("starttls" as const),
+        tls: tlsForSmtpPort(smtpPort),
         username: address,
         password,
       },

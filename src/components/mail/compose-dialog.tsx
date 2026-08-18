@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { PublicMailbox } from "@/lib/mail/mailboxes";
+import { useHotkeys } from "@/lib/keyboard/use-hotkeys";
 import { formatBytes } from "@/lib/format";
 
 export type ComposeDraft = {
@@ -41,12 +42,23 @@ export function ComposeDialog({
   const [showCc, setShowCc] = useState(Boolean(draft.cc || draft.bcc));
   const [status, setStatus] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const draftId = useRef(draft.draftId);
 
   useEffect(() => {
     setForm(draft);
     draftId.current = draft.draftId;
   }, [draft]);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
+  useHotkeys("modal", {
+    send: () => void send(),
+    back: onClose,
+  });
 
   useEffect(() => {
     if (!form.to && !form.subject && !form.text) return;
@@ -124,14 +136,16 @@ export function ComposeDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-0 sm:items-center sm:p-6"
+      className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-6"
       role="dialog"
       aria-modal="true"
       aria-label="Compose message"
     >
+      <div className="overlay-backdrop absolute inset-0" data-open={mounted} />
       <div
-        className="card flex max-h-full w-full max-w-2xl flex-col overflow-hidden"
-        style={{ boxShadow: "var(--shadow)" }}
+        className="overlay-panel card relative flex max-h-full w-full max-w-2xl flex-col overflow-hidden"
+        data-open={mounted}
+        style={{ boxShadow: "var(--shadow-pop)" }}
       >
         <header className="flex items-center justify-between border-b border-[var(--border)] px-4 py-2.5">
           <h2 className="text-sm font-semibold">New message</h2>
@@ -236,7 +250,10 @@ export function ComposeDialog({
 
         <footer className="flex items-center gap-3 border-t border-[var(--border)] px-4 py-3">
           <button type="button" className="btn btn-primary" onClick={send} disabled={sending}>
-            {sending ? "Sending…" : "Send"}
+            {sending ? "Sending" : "Send"}
+            <span className="kbd" style={{ background: "transparent", color: "inherit", opacity: 0.75 }}>
+              ⌘↵
+            </span>
           </button>
           <label className="btn btn-ghost cursor-pointer text-xs">
             Attach

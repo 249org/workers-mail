@@ -3,7 +3,7 @@ import { createDb } from "@/lib/db";
 import { resolveRecipient } from "@/lib/mail/routing";
 import { pollExternalMailboxes } from "./cron";
 import { handleIngestBatch } from "./ingest";
-import { handleSend, handleTestConnection } from "./routes";
+import { handleSend, handleSetup, handleTestConnection } from "./routes";
 import { handleStream } from "./stream";
 import type { IngestJob } from "./types";
 
@@ -21,6 +21,9 @@ export default {
     }
     if (url.pathname === "/api/mail/test-connection" && request.method === "POST") {
       return handleTestConnection(request, env);
+    }
+    if (url.pathname === "/api/mail/setup" && request.method === "POST") {
+      return handleSetup(request, env);
     }
 
     return nextHandler.fetch(request, env, ctx);

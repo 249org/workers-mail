@@ -1,6 +1,7 @@
-import { and, desc, eq, inArray, like, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt, lte, or, sql, type AnyColumn, type SQL } from "drizzle-orm";
 import type { Database } from "@/lib/db";
 import { attachments, folders, messages, type Addr } from "@/lib/db/schema";
+import { parseSearch } from "./search";
 
 export type MessageSummary = {
   id: string;
@@ -52,23 +53,13 @@ export async function listMessages(
   options: ListOptions = {},
 ): Promise<{ items: MessageSummary[]; nextCursor: number | null }> {
   const limit = Math.min(options.limit ?? DEFAULT_LIMIT, 200);
-  const filters = [eq(messages.mailboxId, mailboxId)];
+  const filters: SQL[] = [eq(messages.mailboxId, mailboxId)];
 
   if (options.folderId) filters.push(eq(messages.folderId, options.folderId));
   if (options.unreadOnly) filters.push(eq(messages.seen, false));
   if (options.flaggedOnly) filters.push(eq(messages.flagged, true));
   if (options.before) filters.push(lt(messages.sentAt, options.before));
-
-  if (options.search) {
-    const needle = `%${options.search.trim().toLowerCase()}%`;
-    const match = or(
-      like(sql`lower(${messages.subject})`, needle),
-      like(sql`lower(${messages.fromAddress})`, needle),
-      like(sql`lower(${messages.fromName})`, needle),
-      like(sql`lower(${messages.snippet})`, needle),
-    );
-    if (match) filters.push(match);
-  }
+  if (options.search) filters.push(...searchFilters(options.search));
 
   const rows = await db
     .select()
@@ -201,6 +192,54 @@ export async function folderInMailbox(
     .where(and(eq(folders.id, folderId), eq(folders.mailboxId, mailboxId)))
     .limit(1);
   return rows.length > 0;
+}
+
+/**
+ * Turns a search string into filters. Operators narrow on their own column; bare
+ * terms keep the original broad match across subject, sender and snippet.
+ */
+function searchFilters(input: string): SQL[] {
+  const query = parseSearch(input);
+  const filters: SQL[] = [];
+
+  if (query.from) {
+    const match = or(
+      contains(messages.fromAddress, query.from),
+      contains(messages.fromName, query.from),
+    );
+    if (match) filters.push(match);
+  }
+
+  if (query.to) filters.push(contains(messages.toAddresses, query.to));
+  if (query.subject) filters.push(contains(messages.subject, query.subject));
+  if (query.hasAttachment !== undefined) {
+    filters.push(eq(messages.hasAttachments, query.hasAttachment));
+  }
+  if (query.seen !== undefined) filters.push(eq(messages.seen, query.seen));
+  if (query.flagged !== undefined) filters.push(eq(messages.flagged, query.flagged));
+  if (query.after !== undefined) filters.push(gte(messages.sentAt, query.after));
+  if (query.before !== undefined) filters.push(lte(messages.sentAt, query.before));
+
+  for (const term of query.terms) {
+    const match = or(
+      contains(messages.subject, term),
+      contains(messages.fromAddress, term),
+      contains(messages.fromName, term),
+      contains(messages.snippet, term),
+    );
+    if (match) filters.push(match);
+  }
+
+  return filters;
+}
+
+/**
+ * Case-insensitive substring match. LIKE wildcards in the needle are escaped and
+ * declared with ESCAPE, so a literal % or _ typed into search stays literal.
+ */
+function contains(column: AnyColumn, value: string): SQL {
+  const needle = `%${value.toLowerCase().replace(/[\\%_]/g, "\\$&")}%`;
+  return sql`lower(${column}) LIKE ${needle} ESCAPE '\\'`;
 }
 
 async function threadCounts(

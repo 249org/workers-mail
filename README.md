@@ -13,6 +13,10 @@ mailboxes elsewhere over IMAP.
 Cloudflare cannot run an IMAP or POP server, so this is not one. Hosted mail is Email
 Routing plus Workers; external accounts are read as a client.
 
+The client is keyboard-first. Every action has a binding, `⌘K` opens a palette that
+merges commands, search and jump-to, and mutations commit locally before the network
+call so the interface never waits on a round trip.
+
 ## Architecture
 
 ```
@@ -39,8 +43,50 @@ owns everything Next cannot do itself:
 | `/api/mail/stream` | A route handler cannot return a 101 WebSocket upgrade |
 | `/api/mail/send` | Needs `cloudflare:email` and `cloudflare:sockets` |
 | `/api/mail/test-connection` | Needs `cloudflare:sockets` |
+| `/api/mail/setup` | First-run onboarding verifies IMAP over sockets |
 
 Everything else is an ordinary Next route handler under `src/app/api`.
+
+## Keyboard
+
+Press `?` anywhere for the full list; it is generated from the same table the
+dispatcher reads, so it cannot fall out of date.
+
+| Keys | Action |
+| --- | --- |
+| `j` / `k` | Next / previous message |
+| `Enter`, `o` | Open · `Esc` closes or steps back |
+| `e`, `#`, `s`, `u` | Archive, trash, star, mark unread |
+| `x`, `Shift+A` | Select row, select all |
+| `c`, `r`, `a`, `f` | Compose, reply, reply all, forward |
+| `⌘K` | Command palette and search |
+| `/` | Focus search |
+| `⌘Z` | Undo the last archive or trash |
+| `⌘Enter` | Send |
+| `g` then `i` `t` `d` `a` `,` | Inbox, sent, drafts, archive, settings |
+
+### Search operators
+
+Search accepts operators in either the list search box or the palette:
+
+```
+from:sam is:unread has:attachment after:7d "quarterly review"
+```
+
+`from:` `to:` `subject:` `in:<folder>` `is:unread|read|starred` `has:attachment`
+`before:` / `after:` (accepting `7d`, `2w`, `6m`, `1y`, `today` or `2024-03-01`).
+Anything that is not a recognised operator is matched as free text, so a half-typed
+query still searches instead of erroring.
+
+### A note on motion
+
+Animation follows the frequency rule from Emil Kowalski's design-engineering
+guidance: the more often a user sees something, the less it should animate. Cursor
+movement, archive, star and the command palette are **completely unanimated** — at
+hundreds of repetitions a day, a transition there reads as lag. Motion is spent only
+where it is rare: the compose sheet gets a reduced 220ms fade, and the first-run
+connect flow is the one place with any flourish. All of it collapses to opacity under
+`prefers-reduced-motion`.
 
 ## Prerequisites
 
@@ -126,8 +172,11 @@ For local development, put the same values in a `.dev.vars` file — see
 npm run deploy
 ```
 
-Open the deployed URL. The first visit offers to create the admin account; once one
-account exists, registration closes.
+Open the deployed URL. The first visit offers two ways to finish setup: connect an
+existing mailbox over IMAP, which creates the workspace owner and their first mailbox
+together after verifying the credentials against the real server, or create an
+account with a password and add mailboxes afterwards. Once an account exists both
+paths close and the screen becomes sign-in only.
 
 ## Connecting a domain
 
@@ -190,6 +239,16 @@ npm run preview
 | `npm run db:migrate` / `:local` | Apply migrations remotely or locally |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm test` | Vitest suite |
+
+## Layout
+
+```
+src/lib/keyboard/     shortcut table and the scope-stack dispatcher
+src/lib/mail/         search parser, query layer, MIME, routing, client view store
+src/components/mail/  three-pane workspace
+src/components/palette/  the ⌘K surface
+worker/               entry, Durable Object, queue consumer, socket-bound routes
+```
 
 ## API
 

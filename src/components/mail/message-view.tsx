@@ -2,120 +2,58 @@
 
 import { useEffect, useState } from "react";
 import { displayName, formatAddressList } from "@/lib/mail/address";
-import type { MessageDetail, MessageSummary } from "@/lib/mail/queries";
+import { useMailStore } from "@/lib/mail/view-store";
 import { formatBytes, formatFullDate, initialsOf } from "@/lib/format";
 
-type Body = { html: string; blockedImages: number; text: string };
-
 type Props = {
-  mailboxId: string;
   messageId: string;
-  onReply: (message: MessageDetail, mode: "reply" | "replyAll" | "forward") => void;
-  onTrash: (messageId: string) => void;
-  onThreadSelect: (messageId: string) => void;
+  onReply: (mode: "reply" | "replyAll" | "forward") => void;
 };
 
-export function MessageView({
-  mailboxId,
-  messageId,
-  onReply,
-  onTrash,
-  onThreadSelect,
-}: Props) {
-  const [message, setMessage] = useState<MessageDetail | null>(null);
-  const [thread, setThread] = useState<MessageSummary[]>([]);
-  const [body, setBody] = useState<Body | null>(null);
+export function MessageView({ messageId, onReply }: Props) {
+  const loaded = useMailStore((state) => state.loaded.get(messageId));
+  const load = useMailStore((state) => state.load);
+  const select = useMailStore((state) => state.select);
+  const trash = useMailStore((state) => state.trash);
+  const star = useMailStore((state) => state.star);
   const [showImages, setShowImages] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
-    setMessage(null);
-    setBody(null);
     setShowImages(false);
-    setError(null);
-
-    async function load() {
-      const detail = await fetch(
-        `/api/messages/${messageId}?mailbox=${encodeURIComponent(mailboxId)}`,
-      );
-      if (!detail.ok) {
-        if (!cancelled) setError("This message could not be loaded.");
-        return;
-      }
-      const payload = (await detail.json()) as { message: MessageDetail; thread: MessageSummary[] };
-      if (cancelled) return;
-      setMessage(payload.message);
-      setThread(payload.thread);
-    }
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [mailboxId, messageId]);
+  }, [messageId]);
 
   useEffect(() => {
-    let cancelled = false;
-    if (!message) return;
+    if (!loaded) void load(messageId);
+  }, [loaded, load, messageId]);
 
-    async function loadBody() {
-      const response = await fetch(
-        `/api/messages/${messageId}/body?mailbox=${encodeURIComponent(mailboxId)}&images=${showImages ? "1" : "0"}`,
-      );
-      if (!response.ok) {
-        if (!cancelled) setError("The stored copy of this message is unavailable.");
-        return;
-      }
-      const payload = (await response.json()) as Body;
-      if (!cancelled) setBody(payload);
-    }
-
-    void loadBody();
-    return () => {
-      cancelled = true;
-    };
-  }, [mailboxId, messageId, message, showImages]);
-
-  if (error) {
-    return <Placeholder>{error}</Placeholder>;
+  if (!loaded) {
+    return (
+      <section className="flex min-w-0 flex-1 items-center justify-center bg-[var(--raised)]">
+        <p className="text-[13px] text-[var(--ink-muted)]">Loading</p>
+      </section>
+    );
   }
-  if (!message) {
-    return <Placeholder>Loading…</Placeholder>;
-  }
+
+  const { detail, thread, body } = loaded;
+  const files = detail.attachments.filter((file) => !file.inline);
 
   return (
     <section className="scroll-thin flex min-w-0 flex-1 flex-col overflow-y-auto bg-[var(--raised)]">
-      <header className="border-b border-[var(--border)] px-6 py-4">
+      <header className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--raised)] px-6 py-4">
         <div className="flex items-start justify-between gap-4">
-          <h1 className="text-lg font-semibold tracking-tight">
-            {message.subject || "(no subject)"}
+          <h1 className="text-[17px] font-semibold tracking-[-0.01em]">
+            {detail.subject || "(no subject)"}
           </h1>
-          <div className="flex shrink-0 gap-1.5">
-            <button type="button" className="btn btn-ghost !py-1.5 text-xs" onClick={() => onReply(message, "reply")}>
-              Reply
-            </button>
-            <button
-              type="button"
-              className="btn btn-ghost !py-1.5 text-xs"
-              onClick={() => onReply(message, "replyAll")}
-            >
-              Reply all
-            </button>
-            <button
-              type="button"
-              className="btn btn-ghost !py-1.5 text-xs"
-              onClick={() => onReply(message, "forward")}
-            >
-              Forward
-            </button>
-            <button
-              type="button"
-              className="btn btn-danger !py-1.5 text-xs"
-              onClick={() => onTrash(message.id)}
-            >
-              Trash
-            </button>
+          <div className="flex shrink-0 items-center gap-1">
+            <Action label="Reply" hint="R" onClick={() => onReply("reply")} />
+            <Action label="Reply all" hint="A" onClick={() => onReply("replyAll")} />
+            <Action label="Forward" hint="F" onClick={() => onReply("forward")} />
+            <Action
+              label={detail.flagged ? "Unstar" : "Star"}
+              hint="S"
+              onClick={() => star([detail.id], !detail.flagged)}
+            />
+            <Action label="Trash" hint="#" danger onClick={() => trash([detail.id])} />
           </div>
         </div>
 
@@ -125,38 +63,40 @@ export function MessageView({
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold"
             style={{ background: "var(--accent-soft)", color: "var(--accent)" }}
           >
-            {initialsOf(displayName(message.from))}
+            {initialsOf(displayName(detail.from))}
           </span>
           <div className="min-w-0 text-[13px]">
             <p className="truncate">
-              <span className="font-medium">{displayName(message.from)}</span>{" "}
-              <span className="text-[var(--ink-faint)]">&lt;{message.from.address}&gt;</span>
+              <span className="font-medium">{displayName(detail.from)}</span>{" "}
+              <span className="text-[var(--ink-faint)]">&lt;{detail.from.address}&gt;</span>
             </p>
             <p className="truncate text-[var(--ink-muted)]">
-              To {formatAddressList(message.to) || "undisclosed recipients"}
+              To {formatAddressList(detail.to) || "undisclosed recipients"}
             </p>
-            {message.cc.length > 0 && (
-              <p className="truncate text-[var(--ink-muted)]">Cc {formatAddressList(message.cc)}</p>
+            {detail.cc.length > 0 && (
+              <p className="truncate text-[var(--ink-muted)]">
+                Cc {formatAddressList(detail.cc)}
+              </p>
             )}
-            <p className="text-[var(--ink-faint)]">{formatFullDate(message.sentAt)}</p>
+            <p className="text-[var(--ink-faint)]">{formatFullDate(detail.sentAt)}</p>
           </div>
         </div>
       </header>
 
       {thread.length > 1 && (
-        <div className="flex flex-wrap gap-1.5 border-b border-[var(--border)] px-6 py-2">
+        <div className="flex flex-wrap items-center gap-1.5 border-b border-[var(--border)] px-6 py-2">
           <span className="text-[11px] text-[var(--ink-faint)]">
-            {thread.length} messages in this thread:
+            {thread.length} in thread
           </span>
           {thread.map((entry) => (
             <button
               key={entry.id}
               type="button"
-              onClick={() => onThreadSelect(entry.id)}
+              onClick={() => select(entry.id)}
               className="badge"
               style={{
-                borderColor: entry.id === message.id ? "var(--accent)" : "var(--border)",
-                color: entry.id === message.id ? "var(--accent)" : "var(--ink-muted)",
+                borderColor: entry.id === detail.id ? "var(--accent)" : "var(--border)",
+                color: entry.id === detail.id ? "var(--accent)" : "var(--ink-muted)",
               }}
             >
               {displayName(entry.from)}
@@ -168,13 +108,15 @@ export function MessageView({
       {body && body.blockedImages > 0 && !showImages && (
         <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--surface)] px-6 py-2 text-[13px]">
           <span className="text-[var(--ink-muted)]">
-            {body.blockedImages} remote image{body.blockedImages === 1 ? "" : "s"} blocked to stop
-            tracking on open.
+            {body.blockedImages} remote image{body.blockedImages === 1 ? "" : "s"} blocked.
           </span>
           <button
             type="button"
             className="shrink-0 text-[var(--accent)] hover:underline"
-            onClick={() => setShowImages(true)}
+            onClick={() => {
+              setShowImages(true);
+              void load(messageId, { allowRemoteImages: true });
+            }}
           >
             Show images
           </button>
@@ -185,30 +127,28 @@ export function MessageView({
         {body ? (
           <div className="message-body" dangerouslySetInnerHTML={{ __html: body.html }} />
         ) : (
-          <p className="text-sm text-[var(--ink-muted)]">Loading message…</p>
+          <p className="text-[13px] text-[var(--ink-muted)]">Loading message</p>
         )}
       </div>
 
-      {message.attachments.filter((file) => !file.inline).length > 0 && (
+      {files.length > 0 && (
         <div className="border-t border-[var(--border)] px-6 py-4">
           <p className="label">Attachments</p>
           <ul className="flex flex-wrap gap-2">
-            {message.attachments
-              .filter((file) => !file.inline)
-              .map((file) => (
-                <li key={file.id}>
-                  <a
-                    href={`/api/attachments/${file.id}`}
-                    className="card flex items-center gap-2 px-3 py-2 text-[13px] hover:border-[var(--border-strong)]"
-                    download={file.filename}
-                  >
-                    <span className="truncate">{file.filename}</span>
-                    <span className="shrink-0 text-[var(--ink-faint)]">
-                      {formatBytes(file.size)}
-                    </span>
-                  </a>
-                </li>
-              ))}
+            {files.map((file) => (
+              <li key={file.id}>
+                <a
+                  href={`/api/attachments/${file.id}`}
+                  className="card flex items-center gap-2 px-3 py-2 text-[13px]"
+                  download={file.filename}
+                >
+                  <span className="truncate">{file.filename}</span>
+                  <span className="shrink-0 text-[var(--ink-faint)]">
+                    {formatBytes(file.size)}
+                  </span>
+                </a>
+              </li>
+            ))}
           </ul>
         </div>
       )}
@@ -216,10 +156,27 @@ export function MessageView({
   );
 }
 
-function Placeholder({ children }: { children: React.ReactNode }) {
+function Action({
+  label,
+  hint,
+  danger,
+  onClick,
+}: {
+  label: string;
+  hint: string;
+  danger?: boolean;
+  onClick: () => void;
+}) {
   return (
-    <section className="flex min-w-0 flex-1 items-center justify-center bg-[var(--raised)]">
-      <p className="text-sm text-[var(--ink-muted)]">{children}</p>
-    </section>
+    <button
+      type="button"
+      onClick={onClick}
+      className="btn btn-quiet !px-2 !py-1 text-xs"
+      style={danger ? { color: "var(--danger)" } : undefined}
+      title={`${label} (${hint})`}
+    >
+      {label}
+      <span className="kbd hidden lg:inline-flex">{hint}</span>
+    </button>
   );
 }

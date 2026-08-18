@@ -8,6 +8,7 @@ export type StreamState = "connecting" | "open" | "polling";
 const BACKOFF_MS = [1_000, 2_000, 5_000, 10_000, 30_000];
 const POLL_INTERVAL_MS = 60_000;
 const HEARTBEAT_MS = 30_000;
+const OPEN_TIMEOUT_MS = 6_000;
 
 /**
  * Keeps a WebSocket to the mailbox's Durable Object open, and falls back to a plain
@@ -40,14 +41,24 @@ export function useMailStream(mailboxId: string, onEvent: (event: MailboxEvent) 
 
     function connect() {
       if (disposed) return;
-      setState("connecting");
+      // Only the first attempt reads as "connecting"; later retries keep showing the
+      // polling fallback, which is what is actually serving the UI at that point.
+      if (attempt === 0) setState("connecting");
 
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       socket = new WebSocket(
         `${protocol}//${window.location.host}/api/mail/stream?mailbox=${encodeURIComponent(mailboxId)}`,
       );
 
+      // An upgrade that is neither accepted nor refused leaves the socket stuck in
+      // CONNECTING with no event ever firing, so nothing would trigger the fallback.
+      // Give it a deadline and treat silence as failure.
+      const deadline = setTimeout(() => {
+        if (socket?.readyState === WebSocket.CONNECTING) socket.close();
+      }, OPEN_TIMEOUT_MS);
+
       socket.onopen = () => {
+        clearTimeout(deadline);
         attempt = 0;
         stopPolling();
         setState("open");
@@ -63,6 +74,7 @@ export function useMailStream(mailboxId: string, onEvent: (event: MailboxEvent) 
       };
 
       socket.onclose = () => {
+        clearTimeout(deadline);
         if (heartbeat) clearInterval(heartbeat);
         heartbeat = null;
         if (disposed) return;

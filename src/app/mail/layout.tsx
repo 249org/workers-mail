@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Toaster } from "sonner";
 import { requireUser } from "@/lib/auth/server";
 import { listMailboxes } from "@/lib/mail/mailboxes";
 import { SignOutButton } from "@/components/sign-out-button";
@@ -28,6 +29,17 @@ export default async function MailLayout({ children }: { children: React.ReactNo
         </div>
       </header>
       <div className="min-h-0 flex-1">{children}</div>
+      <Toaster
+        position="bottom-right"
+        toastOptions={{
+          style: {
+            background: "var(--raised)",
+            border: "1px solid var(--border)",
+            color: "var(--ink)",
+            boxShadow: "var(--shadow-pop)",
+          },
+        }}
+      />
     </div>
   );
 }
