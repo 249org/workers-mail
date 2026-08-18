@@ -24,7 +24,7 @@ export function ServerSettingsFields({ value, onChange }: Props) {
         <input
           id="imap-host"
           className="field"
-          placeholder="imap.one.com"
+          placeholder="imap.example.com"
           autoComplete="off"
           spellCheck={false}
           value={value.imapHost}
@@ -55,7 +55,7 @@ export function ServerSettingsFields({ value, onChange }: Props) {
         <input
           id="smtp-host"
           className="field"
-          placeholder="send.one.com"
+          placeholder="smtp.example.com"
           autoComplete="off"
           spellCheck={false}
           value={value.smtpHost}

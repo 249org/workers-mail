@@ -255,9 +255,10 @@ Open the deployed URL and connect a mailbox or create the first account.
 This is the path most people start with. You do not migrate off Gmail —
 you add it.
 
-**Settings → Mailboxes → Connect existing IMAP.** Type the address; the host and port
-fill in for known providers. **Test connection** does a real IMAP login and SMTP
-handshake before anything is saved.
+**Settings → Mailboxes → Add mailbox**, then **Google, Microsoft, or IMAP**. Google and
+Microsoft fill in the servers; you type the address and an app password. **Other IMAP**
+is there when the host is not one of those two. **Test connection** does a real IMAP
+login and SMTP handshake before anything is saved.
 
 | Provider | Filled in from | Notes |
 | --- | --- | --- |

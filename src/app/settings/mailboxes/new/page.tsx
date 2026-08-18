@@ -16,7 +16,7 @@ export default async function NewMailboxPage() {
   return (
     <>
       <PageHeader title="Add a mailbox">
-        Create an address on a domain you have connected, or read an existing account over IMAP.
+        Connect Google or Microsoft in a couple of fields, add any other IMAP account, or create an address on a domain you already run.
       </PageHeader>
       <SettingsBody>
         <NewMailboxForm domains={available} />

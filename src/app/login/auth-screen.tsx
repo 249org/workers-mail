@@ -3,10 +3,11 @@
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import {
-  ServerSettingsFields,
-  type ServerSettings,
-} from "@/components/mail/server-settings-fields";
-import { tlsForImapPort, tlsForSmtpPort } from "@/lib/transport/presets";
+  ImapAccountFields,
+  type ImapProvider,
+} from "@/components/mail/imap-account-fields";
+import { type ServerSettings } from "@/components/mail/server-settings-fields";
+import { hostsForEasyProvider, tlsForImapPort, tlsForSmtpPort } from "@/lib/transport/presets";
 import { BrandLockup } from "@/components/brand/wordmark";
 
 type Props = {
@@ -28,7 +29,7 @@ export function AuthScreen({ setupNeeded, encryptionReady }: Props) {
           </h1>
           <p className="mt-2 text-[13px] text-muted-foreground">
             {setupNeeded
-              ? "Connect with your mailbox email, password, and server settings."
+              ? "Connect Google, Microsoft, or any IMAP mailbox."
               : "Sign in with your mailbox email and password."}
           </p>
         </header>
@@ -329,15 +330,11 @@ function SignInForm({ setupNeeded }: { setupNeeded: boolean }) {
 
 function ConnectForm({ encryptionReady }: { encryptionReady: boolean }) {
   const router = useRouter();
+  const [provider, setProvider] = useState<ImapProvider>("gmail");
   const [address, setAddress] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
-  const [servers, setServers] = useState<ServerSettings>({
-    imapHost: "",
-    imapPort: 993,
-    smtpHost: "",
-    smtpPort: 587,
-  });
+  const [servers, setServers] = useState<ServerSettings>(hostsForEasyProvider("gmail"));
   const [stage, setStage] = useState<Stage>("idle");
   const [error, setError] = useState<string | null>(null);
 
@@ -416,46 +413,31 @@ function ConnectForm({ encryptionReady }: { encryptionReady: boolean }) {
       <span className="reg reg-tr" aria-hidden />
       <span className="reg reg-bl" aria-hidden />
       <span className="reg reg-br" aria-hidden />
-      <Field label="Email address" htmlFor="address">
-        <input
-          id="address"
-          type="email"
-          required
-          autoComplete="username"
-          placeholder="you@example.com"
-          className="field"
-          value={address}
-          onChange={(event) => setAddress(event.target.value)}
-        />
-      </Field>
+      <ImapAccountFields
+        provider={provider}
+        address={address}
+        password={password}
+        servers={servers}
+        onProviderChange={(next, nextServers) => {
+          setProvider(next);
+          setServers(nextServers);
+        }}
+        onAddressChange={setAddress}
+        onPasswordChange={setPassword}
+        onServersChange={setServers}
+      />
 
-      <Field
-        label="Mailbox password"
-        htmlFor="mailbox-password"
-        hint="The password you use for webmail. You will sign in to this workspace with the same one."
-      >
-        <input
-          id="mailbox-password"
-          type="password"
-          required
-          autoComplete="current-password"
-          className="field"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-        />
-      </Field>
-
-      <Field label="Your name" htmlFor="display-name">
-        <input
-          id="display-name"
-          className="field"
-          autoComplete="name"
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-        />
-      </Field>
-
-      <ServerSettingsFields value={servers} onChange={setServers} />
+      <div className="mt-4">
+        <Field label="Your name" htmlFor="display-name">
+          <input
+            id="display-name"
+            className="field"
+            autoComplete="name"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+          />
+        </Field>
+      </div>
 
       {error && <ErrorNote>{error}</ErrorNote>}
 

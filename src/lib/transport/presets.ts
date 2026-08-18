@@ -40,6 +40,7 @@ const NAMED_PROVIDERS: NamedProvider[] = [
     imapPort: 993,
     smtpHost: "smtp.office365.com",
     smtpPort: 587,
+    note: "Microsoft accounts with two-step verification need an app password.",
   },
   {
     id: "yahoo",
@@ -83,6 +84,71 @@ const NAMED_PROVIDERS: NamedProvider[] = [
 ];
 
 export const OTHER_PROVIDER_ID = "other";
+
+export type EasyProviderId = "gmail" | "outlook";
+
+export type EasyProvider = {
+  id: EasyProviderId;
+  label: string;
+  blurb: string;
+  addressPlaceholder: string;
+  passwordLabel: string;
+  passwordHint: string;
+  helpHref: string;
+  helpLabel: string;
+};
+
+/** First-class connect options — hosts are filled in; the user types address + app password. */
+export const EASY_PROVIDERS: EasyProvider[] = [
+  {
+    id: "gmail",
+    label: "Google",
+    blurb: "Gmail and Google Workspace",
+    addressPlaceholder: "you@gmail.com",
+    passwordLabel: "App password",
+    passwordHint: "A 16-character password from Google — not the one you sign in with.",
+    helpHref: "https://myaccount.google.com/apppasswords",
+    helpLabel: "Create an app password",
+  },
+  {
+    id: "outlook",
+    label: "Microsoft",
+    blurb: "Outlook, Hotmail, and Microsoft 365",
+    addressPlaceholder: "you@outlook.com",
+    passwordLabel: "App password",
+    passwordHint: "From your Microsoft account if two-step verification is on.",
+    helpHref: "https://account.live.com/proofs/AppPassword",
+    helpLabel: "Create an app password",
+  },
+];
+
+export type TransportHosts = {
+  imapHost: string;
+  imapPort: number;
+  smtpHost: string;
+  smtpPort: number;
+};
+
+export function hostsFromPreset(preset: ProviderPreset): TransportHosts {
+  return {
+    imapHost: preset.imapHost,
+    imapPort: preset.imapPort,
+    smtpHost: preset.smtpHost,
+    smtpPort: preset.smtpPort,
+  };
+}
+
+export function hostsForEasyProvider(id: EasyProviderId): TransportHosts {
+  const preset = presetById(id);
+  if (!preset) throw new Error(`No IMAP preset for ${id}`);
+  return hostsFromPreset(preset);
+}
+
+export function easyProvider(id: EasyProviderId): EasyProvider {
+  const match = EASY_PROVIDERS.find((provider) => provider.id === id);
+  if (!match) throw new Error(`Unknown easy provider ${id}`);
+  return match;
+}
 
 /** Providers the user can pick when the address domain is not the mail host. */
 export function namedProviders(): ProviderPreset[] {

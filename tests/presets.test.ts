@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { presetById, presetFor } from "@/lib/transport/presets";
+import { hostsForEasyProvider, presetById, presetFor } from "@/lib/transport/presets";
 
 describe("presetFor", () => {
   it("matches consumer domains", () => {
@@ -9,6 +9,26 @@ describe("presetFor", () => {
 
   it("does not guess imap.{domain} for custom domains", () => {
     expect(presetFor("hello@mena-speakers.com")).toBeNull();
+  });
+});
+
+describe("hostsForEasyProvider", () => {
+  it("fills Gmail IMAP and SMTP", () => {
+    expect(hostsForEasyProvider("gmail")).toEqual({
+      imapHost: "imap.gmail.com",
+      imapPort: 993,
+      smtpHost: "smtp.gmail.com",
+      smtpPort: 587,
+    });
+  });
+
+  it("fills Microsoft 365 IMAP and SMTP", () => {
+    expect(hostsForEasyProvider("outlook")).toEqual({
+      imapHost: "outlook.office365.com",
+      imapPort: 993,
+      smtpHost: "smtp.office365.com",
+      smtpPort: 587,
+    });
   });
 });
 
