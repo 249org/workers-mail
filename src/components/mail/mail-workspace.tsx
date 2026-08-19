@@ -7,6 +7,7 @@ import type { MailboxEvent } from "@/lib/mail/events";
 import type { PublicMailbox } from "@/lib/mail/mailboxes";
 import { formatAddressList } from "@/lib/mail/address";
 import { normalizeSubject } from "@/lib/mail/thread";
+import { partitionFolders } from "@/lib/mail/folder-name";
 import { navigateMailFolder, useMailStore, type FolderSummary } from "@/lib/mail/view-store";
 import { readMailLayout, writeMailLayout, type MailLayout } from "@/lib/mail/layout-prefs";
 import { usePaletteStore } from "@/lib/palette/store";
@@ -92,6 +93,7 @@ export function MailWorkspace({
   const inTrash = useMailStore(
     (state) => state.folders.find((folder) => folder.id === state.folderId)?.role === "trash",
   );
+  const liveFolders = useMailStore((state) => state.folders);
   const isMac = useIsMac();
   const shortcuts = useShortcutStore((state) => state.shortcuts);
   const hintFor = (action: "compose" | "archive" | "trash" | "syncNow" | "toggleSidebar" | "toggleList") => {
@@ -121,6 +123,11 @@ export function MailWorkspace({
       useMailStore.getState().openFolder(folderId);
     }
   }, [folderId]);
+
+  useEffect(() => {
+    if (!folderId) return;
+    void useMailStore.getState().syncOpenFolder();
+  }, [folderId, mailbox.id]);
 
   useEffect(() => {
     const onPopState = () => {
@@ -393,29 +400,61 @@ export function MailWorkspace({
   );
 
   const commands = useMemo<PaletteCommand[]>(
-    () => [
-      { id: "compose", label: "Compose message", hint: hintFor("compose"), group: "Actions", keywords: ["new", "write"], run: startCompose },
-      { id: "archive", label: "Archive selected", hint: hintFor("archive"), group: "Actions", run: archive },
-      { id: "trash", label: inTrash ? "Delete selected forever" : "Move selected to trash", hint: hintFor("trash"), group: "Actions", run: trash },
-      { id: "sync", label: "Sync now", hint: hintFor("syncNow"), group: "Actions", keywords: ["refresh", "imap"], run: () => void syncNow() },
-      {
-        id: "sidebar",
-        label: layout.sidebarCollapsed ? "Expand folder sidebar" : "Collapse folder sidebar",
-        hint: hintFor("toggleSidebar"),
-        group: "Application",
-        keywords: ["rail", "folders", "nav"],
-        run: toggleSidebar,
-      },
-      {
-        id: "reader",
-        label: layout.listHidden ? "Show message list" : "Read full width",
-        hint: hintFor("toggleList"),
-        group: "Application",
-        keywords: ["focus", "wide", "list"],
-        run: toggleList,
-      },
-    ],
-    [archive, trash, syncNow, inTrash, layout.sidebarCollapsed, layout.listHidden, toggleSidebar, toggleList, startCompose, shortcuts, isMac],
+    () => {
+      const custom = partitionFolders(liveFolders).custom;
+      const moveCommands: PaletteCommand[] = custom.map((folder) => ({
+        id: `move-${folder.id}`,
+        label: `Move to ${folder.name}`,
+        group: "Actions",
+        keywords: ["folder", folder.name, "file"],
+        run: () => {
+          if (targetIds.length === 0) return;
+          const store = useMailStore.getState();
+          store.moveTo(targetIds, folder.id, `Moved to ${folder.name}`);
+          toast(`Moved to ${folder.name}`, {
+            id: ACTION_TOAST,
+            action: { label: "Undo", onClick: () => undoLastAction() },
+          });
+          void store.refreshFolders();
+        },
+      }));
+
+      return [
+        { id: "compose", label: "Compose message", hint: hintFor("compose"), group: "Actions", keywords: ["new", "write"], run: startCompose },
+        {
+          id: "new-folder",
+          label: "New folder",
+          group: "Actions",
+          keywords: ["create", "directory", "label"],
+          run: () => {
+            if (narrow) setFoldersOpen(true);
+            else if (layout.sidebarCollapsed) toggleSidebar();
+            useMailStore.getState().setCreatingFolder(true);
+          },
+        },
+        { id: "archive", label: "Archive selected", hint: hintFor("archive"), group: "Actions", run: archive },
+        { id: "trash", label: inTrash ? "Delete selected forever" : "Move selected to trash", hint: hintFor("trash"), group: "Actions", run: trash },
+        ...moveCommands,
+        { id: "sync", label: "Sync now", hint: hintFor("syncNow"), group: "Actions", keywords: ["refresh", "imap"], run: () => void syncNow() },
+        {
+          id: "sidebar",
+          label: layout.sidebarCollapsed ? "Expand folder sidebar" : "Collapse folder sidebar",
+          hint: hintFor("toggleSidebar"),
+          group: "Application",
+          keywords: ["rail", "folders", "nav"],
+          run: toggleSidebar,
+        },
+        {
+          id: "reader",
+          label: layout.listHidden ? "Show message list" : "Read full width",
+          hint: hintFor("toggleList"),
+          group: "Application",
+          keywords: ["focus", "wide", "list"],
+          run: toggleList,
+        },
+      ];
+    },
+    [archive, trash, syncNow, inTrash, layout.sidebarCollapsed, layout.listHidden, toggleSidebar, toggleList, startCompose, shortcuts, isMac, liveFolders, targetIds, narrow],
   );
 
   useEffect(() => {
@@ -457,6 +496,10 @@ export function MailWorkspace({
         onNavigate={() => {
           useMailStore.getState().select(null);
           closeFolders();
+        }}
+        onExpand={() => {
+          if (narrow) setFoldersOpen(true);
+          else if (layout.sidebarCollapsed) toggleSidebar();
         }}
       />
 

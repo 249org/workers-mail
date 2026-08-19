@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import type { PublicMailbox } from "@/lib/mail/mailboxes";
-import { navigateMailFolder, useMailStore } from "@/lib/mail/view-store";
+import { parseFolderName, partitionFolders } from "@/lib/mail/folder-name";
+import { navigateMailFolder, useMailStore, type FolderSummary } from "@/lib/mail/view-store";
 import { formatRelative } from "@/lib/format";
 import { primaryCombo } from "@/lib/keyboard/bindings";
 import { formatComboHint, type ShortcutAction } from "@/lib/keyboard/shortcuts";
@@ -28,6 +30,7 @@ type Props = {
   onSync: () => void;
   onOpenPalette: () => void;
   onNavigate?: () => void;
+  onExpand?: () => void;
 };
 
 export function FolderSidebar({
@@ -39,12 +42,14 @@ export function FolderSidebar({
   onSync,
   onOpenPalette,
   onNavigate,
+  onExpand,
 }: Props) {
   const folders = useMailStore((state) => state.folders);
   const activeFolderId = useMailStore((state) => state.folderId);
   const syncing = useMailStore((state) => state.syncing);
   const syncError = useMailStore((state) => state.syncError);
   const lastSyncedAt = useMailStore((state) => state.lastSyncedAt);
+  const creating = useMailStore((state) => state.creatingFolder);
   const shortcuts = useShortcutStore((state) => state.shortcuts);
   const isMac = useIsMac();
   const hint = (action: ShortcutAction) => {
@@ -55,6 +60,12 @@ export function FolderSidebar({
     const keys = hint(action);
     return keys ? `${label} (${keys})` : label;
   };
+  const { system, custom } = useMemo(() => partitionFolders(folders), [folders]);
+
+  function startCreate() {
+    if (collapsed) onExpand?.();
+    useMailStore.getState().setCreatingFolder(true);
+  }
 
   return (
     <aside
@@ -120,35 +131,53 @@ export function FolderSidebar({
       </div>
 
       <nav className={`min-h-0 flex-1 py-2 px-2 ${collapsed ? "overflow-visible" : "scroll-thin overflow-y-auto"}`}>
-        {folders.map((folder) => {
-          const active = folder.id === activeFolderId;
-          const unread = folder.unread > 0 ? (folder.unread > 99 ? "99+" : String(folder.unread)) : null;
-          const jump = JUMP_HINT[folder.role];
-          const tip = collapsed ? (jump ? labeled(folder.name, jump) : folder.name) : undefined;
-          return (
-            <Link
+        {system.map((folder) => (
+          <FolderLink
+            key={folder.id}
+            mailboxId={mailbox.id}
+            folder={folder}
+            active={folder.id === activeFolderId}
+            collapsed={collapsed}
+            labeled={labeled}
+            onNavigate={onNavigate}
+          />
+        ))}
+
+        <div className={collapsed ? "mt-3" : "mt-4"}>
+          {!collapsed && <p className="label px-2.5">Folders</p>}
+          {custom.map((folder) => (
+            <FolderLink
               key={folder.id}
-              href={`/mail/${mailbox.id}/${folder.id}`}
-              className={`nav-row${collapsed ? " tip" : ""}`}
-              data-active={active ? "true" : undefined}
-              data-compact={collapsed ? "true" : undefined}
-              data-tip={tip}
-              aria-label={unread ? `${folder.name}, ${folder.unread} unread` : folder.name}
-              onClick={(event) => {
-                if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-                event.preventDefault();
-                navigateMailFolder(mailbox.id, folder.id);
-                onNavigate?.();
-              }}
+              mailboxId={mailbox.id}
+              folder={folder}
+              active={folder.id === activeFolderId}
+              collapsed={collapsed}
+              labeled={labeled}
+              onNavigate={onNavigate}
+            />
+          ))}
+          {creating && !collapsed ? (
+            <CreateFolderForm mailboxId={mailbox.id} onCreated={onNavigate} />
+          ) : collapsed ? (
+            <button
+              type="button"
+              className="nav-row tip"
+              data-compact="true"
+              data-tip="New folder"
+              aria-label="New folder"
+              onClick={startCreate}
             >
+              <MailIcon name="plus" />
+            </button>
+          ) : (
+            <button type="button" className="nav-row" onClick={startCreate}>
               <span className="flex min-w-0 items-center gap-2">
-                <MailIcon name={folderIconName(folder)} />
-                {!collapsed && <span className="truncate">{folder.name}</span>}
+                <MailIcon name="plus" />
+                <span className="truncate">New folder</span>
               </span>
-              {unread && <span className="folder-count">{unread}</span>}
-            </Link>
-          );
-        })}
+            </button>
+          )}
+        </div>
 
         {mailboxes.length > 1 && (
           <div className={collapsed ? "mt-3" : "mt-4"}>
@@ -231,5 +260,109 @@ export function FolderSidebar({
         {!collapsed && syncError && <p className="mt-1.5 text-[var(--danger)]">{syncError}</p>}
       </div>
     </aside>
+  );
+}
+
+function FolderLink({
+  mailboxId,
+  folder,
+  active,
+  collapsed,
+  labeled,
+  onNavigate,
+}: {
+  mailboxId: string;
+  folder: FolderSummary;
+  active: boolean;
+  collapsed: boolean;
+  labeled: (label: string, action: ShortcutAction) => string;
+  onNavigate?: () => void;
+}) {
+  const unread = folder.unread > 0 ? (folder.unread > 99 ? "99+" : String(folder.unread)) : null;
+  const jump = JUMP_HINT[folder.role];
+  const tip = collapsed ? (jump ? labeled(folder.name, jump) : folder.name) : undefined;
+
+  return (
+    <Link
+      href={`/mail/${mailboxId}/${folder.id}`}
+      className={`nav-row${collapsed ? " tip" : ""}`}
+      data-active={active ? "true" : undefined}
+      data-compact={collapsed ? "true" : undefined}
+      data-tip={tip}
+      aria-label={unread ? `${folder.name}, ${folder.unread} unread` : folder.name}
+      onClick={(event) => {
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        navigateMailFolder(mailboxId, folder.id);
+        onNavigate?.();
+      }}
+    >
+      <span className="flex min-w-0 items-center gap-2">
+        <MailIcon name={folderIconName(folder)} />
+        {!collapsed && <span className="truncate">{folder.name}</span>}
+      </span>
+      {unread && <span className="folder-count">{unread}</span>}
+    </Link>
+  );
+}
+
+function CreateFolderForm({
+  mailboxId,
+  onCreated,
+}: {
+  mailboxId: string;
+  onCreated?: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [name, setName] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const parsed = parseFolderName(name);
+    if (!parsed.ok) {
+      setError(parsed.error);
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const folder = await useMailStore.getState().createFolder(parsed.name);
+      navigateMailFolder(mailboxId, folder.id);
+      onCreated?.();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not create the folder.");
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form className="px-0.5 pt-1" onSubmit={(event) => void submit(event)}>
+      <input
+        ref={inputRef}
+        className="field"
+        value={name}
+        disabled={saving}
+        placeholder="Folder name"
+        aria-label="Folder name"
+        aria-invalid={error ? true : undefined}
+        onChange={(event) => {
+          setName(event.target.value);
+          if (error) setError(null);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            useMailStore.getState().setCreatingFolder(false);
+          }
+        }}
+      />
+      {error && <p className="mt-1 px-2.5 text-[12px] text-[var(--danger)]">{error}</p>}
+    </form>
   );
 }

@@ -3,9 +3,9 @@ import { eq } from "drizzle-orm";
 import { createDb } from "@/lib/db";
 import { mailboxes } from "@/lib/db/schema";
 import { describe, markSyncState, syncMailbox } from "@/lib/transport/imap";
-import { pushImapChanges } from "@/lib/transport/imap-push";
+import { createImapMailbox, pushImapChanges } from "@/lib/transport/imap-push";
 import { listFolders } from "@/lib/mail/mailboxes";
-import type { RemoteMailChange, RemoteMailResult } from "@/lib/transport/imap-remote";
+import type { CreateFolderResult, RemoteMailChange, RemoteMailResult } from "@/lib/transport/imap-remote";
 import type { MailboxEvent, SyncStatus } from "@/lib/mail/events";
 
 /** Poll cadence while at least one client is watching the mailbox. */
@@ -118,12 +118,42 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
   }
 
   /** Entry point used by the cron poke and by manual refreshes from the UI. */
-  async poke(options: { backfill?: boolean; mailboxId?: string } = {}): Promise<SyncStatus> {
+  async poke(
+    options: { backfill?: boolean; mailboxId?: string; folderId?: string } = {},
+  ): Promise<SyncStatus> {
     if (options.mailboxId) await this.rememberMailbox(options.mailboxId);
     else await this.load();
+    if (options.folderId) {
+      await this.runSync({
+        backfill: options.backfill ?? true,
+        folderId: options.folderId,
+      });
+      return this.status();
+    }
     this.kickSync({ backfill: options.backfill ?? false });
     await this.scheduleNextPoll();
     return this.status();
+  }
+
+  async createRemoteFolder(input: { mailboxId: string; name: string }): Promise<CreateFolderResult> {
+    await this.rememberMailbox(input.mailboxId);
+    const db = createDb(this.env.DB);
+    const rows = await db.select().from(mailboxes).where(eq(mailboxes.id, input.mailboxId)).limit(1);
+    const mailbox = rows[0];
+    if (!mailbox || mailbox.type !== "external_imap") {
+      return { ok: false, error: "This mailbox does not use IMAP folders." };
+    }
+
+    try {
+      const folder = await createImapMailbox(mailbox, this.env, db, input.name);
+      return {
+        ok: true,
+        folder: { id: folder.id, name: folder.name, role: "custom", unread: 0 },
+      };
+    } catch (error) {
+      console.error("imap create folder failed", { mailboxId: input.mailboxId, error: describe(error) });
+      return { ok: false, error: describe(error) };
+    }
   }
 
   /**
@@ -161,7 +191,11 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
     }
   }
 
-  private async runSync(options: { backfill: boolean; inboxOnly?: boolean }): Promise<void> {
+  private async runSync(options: {
+    backfill: boolean;
+    inboxOnly?: boolean;
+    folderId?: string;
+  }): Promise<void> {
     await this.load();
     const mailboxId = this.state.mailboxId;
     if (!mailboxId) {
@@ -172,7 +206,15 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
     const now = Date.now();
     // A killed isolate can persist a lock far in the future; never skip new mail for that.
     if (this.state.syncingUntil > now + SYNC_LOCK_MS) this.state.syncingUntil = 0;
-    if (this.state.syncingUntil > now) return;
+    if (options.folderId) {
+      const deadline = now + 8_000;
+      while (this.state.syncingUntil > Date.now() && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        await this.load();
+      }
+    } else if (this.state.syncingUntil > now) {
+      return;
+    }
 
     const db = createDb(this.env.DB);
     const rows = await db.select().from(mailboxes).where(eq(mailboxes.id, mailboxId)).limit(1);
@@ -182,7 +224,7 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
     this.state.syncingUntil = now + SYNC_LOCK_MS;
     this.state.lastState = "syncing";
     await this.persist();
-    if (!options.inboxOnly) {
+    if (!options.inboxOnly && !options.folderId) {
       this.broadcast({ type: "sync", state: "syncing" });
       await markSyncState(db, mailboxId, "syncing");
     }
@@ -194,7 +236,8 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
         {
           backfill: options.backfill,
           inboxOnly: options.inboxOnly,
-          maxFolders: options.inboxOnly ? 1 : 6,
+          folderId: options.folderId,
+          maxFolders: options.inboxOnly ? 1 : 12,
         },
       );
 
@@ -202,13 +245,15 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
       this.state.lastError = summary.errors[0] ?? null;
       this.state.lastSyncedAt = Math.floor(Date.now() / 1000);
 
-      if (!options.inboxOnly) {
+      if (!options.inboxOnly && !options.folderId) {
         await db
           .update(mailboxes)
           .set({ backfillComplete: summary.backfillComplete })
           .where(eq(mailboxes.id, mailboxId));
       }
-      await markSyncState(db, mailboxId, this.state.lastState, this.state.lastError ?? undefined);
+      if (!options.folderId) {
+        await markSyncState(db, mailboxId, this.state.lastState, this.state.lastError ?? undefined);
+      }
 
       if (!options.inboxOnly || summary.stored > 0 || this.state.lastState === "error") {
         this.broadcast({
@@ -229,7 +274,9 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
     } catch (error) {
       this.state.lastState = "error";
       this.state.lastError = describe(error);
-      await markSyncState(db, mailboxId, "error", this.state.lastError);
+      if (!options.folderId) {
+        await markSyncState(db, mailboxId, "error", this.state.lastError);
+      }
       this.broadcast({ type: "sync", state: "error", error: this.state.lastError });
     } finally {
       this.state.syncingUntil = 0;
@@ -238,7 +285,7 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
   }
 
   /** Fire-and-forget so RPC / WebSocket handlers are not pinned to IMAP I/O. */
-  private kickSync(options: { backfill: boolean; inboxOnly?: boolean }): void {
+  private kickSync(options: { backfill: boolean; inboxOnly?: boolean; folderId?: string }): void {
     this.ctx.waitUntil(
       this.runSync(options).catch((error) => {
         console.error("mailbox sync failed", { error: describe(error) });

@@ -4,7 +4,7 @@ import type { Database } from "@/lib/db";
 import { folders, mailboxes, messages } from "@/lib/db/schema";
 import { parseMime } from "@/lib/mail/mime";
 import { storeMessage } from "@/lib/mail/store";
-import { upsertRemoteFolder, folderByRole, type Folder, type Mailbox } from "@/lib/mail/mailboxes";
+import { upsertRemoteFolder, folderByRole, listFolders, type Folder, type Mailbox } from "@/lib/mail/mailboxes";
 import { imapAuth, type MailAuth } from "./credentials";
 import { openImap } from "./oauth-connect";
 import { imapUidSet } from "./imap-uid-set";
@@ -42,6 +42,8 @@ export type SyncOptions = {
   maxFolders?: number;
   /** Skip LIST and only check Inbox — used while a client is watching. */
   inboxOnly?: boolean;
+  /** Sync this folder only, including a backfill of its messages. */
+  folderId?: string;
 };
 
 export async function testImapConnection(
@@ -84,6 +86,22 @@ export async function syncMailbox(
         summary.folders = 1;
       } catch (error) {
         summary.errors.push(`Inbox: ${describe(error)}`);
+      }
+      return summary;
+    }
+
+    if (options.folderId) {
+      const folder = (await listFolders(deps.db, mailbox.id)).find(
+        (entry) => entry.id === options.folderId,
+      );
+      if (!folder) return summary;
+      try {
+        const result = await syncFolder(deps, session, mailbox, folder, options.backfill ?? true);
+        summary.stored = result.stored;
+        summary.scanned = result.scanned;
+        summary.folders = 1;
+      } catch (error) {
+        summary.errors.push(`${folder.name}: ${describe(error)}`);
       }
       return summary;
     }
@@ -295,7 +313,8 @@ function rank(folder: Folder): number {
   if (folder.role === "inbox") return 0;
   if (folder.role === "sent") return 1;
   if (folder.role === "archive") return 2;
-  return 3;
+  if (folder.lastUid == null) return 3;
+  return 4;
 }
 
 export async function markSyncState(

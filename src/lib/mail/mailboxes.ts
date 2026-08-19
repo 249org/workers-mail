@@ -119,10 +119,49 @@ export async function upsertRemoteFolder(
     uidValidity: null,
     lastUid: null,
     oldestUid: null,
-    position: role === "custom" ? 100 : 0,
+    position: role === "custom" ? await nextCustomPosition(db, mailboxId) : 0,
   };
   await db.insert(folders).values(folder);
   return folder;
+}
+
+export async function insertCustomFolder(
+  db: Database,
+  mailboxId: string,
+  name: string,
+  remotePath: string | null = null,
+): Promise<Folder> {
+  const existing = await listFolders(db, mailboxId);
+  if (existing.some((folder) => folder.name.toLowerCase() === name.toLowerCase())) {
+    throw new FolderExistsError(name);
+  }
+
+  const folder: Folder = {
+    id: newId("fld"),
+    mailboxId,
+    name,
+    role: "custom",
+    remotePath,
+    uidValidity: null,
+    lastUid: null,
+    oldestUid: null,
+    position: await nextCustomPosition(db, mailboxId),
+  };
+  await db.insert(folders).values(folder);
+  return folder;
+}
+
+export class FolderExistsError extends Error {
+  constructor(readonly folderName: string) {
+    super(`A folder named ${folderName} already exists.`);
+    this.name = "FolderExistsError";
+  }
+}
+
+async function nextCustomPosition(db: Database, mailboxId: string): Promise<number> {
+  const existing = await listFolders(db, mailboxId);
+  const highest = existing.reduce((max, folder) => Math.max(max, folder.position), 99);
+  return Math.max(100, highest + 1);
 }
 
 /** Strips credentials before a mailbox row crosses into the client bundle. */

@@ -1,6 +1,6 @@
 import type { CoreSocket } from "edgeport/core";
 import type { MailAuth } from "./credentials";
-import { imapQuote, parseCopyUid } from "./imap-uid-set";
+import { imapQuote, parseCopyUid, parseListMailbox } from "./imap-uid-set";
 import { connectImapSocket } from "./oauth-connect";
 
 const decoder = new TextDecoder();
@@ -57,6 +57,20 @@ export class ImapMutator {
     if (uids.length === 0) return;
     const op = add ? "+FLAGS.SILENT" : "-FLAGS.SILENT";
     await this.command(`UID STORE ${uids.join(",")} ${op} (${flags.join(" ")})`);
+  }
+
+  async createMailbox(name: string): Promise<void> {
+    await this.command(`CREATE ${imapQuote(name)}`);
+  }
+
+  async listMailboxes(): Promise<string[]> {
+    const result = await this.command('LIST "" "*"');
+    const names: string[] = [];
+    for (const line of result.untagged) {
+      const mailbox = parseListMailbox(line);
+      if (mailbox) names.push(mailbox);
+    }
+    return names;
   }
 
   async move(uids: number[], destination: string): Promise<Map<number, number>> {

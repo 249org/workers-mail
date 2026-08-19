@@ -312,6 +312,14 @@ button.field {
   text-decoration: none;
 }
 
+button.nav-row {
+  background: transparent;
+  border: 0;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
 .nav-row[data-compact="true"] {
   position: relative;
   justify-content: center;

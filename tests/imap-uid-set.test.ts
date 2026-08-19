@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { expandImapSet, imapQuote, imapUidSet, parseCopyUid } from "@/lib/transport/imap-uid-set";
+import { expandImapSet, imapQuote, imapUidSet, matchMailboxPath, parseCopyUid, parseListMailbox } from "@/lib/transport/imap-uid-set";
 
 describe("imapUidSet", () => {
   it("makes edgeport issue a UID range instead of a comma list", () => {
@@ -43,5 +43,25 @@ describe("parseCopyUid", () => {
     });
     expect(mapped.get(42)).toBe(1202);
     expect(mapped.get(44)).toBe(1204);
+  });
+});
+
+describe("parseListMailbox", () => {
+  it("reads quoted and unquoted LIST names", () => {
+    expect(parseListMailbox('* LIST (\\HasNoChildren) "/" "Projects"')).toBe("Projects");
+    expect(parseListMailbox('* LIST (\\HasNoChildren) "/" "Folder \\"A\\""')).toBe('Folder "A"');
+    expect(parseListMailbox('* LIST (\\HasNoChildren) "." INBOX.Receipts')).toBe("INBOX.Receipts");
+  });
+
+  it("ignores non-LIST lines", () => {
+    expect(parseListMailbox("* 12 EXISTS")).toBeNull();
+  });
+});
+
+describe("matchMailboxPath", () => {
+  it("prefers an exact path and falls back to the leaf", () => {
+    expect(matchMailboxPath(["INBOX", "Projects"], "projects")).toBe("Projects");
+    expect(matchMailboxPath(["INBOX", "INBOX.Receipts"], "Receipts")).toBe("INBOX.Receipts");
+    expect(matchMailboxPath(["INBOX"], "Projects")).toBeNull();
   });
 });

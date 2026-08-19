@@ -20,7 +20,8 @@ export type IconName =
   | "star"
   | "reply"
   | "replyAll"
-  | "forward";
+  | "forward"
+  | "plus";
 
 const PATHS: Record<IconName, ReactNode> = {
   inbox: (
@@ -140,6 +141,12 @@ const PATHS: Record<IconName, ReactNode> = {
     <>
       <path d="M15 14l5-5-5-5" />
       <path d="M20 9H10a6 6 0 0 0-6 6v1" />
+    </>
+  ),
+  plus: (
+    <>
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
     </>
   ),
 };

@@ -18,9 +18,20 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
     }
 
     const stub = env.MAILBOX.get(env.MAILBOX.idFromName(mailbox.id));
+    let folderId: string | undefined;
+    const contentType = request.headers.get("content-type") ?? "";
+    if (contentType.includes("application/json")) {
+      const body = (await request.json().catch(() => ({}))) as { folderId?: unknown };
+      if (typeof body.folderId === "string" && body.folderId) folderId = body.folderId;
+    }
+
     const status = await withTimeout(
-      stub.poke({ backfill: !mailbox.backfillComplete, mailboxId: mailbox.id }),
-      POKE_TIMEOUT_MS,
+      stub.poke({
+        backfill: !mailbox.backfillComplete || Boolean(folderId),
+        mailboxId: mailbox.id,
+        folderId,
+      }),
+      folderId ? 25_000 : POKE_TIMEOUT_MS,
     ).catch(() => ({ state: "syncing" as const, lastSyncedAt: null, lastError: null, connections: 0 }));
 
     return Response.json(status);

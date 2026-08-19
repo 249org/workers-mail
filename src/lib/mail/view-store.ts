@@ -84,6 +84,7 @@ type State = {
   syncing: boolean;
   syncError: string | null;
   lastSyncedAt: number | null;
+  creatingFolder: boolean;
 };
 
 type Actions = {
@@ -127,6 +128,9 @@ type Actions = {
   setSyncError: (error: string | null) => void;
   refreshFolders: () => Promise<void>;
   openFolder: (folderId: string) => void;
+  syncOpenFolder: () => Promise<void>;
+  setCreatingFolder: (creating: boolean) => void;
+  createFolder: (name: string) => Promise<FolderSummary>;
 };
 
 export const useMailStore = create<State & Actions>((set, get) => ({
@@ -144,6 +148,7 @@ export const useMailStore = create<State & Actions>((set, get) => ({
   syncing: false,
   syncError: null,
   lastSyncedAt: null,
+  creatingFolder: false,
 
   hydrate: (input) => {
     const current = get();
@@ -416,6 +421,46 @@ export const useMailStore = create<State & Actions>((set, get) => ({
       loading: !cached,
     });
     void get().fetchPage();
+  },
+
+  syncOpenFolder: async () => {
+    const { mailboxId, folderId, folders } = get();
+    const folder = folders.find((entry) => entry.id === folderId);
+    if (!mailboxId || !folder || folder.role !== "custom") return;
+
+    set({ syncing: true });
+    try {
+      await fetch(`/api/mailboxes/${mailboxId}/sync`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ folderId }),
+      });
+      await get().fetchPage();
+      await get().refreshFolders();
+    } finally {
+      set({ syncing: false });
+    }
+  },
+
+  setCreatingFolder: (creatingFolder) => set({ creatingFolder }),
+
+  createFolder: async (name) => {
+    const { mailboxId } = get();
+    const response = await fetch(`/api/mailboxes/${mailboxId}/folders`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    const payload = (await response.json()) as { folder?: FolderSummary; error?: string };
+    const folder = payload.folder;
+    if (!response.ok || !folder) {
+      throw new Error(payload.error ?? "Could not create the folder.");
+    }
+    set({
+      folders: [...get().folders.filter((entry) => entry.id !== folder.id), folder],
+      creatingFolder: false,
+    });
+    return folder;
   },
 
   refreshFolders: async () => {

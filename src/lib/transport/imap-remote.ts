@@ -13,6 +13,17 @@ export type RemoteMailResult =
   | { ok: true; uids: Array<[string, number | null]> }
   | { ok: false };
 
+export type CreatedFolder = {
+  id: string;
+  name: string;
+  role: "custom";
+  unread: number;
+};
+
+export type CreateFolderResult =
+  | { ok: true; folder: CreatedFolder }
+  | { ok: false; error: string };
+
 export async function applyRemoteMail(
   env: CloudflareEnv,
   mailboxId: string,
@@ -23,4 +34,15 @@ export async function applyRemoteMail(
   const result = (await stub.applyRemote({ mailboxId, refs, change })) as RemoteMailResult;
   if (!result.ok) throw new Error("imap apply failed");
   return new Map(result.uids);
+}
+
+export async function createRemoteFolder(
+  env: CloudflareEnv,
+  mailboxId: string,
+  name: string,
+): Promise<CreatedFolder> {
+  const stub = env.MAILBOX.get(env.MAILBOX.idFromName(mailboxId));
+  const result = (await stub.createRemoteFolder({ mailboxId, name })) as CreateFolderResult;
+  if (!result.ok) throw new Error(result.error);
+  return result.folder;
 }

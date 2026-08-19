@@ -31,6 +31,25 @@ export function imapQuote(value: string): string {
   return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
+/** Reads the mailbox name off an untagged LIST line. */
+export function parseListMailbox(line: string): string | null {
+  if (!/^\* LIST\b/i.test(line)) return null;
+  const quoted = /"((?:[^"\\]|\\.)*)"\s*$/.exec(line);
+  if (quoted?.[1] != null) return quoted[1].replace(/\\(.)/g, "$1");
+  const atom = /\s([^"\s]+)\s*$/.exec(line);
+  return atom?.[1] ?? null;
+}
+
+/** Picks the LIST path that matches a created folder name, including nested leaves. */
+export function matchMailboxPath(paths: string[], name: string): string | null {
+  const lower = name.toLowerCase();
+  const exact = paths.find((path) => path.toLowerCase() === lower);
+  if (exact) return exact;
+  return (
+    paths.find((path) => (path.split(/[/.]/).pop() ?? path).toLowerCase() === lower) ?? null
+  );
+}
+
 /** Reads RFC 4315 COPYUID from a tagged or untagged OK. */
 export function parseCopyUid(response: { text: string; untagged: string[] }): Map<number, number> {
   const blob = [response.text, ...response.untagged].join(" ");

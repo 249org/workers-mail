@@ -1,8 +1,9 @@
 import type { Database } from "@/lib/db";
-import type { Folder, Mailbox } from "@/lib/mail/mailboxes";
+import { upsertRemoteFolder, type Folder, type Mailbox } from "@/lib/mail/mailboxes";
 import { imapAuth } from "./credentials";
-import { ImapMutator } from "./imap-commands";
+import { ImapCommandError, ImapMutator } from "./imap-commands";
 import type { ImapMessageRef } from "./imap-remote";
+import { matchMailboxPath } from "./imap-uid-set";
 
 export type { ImapMessageRef };
 
@@ -78,6 +79,34 @@ export async function pushImapChanges(
       }
     }
     return nextUids;
+  } finally {
+    await session.close();
+  }
+}
+
+/** CREATE on the IMAP server, then persist the folder with the LIST path. */
+export async function createImapMailbox(
+  mailbox: Mailbox,
+  env: CloudflareEnv,
+  db: Database,
+  name: string,
+): Promise<Folder> {
+  const credentials = await imapAuth(mailbox, env, db);
+  const session = await ImapMutator.open(credentials);
+  let created = false;
+  try {
+    try {
+      await session.createMailbox(name);
+      created = true;
+    } catch (error) {
+      if (!(error instanceof ImapCommandError) || error.status !== "NO") throw error;
+    }
+    const paths = await session.listMailboxes();
+    const path = matchMailboxPath(paths, name) ?? (created ? name : null);
+    if (!path) {
+      throw new Error("The mail server did not accept that folder name.");
+    }
+    return await upsertRemoteFolder(db, mailbox.id, name, path, "custom");
   } finally {
     await session.close();
   }

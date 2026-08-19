@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { displayName } from "@/lib/mail/address";
 import type { MessageSummary } from "@/lib/mail/queries";
+import { partitionFolders } from "@/lib/mail/folder-name";
 import { navigateMailFolder, useMailStore, type FolderSummary } from "@/lib/mail/view-store";
 import { formatMessageDate } from "@/lib/format";
 import { toast } from "sonner";
@@ -243,6 +244,7 @@ function EmptyFolder({
 }) {
   const folder = folders.find((entry) => entry.id === folderId);
   const inbox = folders.find((entry) => entry.role === "inbox");
+  const syncing = useMailStore((state) => state.syncing);
   const copy =
     search.trim().length > 0
       ? "Nothing matched that search."
@@ -254,12 +256,14 @@ function EmptyFolder({
             ? "No sent mail."
             : folder?.role === "archive"
               ? "Archive is empty."
-              : "Nothing here yet.";
+              : folder?.role === "custom" && syncing
+                ? "Loading this folder…"
+                : "Nothing here yet.";
 
   return (
     <div className="px-6 py-10 text-center">
       <p className="text-[13px] text-[var(--ink-muted)]">{copy}</p>
-      {!search && folder?.role !== "inbox" && inbox && (
+      {!search && folder?.role !== "inbox" && inbox && !(folder?.role === "custom" && syncing) && (
         <button
           type="button"
           className="btn btn-ghost mt-4"
@@ -270,6 +274,14 @@ function EmptyFolder({
       )}
     </div>
   );
+}
+
+function undoLastAction(): boolean {
+  const did = useMailStore.getState().undo();
+  if (!did) return false;
+  toast.dismiss("mail-action");
+  toast("Undone");
+  return true;
 }
 
 function BulkBar({
@@ -285,10 +297,14 @@ function BulkBar({
   const markRead = useMailStore((state) => state.markRead);
   const trash = useMailStore((state) => state.trash);
   const deleteForever = useMailStore((state) => state.deleteForever);
+  const moveTo = useMailStore((state) => state.moveTo);
+  const folders = useMailStore((state) => state.folders);
+  const folderId = useMailStore((state) => state.folderId);
   const checked = useMailStore((state) => state.checked);
   const messages = useMailStore((state) => state.messages);
   const ids = [...checked];
   const allStarred = ids.length > 0 && ids.every((id) => messages.find((message) => message.id === id)?.flagged);
+  const destinations = partitionFolders(folders).custom.filter((folder) => folder.id !== folderId);
 
   return (
     <div className="relative z-10 flex shrink-0 items-center gap-2 border-b border-border bg-card px-3 py-1">
@@ -296,7 +312,7 @@ function BulkBar({
       <p className="text-[13px] text-[var(--ink-muted)]">
         {count} selected
       </p>
-      <div className="ml-auto flex items-center">
+      <div className="ml-auto flex items-center gap-1">
         <ChromeButton icon="seen" label="Mark read" onClick={() => markRead(ids, true)} />
         <ChromeButton icon="unseen" label="Mark unread" hint="U" onClick={() => markRead(ids, false)} />
         <ChromeButton
@@ -306,6 +322,31 @@ function BulkBar({
           pressed={allStarred}
           onClick={() => star(ids, !allStarred)}
         />
+        {destinations.length > 0 && !inTrash && (
+          <select
+            className="field !h-8 !w-auto max-w-[9rem] !px-2 text-[12px]"
+            value=""
+            aria-label="Move to folder"
+            onChange={(event) => {
+              const next = event.target.value;
+              const folder = destinations.find((entry) => entry.id === next);
+              if (!folder) return;
+              moveTo(ids, folder.id, `Moved to ${folder.name}`);
+              toast(`Moved to ${folder.name}`, {
+                id: "mail-action",
+                action: { label: "Undo", onClick: () => undoLastAction() },
+              });
+              void useMailStore.getState().refreshFolders();
+            }}
+          >
+            <option value="">Move to</option>
+            {destinations.map((folder) => (
+              <option key={folder.id} value={folder.id}>
+                {folder.name}
+              </option>
+            ))}
+          </select>
+        )}
         {inTrash ? (
           <button
             type="button"
