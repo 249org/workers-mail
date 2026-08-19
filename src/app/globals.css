@@ -1005,6 +1005,10 @@ html[data-scheme="dark"] .message-body[data-kind="plain"] {
   min-height: 0;
 }
 
+.palette-dismiss {
+  display: none;
+}
+
 @keyframes rise-in {
   from {
     opacity: 0;
@@ -2141,6 +2145,12 @@ html[data-palette="ink"] .login-scene {
 
   .palette-shell [cmdk-item] {
     min-height: 2.75rem;
+  }
+
+  .palette-dismiss {
+    display: inline-flex;
+    min-height: 2.75rem;
+    padding-inline: 0.9rem;
   }
 
   .frost-bar {

@@ -10,6 +10,7 @@ import type { PublicMailbox } from "@/lib/mail/mailboxes";
 import { navigateMailFolder, useMailStore } from "@/lib/mail/view-store";
 import { useHotkeys } from "@/lib/keyboard/use-hotkeys";
 import { formatMessageDate } from "@/lib/format";
+import { NARROW_MAIL, useMediaQuery } from "@/lib/use-media-query";
 
 export type PaletteCommand = {
   id: string;
@@ -55,8 +56,20 @@ export function CommandPalette({
   const [results, setResults] = useState<MessageSummary[]>([]);
   const [searching, setSearching] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const phone = useMediaQuery(NARROW_MAIL);
 
   useHotkeys("modal", { back: onClose }, open);
+
+  useEffect(() => {
+    if (!open || !phone) return;
+    window.history.pushState({ workersMailPalette: true }, "");
+    const onPop = () => onClose();
+    window.addEventListener("popstate", onPop);
+    return () => {
+      window.removeEventListener("popstate", onPop);
+      if (window.history.state?.workersMailPalette) window.history.back();
+    };
+  }, [open, phone, onClose]);
 
   useEffect(() => {
     if (open) setQuery(initialQuery);
@@ -177,7 +190,10 @@ export function CommandPalette({
             className="field min-w-0 flex-1"
           />
           {searching && <span className="shrink-0 text-[11px] text-[var(--ink-faint)]">…</span>}
-          <span className="kbd shrink-0">Esc</span>
+          <button type="button" className="palette-dismiss btn btn-ghost shrink-0" onClick={onClose}>
+            Close
+          </button>
+          <span className="kbd palette-esc shrink-0">Esc</span>
         </div>
 
         <Command.List className="scroll-thin min-h-0 flex-1 overflow-y-auto p-1.5">

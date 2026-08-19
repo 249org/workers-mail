@@ -18,6 +18,10 @@ import { TUTORIAL_EVERY_LOAD } from "@/lib/onboarding";
 
 let shownThisRuntime = false;
 
+function closePalette() {
+  usePaletteStore.getState().closePalette();
+}
+
 type Props = {
   mailboxes: PublicMailbox[];
 };
@@ -82,7 +86,7 @@ export function CommandCenter({ mailboxes }: Props) {
         mailbox={mailbox ?? mailboxes[0] ?? null}
         mailboxes={mailboxes}
         commands={commands}
-        onClose={() => usePaletteStore.getState().closePalette()}
+        onClose={closePalette}
       />
       <ShortcutHelp
         open={helpOpen && !tourOpen}
