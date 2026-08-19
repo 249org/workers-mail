@@ -1,9 +1,10 @@
 import type { Database } from "@/lib/db";
 import { upsertRemoteFolder, type Folder, type Mailbox } from "@/lib/mail/mailboxes";
 import { imapAuth } from "./credentials";
+import { folderCreateRejected } from "./imap-error";
 import { ImapCommandError, ImapMutator } from "./imap-commands";
 import type { ImapMessageRef } from "./imap-remote";
-import { matchMailboxPath } from "./imap-uid-set";
+import { createMailboxCandidates, matchMailboxPath } from "./imap-uid-set";
 
 export type { ImapMessageRef };
 
@@ -93,18 +94,38 @@ export async function createImapMailbox(
 ): Promise<Folder> {
   const credentials = await imapAuth(mailbox, env, db);
   const session = await ImapMutator.open(credentials);
-  let created = false;
   try {
-    try {
-      await session.createMailbox(name);
-      created = true;
-    } catch (error) {
-      if (!(error instanceof ImapCommandError) || error.status !== "NO") throw error;
+    const listing = await session.listMailboxListing();
+    const existing = matchMailboxPath(listing.paths, name);
+    if (existing) {
+      return await upsertRemoteFolder(db, mailbox.id, name, existing, "custom");
     }
-    const paths = await session.listMailboxes();
-    const path = matchMailboxPath(paths, name) ?? (created ? name : null);
+
+    const namespace =
+      (await session.personalNamespace()) ??
+      (listing.delimiter ? { prefix: "", delimiter: listing.delimiter } : null);
+    const candidates = createMailboxCandidates(name, namespace, listing.paths);
+    let createdPath: string | null = null;
+    let lastNo: string | undefined;
+    for (const candidate of candidates) {
+      try {
+        await session.createMailbox(candidate);
+        createdPath = candidate;
+        break;
+      } catch (error) {
+        if (!(error instanceof ImapCommandError) || error.status !== "NO") throw error;
+        lastNo = error.text;
+        if (/already exist/i.test(error.text)) {
+          createdPath = candidate;
+          break;
+        }
+      }
+    }
+
+    const paths = createdPath ? (await session.listMailboxListing()).paths : listing.paths;
+    const path = matchMailboxPath(paths, name) ?? createdPath;
     if (!path) {
-      throw new Error("The mail server did not accept that folder name.");
+      throw new Error(folderCreateRejected(lastNo));
     }
     return await upsertRemoteFolder(db, mailbox.id, name, path, "custom");
   } finally {

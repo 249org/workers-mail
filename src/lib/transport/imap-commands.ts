@@ -1,6 +1,13 @@
 import type { CoreSocket } from "edgeport/core";
 import type { MailAuth } from "./credentials";
-import { imapQuote, parseCopyUid, parseListMailbox } from "./imap-uid-set";
+import {
+  imapQuote,
+  parseCopyUid,
+  parseListDelimiter,
+  parseListMailbox,
+  parseNamespacePersonal,
+  type MailboxNamespace,
+} from "./imap-uid-set";
 import { connectImapSocket } from "./oauth-connect";
 
 const decoder = new TextDecoder();
@@ -64,13 +71,33 @@ export class ImapMutator {
   }
 
   async listMailboxes(): Promise<string[]> {
+    return (await this.listMailboxListing()).paths;
+  }
+
+  async listMailboxListing(): Promise<{ paths: string[]; delimiter: string | null }> {
     const result = await this.command('LIST "" "*"');
-    const names: string[] = [];
+    const paths: string[] = [];
+    let delimiter: string | null = null;
     for (const line of result.untagged) {
+      const delim = parseListDelimiter(line);
+      if (delim && delimiter == null) delimiter = delim;
       const mailbox = parseListMailbox(line);
-      if (mailbox) names.push(mailbox);
+      if (mailbox) paths.push(mailbox);
     }
-    return names;
+    return { paths, delimiter };
+  }
+
+  async personalNamespace(): Promise<MailboxNamespace | null> {
+    try {
+      const result = await this.command("NAMESPACE");
+      for (const line of result.untagged) {
+        const parsed = parseNamespacePersonal(line);
+        if (parsed) return parsed;
+      }
+    } catch {
+      return null;
+    }
+    return null;
   }
 
   async move(uids: number[], destination: string): Promise<Map<number, number>> {

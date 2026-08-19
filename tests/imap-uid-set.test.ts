@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { expandImapSet, imapQuote, imapUidSet, matchMailboxPath, parseCopyUid, parseListMailbox } from "@/lib/transport/imap-uid-set";
+import { folderCreateRejected } from "@/lib/transport/imap-error";
+import {
+  createMailboxCandidates,
+  expandImapSet,
+  imapQuote,
+  imapUidSet,
+  inferHierarchyDelimiter,
+  matchMailboxPath,
+  parseCopyUid,
+  parseListDelimiter,
+  parseListMailbox,
+  parseNamespacePersonal,
+} from "@/lib/transport/imap-uid-set";
 
 describe("imapUidSet", () => {
   it("makes edgeport issue a UID range instead of a comma list", () => {
@@ -53,8 +65,56 @@ describe("parseListMailbox", () => {
     expect(parseListMailbox('* LIST (\\HasNoChildren) "." INBOX.Receipts')).toBe("INBOX.Receipts");
   });
 
+  it("reads the hierarchy delimiter", () => {
+    expect(parseListDelimiter('* LIST (\\HasNoChildren) "." "INBOX.Spam"')).toBe(".");
+    expect(parseListDelimiter('* LIST (\\HasNoChildren) "/" "Projects"')).toBe("/");
+    expect(parseListDelimiter("* LIST (\\Noselect) NIL INBOX")).toBeNull();
+  });
+
   it("ignores non-LIST lines", () => {
     expect(parseListMailbox("* 12 EXISTS")).toBeNull();
+  });
+});
+
+describe("parseNamespacePersonal", () => {
+  it("reads Courier/one.com and Gmail personal namespaces", () => {
+    expect(parseNamespacePersonal('* NAMESPACE (("INBOX." ".")) NIL NIL')).toEqual({
+      prefix: "INBOX.",
+      delimiter: ".",
+    });
+    expect(parseNamespacePersonal('* NAMESPACE (("" "/")) NIL NIL')).toEqual({
+      prefix: "",
+      delimiter: "/",
+    });
+    expect(parseNamespacePersonal("* NAMESPACE NIL NIL NIL")).toBeNull();
+  });
+});
+
+describe("createMailboxCandidates", () => {
+  it("tries the leaf then INBOX.child on Courier-style hosts", () => {
+    expect(
+      createMailboxCandidates("others", { prefix: "INBOX.", delimiter: "." }, ["INBOX", "INBOX.Spam"]),
+    ).toEqual(["others", "INBOX.others"]);
+  });
+
+  it("keeps a top-level name first for Gmail", () => {
+    expect(createMailboxCandidates("Projects", { prefix: "", delimiter: "/" }, ["INBOX", "[Gmail]/Trash"])).toEqual([
+      "Projects",
+      "INBOX/Projects",
+    ]);
+  });
+
+  it("infers a dot delimiter from INBOX.Spam when NAMESPACE is missing", () => {
+    expect(inferHierarchyDelimiter(["INBOX", "INBOX.Spam"])).toBe(".");
+    expect(createMailboxCandidates("others", null, ["INBOX", "INBOX.Spam"])).toEqual(["others", "INBOX.others"]);
+  });
+});
+
+describe("folderCreateRejected", () => {
+  it("keeps a short server phrase", () => {
+    expect(folderCreateRejected("[CANNOT] Invalid mailbox name.")).toBe(
+      "The mail server rejected that folder (Invalid mailbox name.).",
+    );
   });
 });
 

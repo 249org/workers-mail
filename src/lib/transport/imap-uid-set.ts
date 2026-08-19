@@ -40,6 +40,69 @@ export function parseListMailbox(line: string): string | null {
   return atom?.[1] ?? null;
 }
 
+/** Hierarchy delimiter from `* LIST (flags) delim mailbox`. NIL means flat. */
+export function parseListDelimiter(line: string): string | null {
+  if (!/^\* LIST\b/i.test(line)) return null;
+  const match = /^\* LIST \([^)]*\) (NIL|"((?:[^"\\]|\\.)*)")/i.exec(line);
+  if (!match || match[1]?.toUpperCase() === "NIL") return null;
+  return match[2] ?? null;
+}
+
+export type MailboxNamespace = {
+  prefix: string;
+  delimiter: string;
+};
+
+/**
+ * Personal namespace from `* NAMESPACE (("INBOX." ".")) NIL NIL`.
+ * Empty prefix + "/" is Gmail; "INBOX." + "." is Courier/one.com.
+ */
+export function parseNamespacePersonal(line: string): MailboxNamespace | null {
+  if (!/^\* NAMESPACE\b/i.test(line)) return null;
+  const rest = line.replace(/^\* NAMESPACE\s+/i, "");
+  if (/^NIL\b/i.test(rest)) return null;
+  const match = /^\(\("((?:[^"\\]|\\.)*)" (NIL|"((?:[^"\\]|\\.)*)")/i.exec(rest);
+  if (!match) return null;
+  const prefix = (match[1] ?? "").replace(/\\(.)/g, "$1");
+  if (match[2]?.toUpperCase() === "NIL") return { prefix, delimiter: "" };
+  return { prefix, delimiter: (match[3] ?? "").replace(/\\(.)/g, "$1") };
+}
+
+/** Infers `.` vs `/` from existing LIST paths when NAMESPACE is missing. */
+export function inferHierarchyDelimiter(paths: string[]): string | null {
+  if (paths.some((path) => /^inbox\./i.test(path))) return ".";
+  if (paths.some((path) => path.includes("/"))) return "/";
+  if (paths.some((path) => path.includes(".") && path.toUpperCase() !== "INBOX")) return ".";
+  return null;
+}
+
+/**
+ * CREATE targets: the leaf name first (Gmail), then the personal-namespace
+ * child (Courier/one.com only allow INBOX.others, not a top-level others).
+ */
+export function createMailboxCandidates(
+  name: string,
+  namespace: MailboxNamespace | null,
+  existingPaths: string[] = [],
+): string[] {
+  const out: string[] = [];
+  const add = (path: string) => {
+    if (path && !out.includes(path)) out.push(path);
+  };
+
+  add(name);
+  if (namespace?.prefix) add(`${namespace.prefix}${name}`);
+
+  const delimiter = namespace?.delimiter || inferHierarchyDelimiter(existingPaths);
+  if (delimiter) {
+    add(`INBOX${delimiter}${name}`);
+  } else if (!namespace?.prefix) {
+    add(`INBOX.${name}`);
+    add(`INBOX/${name}`);
+  }
+  return out;
+}
+
 /** Picks the LIST path that matches a created folder name, including nested leaves. */
 export function matchMailboxPath(paths: string[], name: string): string | null {
   const lower = name.toLowerCase();
