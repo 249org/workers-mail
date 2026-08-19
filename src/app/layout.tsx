@@ -8,6 +8,7 @@ import {
 } from "@/lib/appearance";
 import { JsonLd } from "@/components/json-ld";
 import { appOrigin, siteJsonLd, siteMetadata } from "@/lib/seo";
+import { Providers } from "@/components/ui/providers";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -65,7 +66,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           FORM: Brief-pinned Meridian, Operate mode. Seed: operator-pinned.
           FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md
         */}
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

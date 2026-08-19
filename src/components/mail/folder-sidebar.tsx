@@ -10,9 +10,11 @@ import { describeImapError } from "@/lib/transport/imap-error";
 import { primaryCombo } from "@/lib/keyboard/bindings";
 import { formatComboHint, type ShortcutAction } from "@/lib/keyboard/shortcuts";
 import { useShortcutStore } from "@/lib/keyboard/store";
+import { toast } from "sonner";
 import { ChromeButton } from "./chrome-button";
 import { folderIconName, MailIcon } from "./icons";
 import { useIsMac } from "./key-caps";
+import { useContextMenu } from "@/components/ui/context-menu";
 import type { StreamState } from "./use-mail-stream";
 
 const JUMP_HINT: Record<string, ShortcutAction> = {
@@ -284,6 +286,57 @@ function FolderLink({
   const unread = folder.unread > 0 ? (folder.unread > 99 ? "99+" : String(folder.unread)) : null;
   const jump = JUMP_HINT[folder.role];
   const tip = collapsed ? (jump ? labeled(folder.name, jump) : folder.name) : undefined;
+  const isCustom = folder.role === "custom";
+  const [renaming, setRenaming] = useState(false);
+  const { trigger } = useContextMenu();
+
+  const menuItems = [
+    { type: "label" as const, label: folder.name },
+    {
+      type: "item" as const,
+      label: "Open folder",
+      onSelect: () => { navigateMailFolder(mailboxId, folder.id); onNavigate?.(); },
+    },
+    { type: "separator" as const },
+    ...(isCustom
+      ? [
+          {
+            type: "item" as const,
+            label: "Rename",
+            onSelect: () => setRenaming(true),
+          },
+          {
+            type: "item" as const,
+            label: "Delete folder",
+            danger: true,
+            onSelect: async () => {
+              try {
+                await useMailStore.getState().deleteFolder(folder.id);
+                toast(`"${folder.name}" deleted`);
+              } catch (error) {
+                toast.error(error instanceof Error ? error.message : "Could not delete folder");
+              }
+            },
+          },
+          { type: "separator" as const },
+        ]
+      : []),
+    {
+      type: "item" as const,
+      label: "Copy folder name",
+      onSelect: () => { void navigator.clipboard.writeText(folder.name); toast("Copied"); },
+    },
+  ];
+
+  if (renaming) {
+    return (
+      <RenameFolderForm
+        folder={folder}
+        mailboxId={mailboxId}
+        onDone={() => setRenaming(false)}
+      />
+    );
+  }
 
   return (
     <Link
@@ -293,6 +346,7 @@ function FolderLink({
       data-compact={collapsed ? "true" : undefined}
       data-tip={tip}
       aria-label={unread ? `${folder.name}, ${folder.unread} unread` : folder.name}
+      onContextMenu={trigger(menuItems)}
       onClick={(event) => {
         if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
         event.preventDefault();
@@ -306,6 +360,55 @@ function FolderLink({
       </span>
       {unread && <span className="folder-count">{unread}</span>}
     </Link>
+  );
+}
+
+function RenameFolderForm({
+  folder,
+  mailboxId,
+  onDone,
+}: {
+  folder: FolderSummary;
+  mailboxId: string;
+  onDone: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [name, setName] = useState(folder.name);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    inputRef.current?.select();
+  }, []);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const parsed = parseFolderName(name);
+    if (!parsed.ok) { setError(parsed.error); return; }
+    setSaving(true);
+    try {
+      await useMailStore.getState().renameFolder(folder.id, parsed.name);
+      toast(`Renamed to "${parsed.name}"`);
+      onDone();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not rename.");
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form className="px-0.5 pt-0.5 pb-1" onSubmit={(e) => void submit(e)}>
+      <input
+        ref={inputRef}
+        className="field !h-8"
+        value={name}
+        disabled={saving}
+        aria-label="Rename folder"
+        onChange={(e) => { setName(e.target.value); if (error) setError(null); }}
+        onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); onDone(); } }}
+      />
+      {error && <p className="mt-1 px-2 text-[12px] text-[var(--danger)]">{error}</p>}
+    </form>
   );
 }
 

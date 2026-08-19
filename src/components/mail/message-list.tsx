@@ -8,6 +8,7 @@ import { navigateMailFolder, useMailStore, type FolderSummary } from "@/lib/mail
 import { formatMessageDate } from "@/lib/format";
 import { toast } from "sonner";
 import { ChromeButton } from "./chrome-button";
+import { useContextMenu } from "@/components/ui/context-menu";
 
 type Props = {
   onOpenSearch: () => void;
@@ -152,6 +153,65 @@ function Row({
   onToggle: () => void;
   onHover: () => void;
 }) {
+  const { trigger } = useContextMenu();
+  const store = useMailStore.getState();
+  const folders = useMailStore((state) => state.folders);
+  const { system, custom } = partitionFolders(folders);
+  const inTrash = folders.find((f) => f.id === message.folderId)?.role === "trash";
+
+  const moveFolders = [...system.filter((f) => f.role !== "inbox"), ...custom].filter(
+    (f) => f.id !== message.folderId,
+  );
+
+  const menuItems = [
+    {
+      type: "item" as const,
+      label: message.seen ? "Mark as unread" : "Mark as read",
+      onSelect: () => store.markRead([message.id], !message.seen),
+    },
+    {
+      type: "item" as const,
+      label: message.flagged ? "Unstar" : "Star",
+      onSelect: () => store.star([message.id], !message.flagged),
+    },
+    { type: "separator" as const },
+    ...(moveFolders.length > 0
+      ? [
+          { type: "label" as const, label: "Move to" },
+          ...moveFolders.slice(0, 8).map((folder) => ({
+            type: "item" as const,
+            label: folder.name,
+            onSelect: () => store.moveTo([message.id], folder.id, `Moved to ${folder.name}`),
+          })),
+          { type: "separator" as const },
+        ]
+      : []),
+    {
+      type: "item" as const,
+      label: inTrash ? "Delete forever" : "Move to trash",
+      danger: true,
+      onSelect: () => {
+        if (inTrash) {
+          store.deleteForever([message.id]);
+          toast("Deleted forever");
+        } else {
+          store.trash([message.id]);
+        }
+      },
+    },
+    { type: "separator" as const },
+    {
+      type: "item" as const,
+      label: "Copy subject",
+      onSelect: () => { void navigator.clipboard.writeText(message.subject ?? ""); toast("Copied"); },
+    },
+    {
+      type: "item" as const,
+      label: "Select",
+      onSelect: () => onToggle(),
+    },
+  ];
+
   return (
     <li>
       {/*
@@ -165,6 +225,7 @@ function Row({
         tabIndex={-1}
         onClick={onSelect}
         onMouseEnter={onHover}
+        onContextMenu={trigger(menuItems)}
         className="flex cursor-pointer gap-2.5 border-b border-border px-3 py-2.5 md:py-2"
         style={{
           background: active ? "var(--accent-subtle)" : "transparent",

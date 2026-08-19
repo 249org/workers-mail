@@ -8,6 +8,7 @@ import { usePrivacyStore } from "@/lib/privacy-store";
 import { formatBytes, formatFullDate } from "@/lib/format";
 import { toast } from "sonner";
 import { ChromeButton } from "./chrome-button";
+import { useContextMenu } from "@/components/ui/context-menu";
 import { PersonAvatar } from "../person-avatar";
 
 type Props = {
@@ -67,8 +68,58 @@ export function MessageView({ messageId, onReply, listHidden, onToggleList }: Pr
   const files = detail.attachments.filter((file) => !file.inline && !file.contentId);
   const sentAt = new Date(detail.sentAt * 1000);
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const { trigger: readerTrigger } = useContextMenu();
+  const readerMenuItems = [
+    {
+      type: "item" as const,
+      label: "Reply",
+      onSelect: () => onReply("reply"),
+    },
+    {
+      type: "item" as const,
+      label: "Reply all",
+      onSelect: () => onReply("replyAll"),
+    },
+    {
+      type: "item" as const,
+      label: "Forward",
+      onSelect: () => onReply("forward"),
+    },
+    { type: "separator" as const },
+    {
+      type: "item" as const,
+      label: detail.flagged ? "Unstar" : "Star",
+      onSelect: () => star([detail.id], !detail.flagged),
+    },
+    {
+      type: "item" as const,
+      label: inTrash ? "Delete forever" : "Move to trash",
+      danger: true,
+      onSelect: () => {
+        if (inTrash) {
+          deleteForever([detail.id]);
+          toast("Deleted forever");
+        } else {
+          trash([detail.id]);
+        }
+      },
+    },
+    { type: "separator" as const },
+    {
+      type: "item" as const,
+      label: "Copy subject",
+      onSelect: () => { void navigator.clipboard.writeText(detail.subject ?? ""); toast("Copied"); },
+    },
+    {
+      type: "item" as const,
+      label: "Copy sender address",
+      onSelect: () => { void navigator.clipboard.writeText(detail.from.address); toast("Copied"); },
+    },
+  ];
+
   return (
-    <section className="mail-reader flex min-w-0 flex-1 flex-col bg-card">
+    <section className="mail-reader flex min-w-0 flex-1 flex-col bg-card" onContextMenu={readerTrigger(readerMenuItems)}>
       <header className="z-[21] shrink-0 border-b border-border bg-card">
         <div className="pane-toolbar" data-wide={listHidden ? "" : undefined}>
           <ChromeButton

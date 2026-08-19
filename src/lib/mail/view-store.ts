@@ -131,6 +131,8 @@ type Actions = {
   syncOpenFolder: () => Promise<void>;
   setCreatingFolder: (creating: boolean) => void;
   createFolder: (name: string) => Promise<FolderSummary>;
+  renameFolder: (folderId: string, name: string) => Promise<void>;
+  deleteFolder: (folderId: string) => Promise<void>;
 };
 
 export const useMailStore = create<State & Actions>((set, get) => ({
@@ -461,6 +463,38 @@ export const useMailStore = create<State & Actions>((set, get) => ({
       creatingFolder: false,
     });
     return folder;
+  },
+
+  renameFolder: async (folderId, name) => {
+    const { mailboxId, folders } = get();
+    const response = await fetch(`/api/mailboxes/${mailboxId}/folders/${folderId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    const payload = (await response.json()) as { folder?: FolderSummary; error?: string };
+    if (!response.ok || !payload.folder) {
+      throw new Error(payload.error ?? "Could not rename the folder.");
+    }
+    set({ folders: folders.map((f) => (f.id === folderId ? { ...f, name } : f)) });
+  },
+
+  deleteFolder: async (folderId) => {
+    const { mailboxId, folders: currentFolders, folderId: currentFolderId } = get();
+    const response = await fetch(`/api/mailboxes/${mailboxId}/folders/${folderId}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      throw new Error(payload.error ?? "Could not delete the folder.");
+    }
+    const nextFolders = currentFolders.filter((f) => f.id !== folderId);
+    set({ folders: nextFolders });
+    // If we deleted the active folder, navigate to inbox
+    if (currentFolderId === folderId) {
+      const inbox = nextFolders.find((f) => f.role === "inbox");
+      if (inbox) navigateMailFolder(mailboxId, inbox.id);
+    }
   },
 
   refreshFolders: async () => {
