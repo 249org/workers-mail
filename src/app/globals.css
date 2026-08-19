@@ -993,6 +993,18 @@ html[data-scheme="dark"] .message-body[data-kind="plain"] {
   animation: none !important;
 }
 
+.palette-shell {
+  align-items: flex-start;
+  justify-content: center;
+  padding: 12vh 1rem 0;
+}
+
+.palette-shell .panel {
+  max-width: 36rem;
+  max-height: 70vh;
+  min-height: 0;
+}
+
 @keyframes rise-in {
   from {
     opacity: 0;
@@ -1715,41 +1727,6 @@ html[data-palette="ink"] .tour-mark-well {
 }
 
 @media (max-width: 639px) {
-  .settings-shell {
-    flex-direction: column;
-  }
-
-  .settings-index {
-    width: auto;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 0.75rem;
-    overflow-x: auto;
-    border-right: 0;
-    border-bottom: 1px solid var(--border);
-    padding: 0.5rem 0.75rem;
-  }
-
-  .settings-index-group {
-    display: contents;
-  }
-
-  .settings-index-group .label {
-    display: none;
-  }
-
-  .settings-index-item {
-    width: auto;
-    flex-direction: row;
-    align-items: center;
-    gap: 0.4rem;
-    white-space: nowrap;
-  }
-
-  .settings-index-hint {
-    display: none;
-  }
-
   .settings-spread-head,
   .settings-prose {
     padding-inline: 1rem;
@@ -2139,7 +2116,8 @@ html[data-palette="ink"] .login-scene {
   }
 
   .mail-sidebar .kbd,
-  .pane-toolbar .kbd {
+  .pane-toolbar .kbd,
+  .palette-shell .kbd {
     display: none;
   }
 
@@ -2148,7 +2126,7 @@ html[data-palette="ink"] .login-scene {
   }
 
   .palette-shell {
-    padding: 0;
+    padding: env(safe-area-inset-top) 0 0;
     align-items: stretch;
     justify-content: stretch;
   }
@@ -2158,14 +2136,64 @@ html[data-palette="ink"] .login-scene {
     max-height: none;
     height: 100%;
     border-radius: 0;
+    box-shadow: none;
+  }
+
+  .palette-shell [cmdk-item] {
+    min-height: 2.75rem;
   }
 
   .frost-bar {
     padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
   }
 
+  .settings-shell {
+    flex-direction: column;
+  }
+
+  .settings-index {
+    width: auto;
+    flex-shrink: 0;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 0.15rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+    padding: 0.4rem 0.75rem;
+    padding-left: max(0.75rem, env(safe-area-inset-left));
+    padding-right: max(0.75rem, env(safe-area-inset-right));
+  }
+
+  .settings-index::-webkit-scrollbar {
+    display: none;
+  }
+
+  .settings-index-group {
+    display: contents;
+  }
+
+  .settings-index-group .label {
+    display: none;
+  }
+
   .settings-index-item {
-    min-height: 2.5rem;
+    flex: 0 0 auto;
+    width: auto;
+    min-height: 2.75rem;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 0.8rem;
+    white-space: nowrap;
+  }
+
+  .settings-index-hint {
+    display: none;
   }
 }
 

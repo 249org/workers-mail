@@ -149,7 +149,7 @@ export function CommandPalette({
 
   return (
     <div
-      className="palette-instant palette-shell fixed inset-0 z-50 flex items-start justify-center px-4 pt-[12vh]"
+      className="palette-instant palette-shell fixed inset-0 z-50 flex"
       role="dialog"
       aria-modal="true"
       aria-label="Command palette"
@@ -165,7 +165,7 @@ export function CommandPalette({
       <Command
         label="Command palette"
         shouldFilter={false}
-        className="panel relative flex max-h-[70vh] w-full max-w-xl flex-col overflow-hidden"
+        className="panel relative flex w-full flex-col overflow-hidden"
         style={{ boxShadow: "var(--shadow-pop)" }}
       >
         <div className="flex items-center gap-2 border-b border-[var(--border)] p-2.5">

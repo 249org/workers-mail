@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 
 export const SETTINGS_PAGES = [
@@ -107,9 +108,16 @@ export type SettingsIndex = {
 export function SettingsNav({ index, view }: { index: SettingsIndex; view?: string }) {
   const pathname = usePathname();
   const current = view ?? pathname;
+  const rail = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    rail.current
+      ?.querySelector<HTMLElement>("[data-active=true]")
+      ?.scrollIntoView({ inline: "center", block: "nearest", behavior: "instant" });
+  }, [current]);
 
   return (
-    <nav className="settings-index" aria-label="Settings">
+    <nav ref={rail} className="settings-index" aria-label="Settings">
       {NAV_GROUPS.map((group) => (
         <div key={group.label} className="settings-index-group">
           <p className="label px-2.5 pb-1">{group.label}</p>
