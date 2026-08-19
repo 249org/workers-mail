@@ -11,7 +11,8 @@ export default async function SecurityPage() {
   return (
     <>
       <PageHeader title="Security">
-        Password, two-factor authentication, and the browsers signed in to this workspace.
+        Your name and photo, password, two-factor authentication, and the browsers signed in to this
+        workspace.
       </PageHeader>
       <SettingsBody flush>
         <SecurityPanel />

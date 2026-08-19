@@ -9,9 +9,10 @@ type Props = {
   name: string | null;
   mailboxes: PublicMailbox[];
   context: "mail" | "settings";
+  avatarUpdatedAt?: number | null;
 };
 
-export function AppHeader({ email, name, mailboxes, context }: Props) {
+export function AppHeader({ email, name, mailboxes, context, avatarUpdatedAt }: Props) {
   return (
     <header className="app-chrome flex shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-4 py-3 md:gap-4 md:px-8">
       <div className="flex min-w-0 items-center gap-3">
@@ -40,7 +41,12 @@ export function AppHeader({ email, name, mailboxes, context }: Props) {
           </Link>
         )}
         <CommandCenter mailboxes={mailboxes} />
-        <AccountMenu email={email} name={name} mailboxes={mailboxes} />
+        <AccountMenu
+          email={email}
+          name={name}
+          mailboxes={mailboxes}
+          avatarUpdatedAt={avatarUpdatedAt}
+        />
       </div>
     </header>
   );

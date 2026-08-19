@@ -73,6 +73,7 @@ export default async function SettingsLayout({ children }: { children: React.Rea
         name={user.name}
         mailboxes={mailboxes.map(publicMailbox)}
         context="settings"
+        avatarUpdatedAt={user.avatarUpdatedAt}
       />
 
       <SettingsRuntime index={index}>{children}</SettingsRuntime>

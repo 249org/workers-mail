@@ -5,6 +5,8 @@ export type OutboundAttachment = {
   filename: string;
   mimeType: string;
   content: Uint8Array;
+  contentId?: string;
+  inline?: boolean;
 };
 
 export type OutboundMessage = {
@@ -25,9 +27,12 @@ export type OutboundMessage = {
 const CRLF = "\r\n";
 
 export function buildRawMessage(message: OutboundMessage): string {
-  const boundaryMixed = `mixed_${randomBoundary()}`;
-  const boundaryAlt = `alt_${randomBoundary()}`;
   const attachments = message.attachments ?? [];
+  const inline = attachments.filter((item) => item.inline && item.contentId);
+  const files = attachments.filter((item) => !item.inline);
+  const boundaryMixed = `mixed_${randomBoundary()}`;
+  const boundaryRelated = `rel_${randomBoundary()}`;
+  const boundaryAlt = `alt_${randomBoundary()}`;
 
   const headers: string[] = [
     `From: ${formatAddress(message.from)}`,
@@ -43,29 +48,77 @@ export function buildRawMessage(message: OutboundMessage): string {
   }
   headers.push("MIME-Version: 1.0");
 
-  const body = attachments.length
-    ? multipartMixed(message, boundaryMixed, boundaryAlt, attachments)
-    : bodyPart(message, boundaryAlt);
-
+  const stack = bodyStack(message, boundaryAlt, boundaryRelated, inline);
+  const body = files.length > 0 ? wrapMixed(stack, files, boundaryMixed) : stack.body;
   headers.push(
-    attachments.length
-      ? `Content-Type: multipart/mixed; boundary="${boundaryMixed}"`
-      : contentTypeForBody(message, boundaryAlt),
+    files.length > 0 ? `Content-Type: multipart/mixed; boundary="${boundaryMixed}"` : stack.contentType,
   );
 
   return `${headers.join(CRLF)}${CRLF}${CRLF}${body}`;
 }
 
-function contentTypeForBody(message: OutboundMessage, boundaryAlt: string): string {
-  if (message.html) return `Content-Type: multipart/alternative; boundary="${boundaryAlt}"`;
-  return 'Content-Type: text/plain; charset="utf-8"';
+function bodyStack(
+  message: OutboundMessage,
+  boundaryAlt: string,
+  boundaryRelated: string,
+  inline: OutboundAttachment[],
+): { contentType: string; body: string } {
+  const alternative = Boolean(message.html);
+  const innerType = alternative
+    ? `multipart/alternative; boundary="${boundaryAlt}"`
+    : 'text/plain; charset="utf-8"';
+  const innerBody = alternative
+    ? alternativeBody(message, boundaryAlt)
+    : `Content-Transfer-Encoding: base64${CRLF}${CRLF}${base64Lines(encodeText(message.text))}`;
+
+  if (inline.length === 0) {
+    return {
+      contentType: alternative
+        ? `Content-Type: multipart/alternative; boundary="${boundaryAlt}"`
+        : 'Content-Type: text/plain; charset="utf-8"',
+      body: alternative ? alternativeBody(message, boundaryAlt) : innerBody,
+    };
+  }
+
+  const start = alternative
+    ? [`--${boundaryRelated}`, `Content-Type: ${innerType}`, "", innerBody].join(CRLF)
+    : [`--${boundaryRelated}`, `Content-Type: ${innerType}`, innerBody].join(CRLF);
+  const parts = [start, ...inline.map((item) => inlinePart(boundaryRelated, item))];
+  return {
+    contentType: `Content-Type: multipart/related; type="${innerType.split(";")[0]}"; boundary="${boundaryRelated}"`,
+    body: `${parts.join(CRLF)}${CRLF}--${boundaryRelated}--${CRLF}`,
+  };
 }
 
-function bodyPart(message: OutboundMessage, boundaryAlt: string): string {
-  if (!message.html) {
-    return `Content-Transfer-Encoding: base64${CRLF}${CRLF}${base64Lines(encodeText(message.text))}`;
-  }
-  return alternativeBody(message, boundaryAlt);
+function wrapMixed(
+  stack: { contentType: string; body: string },
+  files: OutboundAttachment[],
+  boundary: string,
+): string {
+  const inner = [`--${boundary}`, stack.contentType, "", stack.body].join(CRLF);
+  const attached = files.map((file) =>
+    [
+      `--${boundary}`,
+      `Content-Type: ${file.mimeType}; name="${sanitizeFilename(file.filename)}"`,
+      "Content-Transfer-Encoding: base64",
+      `Content-Disposition: attachment; filename="${sanitizeFilename(file.filename)}"`,
+      "",
+      base64Lines(file.content),
+    ].join(CRLF),
+  );
+  return `${[inner, ...attached].join(CRLF)}${CRLF}--${boundary}--${CRLF}`;
+}
+
+function inlinePart(boundary: string, attachment: OutboundAttachment): string {
+  return [
+    `--${boundary}`,
+    `Content-Type: ${attachment.mimeType}; name="${sanitizeFilename(attachment.filename)}"`,
+    "Content-Transfer-Encoding: base64",
+    `Content-Disposition: inline; filename="${sanitizeFilename(attachment.filename)}"`,
+    `Content-ID: <${attachment.contentId}>`,
+    "",
+    base64Lines(attachment.content),
+  ].join(CRLF);
 }
 
 function alternativeBody(message: OutboundMessage, boundary: string): string {
@@ -86,41 +139,6 @@ function alternativeBody(message: OutboundMessage, boundary: string): string {
     ].join(CRLF),
   ];
   return `${parts.join(CRLF)}${CRLF}--${boundary}--${CRLF}`;
-}
-
-function multipartMixed(
-  message: OutboundMessage,
-  boundaryMixed: string,
-  boundaryAlt: string,
-  attachments: OutboundAttachment[],
-): string {
-  const inner = message.html
-    ? [
-        `--${boundaryMixed}`,
-        `Content-Type: multipart/alternative; boundary="${boundaryAlt}"`,
-        "",
-        alternativeBody(message, boundaryAlt),
-      ].join(CRLF)
-    : [
-        `--${boundaryMixed}`,
-        'Content-Type: text/plain; charset="utf-8"',
-        "Content-Transfer-Encoding: base64",
-        "",
-        base64Lines(encodeText(message.text)),
-      ].join(CRLF);
-
-  const files = attachments.map((attachment) =>
-    [
-      `--${boundaryMixed}`,
-      `Content-Type: ${attachment.mimeType}; name="${sanitizeFilename(attachment.filename)}"`,
-      "Content-Transfer-Encoding: base64",
-      `Content-Disposition: attachment; filename="${sanitizeFilename(attachment.filename)}"`,
-      "",
-      base64Lines(attachment.content),
-    ].join(CRLF),
-  );
-
-  return `${[inner, ...files].join(CRLF)}${CRLF}--${boundaryMixed}--${CRLF}`;
 }
 
 export function generateMessageId(domain: string): string {

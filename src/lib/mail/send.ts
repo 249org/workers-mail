@@ -1,7 +1,7 @@
 import { EmailMessage } from "cloudflare:email";
 import { eq } from "drizzle-orm";
 import type { Database } from "@/lib/db";
-import { deliveryLog, messages, type Addr } from "@/lib/db/schema";
+import { deliveryLog, messages, users, type Addr } from "@/lib/db/schema";
 import { newId } from "@/lib/ids";
 import { buildRawMessage, generateMessageId, type OutboundAttachment } from "./build";
 import { domainOf, normalizeAddress } from "./address";
@@ -11,6 +11,8 @@ import { canSendAs } from "./routing";
 import { storeMessage } from "./store";
 import { smtpAuth } from "@/lib/transport/credentials";
 import { sendViaSmtp } from "@/lib/transport/smtp";
+import { plainTextToHtml } from "./sanitize";
+import { PROFILE_PHOTO_CID, wrapOutboundHtml } from "./profile-photo";
 
 export class SendError extends Error {
   constructor(message: string) {
@@ -73,6 +75,7 @@ export async function sendMessage(
     : { address: mailbox.address };
 
   const messageId = generateMessageId(domainOf(mailbox.address));
+  const { html, attachments } = await withProfilePhoto(deps, mailbox, from, request);
   const raw = buildRawMessage({
     from,
     to: request.to,
@@ -80,10 +83,10 @@ export async function sendMessage(
     bcc: request.bcc,
     subject: request.subject,
     text: request.text,
-    html: request.html,
+    html,
     inReplyTo: request.inReplyTo,
     references: request.references,
-    attachments: request.attachments,
+    attachments,
     messageId,
   });
   const rawBytes = new TextEncoder().encode(raw);
@@ -212,4 +215,42 @@ async function logDelivery(
 
 function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+async function withProfilePhoto(
+  deps: SendDeps,
+  mailbox: Mailbox,
+  from: Addr,
+  request: SendRequest,
+): Promise<{ html?: string; attachments: OutboundAttachment[] }> {
+  const attachments = [...(request.attachments ?? [])];
+  const rows = await deps.db
+    .select({
+      avatarKey: users.avatarKey,
+      avatarType: users.avatarType,
+      name: users.name,
+    })
+    .from(users)
+    .where(eq(users.id, mailbox.ownerId))
+    .limit(1);
+  const row = rows[0];
+  if (!row?.avatarKey) return { html: request.html, attachments };
+
+  const object = await deps.bucket.get(row.avatarKey);
+  if (!object) return { html: request.html, attachments };
+
+  const content = new Uint8Array(await object.arrayBuffer());
+  attachments.push({
+    filename: "profile.jpg",
+    mimeType: row.avatarType ?? object.httpMetadata?.contentType ?? "image/jpeg",
+    content,
+    contentId: PROFILE_PHOTO_CID,
+    inline: true,
+  });
+
+  const html = wrapOutboundHtml(request.html ?? plainTextToHtml(request.text), {
+    name: from.name ?? row.name,
+    address: from.address,
+  });
+  return { html, attachments };
 }

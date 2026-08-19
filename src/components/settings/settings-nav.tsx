@@ -72,7 +72,7 @@ export const SETTINGS_PAGES = [
     href: "/settings/security",
     label: "Security",
     command: "Open security settings",
-    keywords: ["password", "2fa", "totp", "session", "two-factor"],
+    keywords: ["password", "2fa", "totp", "session", "two-factor", "photo", "avatar", "profile", "picture"],
     group: "Account",
   },
   {

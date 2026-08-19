@@ -16,6 +16,9 @@ export const users = sqliteTable("users", {
   recoveryCodes: text("recovery_codes", { mode: "json" }).$type<string[]>(),
   privacyPrefs: text("privacy_prefs", { mode: "json" }).$type<PrivacyPrefs>(),
   sessionTtlDays: integer("session_ttl_days").notNull().default(30),
+  avatarKey: text("avatar_key"),
+  avatarType: text("avatar_type"),
+  avatarUpdatedAt: integer("avatar_updated_at"),
   createdAt: integer("created_at").notNull().default(now),
 }, (t) => [uniqueIndex("users_email_idx").on(t.email)]);
 

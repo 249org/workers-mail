@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { displayName, formatAddressList } from "@/lib/mail/address";
+import { addressAvatarSrc } from "@/lib/mail/profile-photo";
 import { useMailStore } from "@/lib/mail/view-store";
 import { usePrivacyStore } from "@/lib/privacy-store";
-import { formatBytes, formatFullDate, initialsOf } from "@/lib/format";
+import { formatBytes, formatFullDate } from "@/lib/format";
 import { toast } from "sonner";
 import { ChromeButton } from "./chrome-button";
+import { PersonAvatar } from "../person-avatar";
 
 type Props = {
   messageId: string;
@@ -155,13 +157,11 @@ export function MessageView({ messageId, onReply, listHidden, onToggleList }: Pr
             {detail.subject || "(no subject)"}
           </h1>
           <div className="message-byline">
-            <span
-              aria-hidden
+            <PersonAvatar
+              name={displayName(detail.from)}
+              src={addressAvatarSrc(detail.from.address)}
               className="message-avatar"
-              style={{ background: "var(--highlight-subtle)", color: "var(--highlight)" }}
-            >
-              {initialsOf(displayName(detail.from))}
-            </span>
+            />
             <div className="min-w-0 flex-1">
               <div className="flex items-baseline justify-between gap-4">
                 <p className="truncate font-medium">{displayName(detail.from)}</p>

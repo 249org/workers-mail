@@ -4,21 +4,17 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { PublicMailbox } from "@/lib/mail/mailboxes";
+import { avatarSrc } from "@/lib/mail/profile-photo";
+import { PersonAvatar } from "./person-avatar";
 
 type Props = {
   email: string;
   name: string | null;
   mailboxes: PublicMailbox[];
+  avatarUpdatedAt?: number | null;
 };
 
-function initials(email: string, name: string | null): string {
-  const source = name?.trim() || email;
-  const parts = source.split(/[\s@._-]+/).filter(Boolean);
-  const letters = (parts[0]?.[0] ?? "W") + (parts[1]?.[0] ?? "");
-  return letters.toUpperCase().slice(0, 2);
-}
-
-export function AccountMenu({ email, name, mailboxes }: Props) {
+export function AccountMenu({ email, name, mailboxes, avatarUpdatedAt }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -59,7 +55,11 @@ export function AccountMenu({ email, name, mailboxes }: Props) {
         aria-controls={menuId}
         onClick={() => setOpen((value) => !value)}
       >
-        <span aria-hidden>{initials(email, name)}</span>
+        <PersonAvatar
+          name={name?.trim() || email}
+          src={avatarSrc(avatarUpdatedAt)}
+          className="contents"
+        />
         <span className="sr-only">Account menu for {email}</span>
       </button>
 

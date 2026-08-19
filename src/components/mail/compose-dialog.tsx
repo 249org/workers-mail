@@ -2,8 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { PublicMailbox } from "@/lib/mail/mailboxes";
+import { avatarSrc } from "@/lib/mail/profile-photo";
 import { useHotkeys } from "@/lib/keyboard/use-hotkeys";
 import { formatBytes } from "@/lib/format";
+import { PersonAvatar } from "../person-avatar";
 import {
   applySignature,
   shouldIncludeSignature,
@@ -56,6 +58,7 @@ export function ComposeDialog({
   const [status, setStatus] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [avatarAt, setAvatarAt] = useState<number | null>(null);
   const draftId = useRef(draft.draftId);
   const lastDraft = useRef(draft);
   const title = MODE_LABEL[draft.mode ?? "compose"];
@@ -66,6 +69,16 @@ export function ComposeDialog({
   useEffect(() => {
     void hydrateSignature();
   }, [hydrateSignature]);
+
+  useEffect(() => {
+    void fetch("/api/account")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        const updatedAt = (payload as { avatarUpdatedAt?: number | null } | null)?.avatarUpdatedAt;
+        if (updatedAt) setAvatarAt(updatedAt);
+      })
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     const draftChanged = lastDraft.current !== draft;
@@ -196,17 +209,23 @@ export function ComposeDialog({
 
         <div className="scroll-thin min-h-0 flex-1 overflow-y-auto px-4 py-3">
           <Row label="From">
-            <select
-              className="field !py-1.5"
-              value={mailbox.id}
-              onChange={(event) => onMailboxChange(event.target.value)}
-            >
-              {mailboxes.map((entry) => (
-                <option key={entry.id} value={entry.id}>
-                  {entry.displayName ? `${entry.displayName} <${entry.address}>` : entry.address}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2">
+              <PersonAvatar
+                name={mailbox.displayName || mailbox.address}
+                src={avatarSrc(avatarAt)}
+              />
+              <select
+                className="field min-w-0 flex-1 !py-1.5"
+                value={mailbox.id}
+                onChange={(event) => onMailboxChange(event.target.value)}
+              >
+                {mailboxes.map((entry) => (
+                  <option key={entry.id} value={entry.id}>
+                    {entry.displayName ? `${entry.displayName} <${entry.address}>` : entry.address}
+                  </option>
+                ))}
+              </select>
+            </div>
           </Row>
 
           <Row label="To">

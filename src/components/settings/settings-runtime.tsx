@@ -45,7 +45,7 @@ const SETTINGS_COPY: Record<string, { title: string; lede: string }> = {
   },
   "/settings/security": {
     title: "Security",
-    lede: "Password, two-factor authentication, and the browsers signed in to this workspace.",
+    lede: "Your name and photo, password, two-factor authentication, and the browsers signed in to this workspace.",
   },
   "/settings/api-keys": {
     title: "API keys",

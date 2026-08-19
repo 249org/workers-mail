@@ -13,6 +13,7 @@ export type SessionUser = {
   email: string;
   name: string | null;
   role: "admin" | "member";
+  avatarUpdatedAt: number | null;
 };
 
 type SessionRecord = {
@@ -127,7 +128,13 @@ export async function resolveSession(
 
 export async function loadUser(db: Database, userId: string): Promise<SessionUser | null> {
   const rows = await db
-    .select({ id: users.id, email: users.email, name: users.name, role: users.role })
+    .select({
+      id: users.id,
+      email: users.email,
+      name: users.name,
+      role: users.role,
+      avatarUpdatedAt: users.avatarUpdatedAt,
+    })
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);

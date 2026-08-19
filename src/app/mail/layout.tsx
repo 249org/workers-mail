@@ -20,6 +20,7 @@ export default async function MailLayout({ children }: { children: React.ReactNo
         name={user.name}
         mailboxes={mailboxes.map(publicMailbox)}
         context="mail"
+        avatarUpdatedAt={user.avatarUpdatedAt}
       />
       <div className="min-h-0 flex-1">{children}</div>
       <Toaster

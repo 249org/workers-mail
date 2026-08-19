@@ -44,6 +44,26 @@ describe("buildRawMessage", () => {
     expect(raw).toContain('filename="note.txt"');
   });
 
+  it("embeds an inline profile photo with a Content-ID", () => {
+    const raw = buildRawMessage({
+      ...base,
+      html: "<p>Hello</p>",
+      attachments: [
+        {
+          filename: "profile.jpg",
+          mimeType: "image/jpeg",
+          content: new Uint8Array([0xff, 0xd8, 0xff]),
+          contentId: "profile-photo@workers-mail",
+          inline: true,
+        },
+      ],
+    });
+    expect(raw).toContain("Content-Type: multipart/related");
+    expect(raw).toContain("Content-ID: <profile-photo@workers-mail>");
+    expect(raw).toContain("Content-Disposition: inline");
+    expect(raw).not.toContain("Content-Type: multipart/mixed");
+  });
+
   it("carries reply threading headers", () => {
     const raw = buildRawMessage({ ...base, inReplyTo: "parent@example.com", references: ["parent@example.com"] });
     expect(raw).toContain("In-Reply-To: <parent@example.com>");

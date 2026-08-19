@@ -17,6 +17,7 @@ export async function GET(request: Request): Promise<Response> {
         totpEnabledAt: users.totpEnabledAt,
         createdAt: users.createdAt,
         privacyPrefs: users.privacyPrefs,
+        avatarUpdatedAt: users.avatarUpdatedAt,
       })
       .from(users)
       .where(eq(users.id, user.id))
@@ -31,6 +32,8 @@ export async function GET(request: Request): Promise<Response> {
       totpEnabledAt: row.totpEnabledAt,
       createdAt: row.createdAt,
       privacy: parsePrivacy(row.privacyPrefs),
+      hasAvatar: Boolean(row.avatarUpdatedAt),
+      avatarUpdatedAt: row.avatarUpdatedAt,
     });
   } catch (error) {
     return errorResponse(error);

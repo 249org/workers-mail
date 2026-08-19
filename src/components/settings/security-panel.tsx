@@ -1,10 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { SESSION_TTL_DAYS, type SessionTtlDays } from "@/lib/privacy";
 import { describeUserAgent } from "@/lib/auth/user-agent";
 import { formatRelative } from "@/lib/format";
+import { avatarSrc } from "@/lib/mail/profile-photo";
+import { prepareAvatarFile } from "@/lib/avatar-image";
+import { PersonAvatar } from "@/components/person-avatar";
 import { Field, FormError, PrefRow } from "./fields";
 
 type Account = {
@@ -13,6 +17,8 @@ type Account = {
   sessionTtlDays: SessionTtlDays;
   totpEnabled: boolean;
   totpEnabledAt: number | null;
+  hasAvatar: boolean;
+  avatarUpdatedAt: number | null;
 };
 
 type SessionRow = {
@@ -30,9 +36,12 @@ type TotpStatus = {
 };
 
 export function SecurityPanel() {
+  const router = useRouter();
   const [account, setAccount] = useState<Account | null>(null);
   const [name, setName] = useState("");
   const [savingName, setSavingName] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const photoRef = useRef<HTMLInputElement>(null);
 
   const loadAccount = useCallback(async () => {
     const response = await fetch("/api/account");
@@ -60,6 +69,45 @@ export function SecurityPanel() {
     }
     toast.success("Display name saved.");
     await loadAccount();
+  }
+
+  async function onPhoto(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setUploadingPhoto(true);
+    try {
+      const blob = await prepareAvatarFile(file);
+      const response = await fetch("/api/account/avatar", {
+        method: "PUT",
+        headers: { "content-type": blob.type || "image/jpeg" },
+        body: blob,
+      });
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error ?? "The photo could not be saved.");
+      }
+      toast.success("Photo saved.");
+      await loadAccount();
+      router.refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "The photo could not be saved.");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  }
+
+  async function removePhoto() {
+    setUploadingPhoto(true);
+    const response = await fetch("/api/account/avatar", { method: "DELETE" });
+    setUploadingPhoto(false);
+    if (!response.ok) {
+      toast.error("The photo could not be removed.");
+      return;
+    }
+    toast.success("Photo removed.");
+    await loadAccount();
+    router.refresh();
   }
 
   async function saveTtl(days: SessionTtlDays) {
@@ -106,6 +154,43 @@ export function SecurityPanel() {
               >
                 Save
               </button>
+            </div>
+          </Field>
+          <Field label="Photo" htmlFor="account-photo" hint="Shown in the header and at the top of mail you send.">
+            <div className="flex items-center gap-3">
+              <PersonAvatar
+                name={name.trim() || account?.email || "You"}
+                src={avatarSrc(account?.avatarUpdatedAt)}
+                className="person-avatar person-avatar-lg"
+              />
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  disabled={uploadingPhoto}
+                  onClick={() => photoRef.current?.click()}
+                >
+                  {uploadingPhoto ? "Uploading…" : account?.hasAvatar ? "Replace photo" : "Add photo"}
+                </button>
+                {account?.hasAvatar && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    disabled={uploadingPhoto}
+                    onClick={() => void removePhoto()}
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+              <input
+                ref={photoRef}
+                id="account-photo"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="sr-only"
+                onChange={(event) => void onPhoto(event)}
+              />
             </div>
           </Field>
         </div>
