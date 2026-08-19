@@ -45,8 +45,10 @@ const ACTION_TOAST = "mail-action";
 
 function undoLastAction(): boolean {
   const did = useMailStore.getState().undo();
-  if (did) toast("Undone", { id: ACTION_TOAST });
-  return did;
+  if (!did) return false;
+  toast.dismiss(ACTION_TOAST);
+  toast("Undone");
+  return true;
 }
 
 export function MailWorkspace({
