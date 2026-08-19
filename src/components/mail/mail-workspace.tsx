@@ -41,6 +41,13 @@ const EMPTY_DRAFT: ComposeDraft = {
   text: "",
 };
 const SEARCH_DEBOUNCE_MS = 200;
+const ACTION_TOAST = "mail-action";
+
+function undoLastAction(): boolean {
+  const did = useMailStore.getState().undo();
+  if (did) toast("Undone", { id: ACTION_TOAST });
+  return did;
+}
 
 export function MailWorkspace({
   mailbox,
@@ -199,7 +206,10 @@ export function MailWorkspace({
     if (targetIds.length === 0) return;
 
     store.moveTo(targetIds, target.id, "Archived");
-    toast("Archived", { action: { label: "Undo", onClick: () => void store.undo() } });
+    toast("Archived", {
+      id: ACTION_TOAST,
+      action: { label: "Undo", onClick: () => undoLastAction() },
+    });
     void store.refreshFolders();
   }, [targetIds]);
 
@@ -212,7 +222,10 @@ export function MailWorkspace({
       toast("Deleted forever");
     } else {
       store.trash(targetIds);
-      toast("Moved to trash", { action: { label: "Undo", onClick: () => void store.undo() } });
+      toast("Moved to trash", {
+        id: ACTION_TOAST,
+        action: { label: "Undo", onClick: () => undoLastAction() },
+      });
     }
     void store.refreshFolders();
   }, [targetIds]);
@@ -313,9 +326,7 @@ export function MailWorkspace({
     search: () => searchRef.current?.focus(),
     compose: () => startCompose(),
     undo: () => {
-      void useMailStore.getState().undo().then((did) => {
-        if (did) toast("Undone");
-      });
+      undoLastAction();
     },
     syncNow: () => void syncNow(),
     toggleSidebar,

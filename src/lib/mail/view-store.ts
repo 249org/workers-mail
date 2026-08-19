@@ -28,8 +28,8 @@ export type MailAction = "read" | "unread" | "flag" | "unflag" | "move" | "trash
 type UndoEntry = {
   label: string;
   ids: string[];
-  /** Restores the rows and replays the inverse server-side. */
-  revert: () => Promise<void>;
+  /** Restores the rows immediately; the inverse server call runs in the background. */
+  revert: () => void;
 };
 
 const BODY_CACHE_LIMIT = 60;
@@ -44,8 +44,17 @@ type FolderPage = {
   selectedId: string | null;
 };
 
+type RemovedRow = { message: MessageSummary; index: number };
+
 const folderPages = new Map<string, FolderPage>();
 let pageRequest = 0;
+/** id → folder they were removed from, so a later fetch cannot resurrect them there. */
+const optimisticAbsent = new Map<string, string>();
+/** Rows restored by undo that the origin folder fetch may not include yet. */
+const pendingRestores = new Map<string, RemovedRow>();
+/** Last local action ticket per message, so in-flight IMAP calls cannot clobber a newer undo/trash. */
+const actionTicket = new Map<string, number>();
+let actionSeq = 0;
 
 function folderKey(mailboxId: string, folderId: string, search: string): string {
   return `${mailboxId}:${folderId}:${search.trim()}`;
@@ -112,7 +121,7 @@ type Actions = {
   trash: (ids: string[]) => void;
   deleteForever: (ids: string[]) => void;
   emptyTrash: () => void;
-  undo: () => Promise<boolean>;
+  undo: () => boolean;
 
   setSyncing: (syncing: boolean) => void;
   setSyncError: (error: string | null) => void;
@@ -150,6 +159,12 @@ export const useMailStore = create<State & Actions>((set, get) => ({
       return;
     }
 
+    if (mailboxChanged) {
+      optimisticAbsent.clear();
+      pendingRestores.clear();
+      actionTicket.clear();
+    }
+
     if (current.folderId && !mailboxChanged) rememberFolder(current);
 
     const cached =
@@ -157,13 +172,14 @@ export const useMailStore = create<State & Actions>((set, get) => ({
         ? folderPages.get(folderKey(input.mailboxId, input.folderId, input.search))
         : undefined;
 
+    const messages = applyOptimistic(cached?.messages ?? input.messages, input.folderId);
     set({
       ...input,
-      messages: cached?.messages ?? input.messages,
+      messages,
       cursor: cached?.cursor ?? input.cursor,
       checked: changedView ? new Set() : current.checked,
       loaded: mailboxChanged ? new Map() : current.loaded,
-      selectedId: cached ? cached.selectedId : (input.selectedId ?? null),
+      selectedId: keepSelection(messages, cached ? cached.selectedId : (input.selectedId ?? null)),
     });
   },
 
@@ -186,8 +202,11 @@ export const useMailStore = create<State & Actions>((set, get) => ({
     if (messages.length === 0) return;
 
     const index = messages.findIndex((message) => message.id === selectedId);
-    const next = index === -1 ? 0 : Math.min(messages.length - 1, Math.max(0, index + direction));
-    const target = messages[next];
+    let next = index === -1 ? 0 : index + direction;
+    while (next >= 0 && next < messages.length && messages[next]?.id === selectedId) {
+      next += direction;
+    }
+    const target = next >= 0 && next < messages.length ? messages[next] : undefined;
     if (!target || target.id === selectedId) return;
 
     get().select(target.id);
@@ -236,7 +255,11 @@ export const useMailStore = create<State & Actions>((set, get) => ({
 
       set((state) => {
         if (state.folderId !== requestedFolder || state.search !== requestedSearch) return state;
-        const messages = options.append ? [...state.messages, ...page.items] : page.items;
+        for (const item of page.items) pendingRestores.delete(item.id);
+        const messages = applyOptimistic(
+          options.append ? [...state.messages, ...page.items] : page.items,
+          requestedFolder,
+        );
         const selectedId = keepSelection(messages, state.selectedId);
         folderPages.set(folderKey(state.mailboxId, state.folderId, state.search), {
           messages,
@@ -364,13 +387,13 @@ export const useMailStore = create<State & Actions>((set, get) => ({
     });
   },
 
-  undo: async () => {
+  undo: () => {
     const stack = [...get().undoStack];
     const entry = stack.pop();
     if (!entry) return false;
 
     set({ undoStack: stack });
-    await entry.revert();
+    entry.revert();
     return true;
   },
 
@@ -383,11 +406,12 @@ export const useMailStore = create<State & Actions>((set, get) => ({
 
     rememberFolder(current);
     const cached = folderPages.get(folderKey(current.mailboxId, folderId, current.search));
+    const messages = applyOptimistic(cached?.messages ?? [], folderId);
     set({
       folderId,
-      messages: cached?.messages ?? [],
+      messages,
       cursor: cached?.cursor ?? null,
-      selectedId: cached ? cached.selectedId : null,
+      selectedId: cached ? keepSelection(messages, cached.selectedId) : null,
       checked: new Set(),
       loading: !cached,
     });
@@ -426,43 +450,116 @@ export const useMailStore = create<State & Actions>((set, get) => ({
       .filter((entry) => ids.includes(entry.message.id));
     if (removed.length === 0) return;
 
-    const restore = () =>
-      set((current) => ({ messages: reinsert(current.messages, removed) }));
-
+    const originFolder = state.folderId;
+    hideLocally(ids, originFolder);
     const nextSelection = selectionAfterRemoval(state.messages, ids, state.selectedId);
-    set({
-      messages: state.messages.filter((message) => !ids.includes(message.id)),
-      selectedId: nextSelection,
-      checked: new Set(),
-    });
+    const messages = state.messages.filter((message) => !ids.includes(message.id));
+    set({ messages, selectedId: nextSelection, checked: new Set() });
+    rememberFolder({ ...get(), messages, selectedId: nextSelection });
+
+    const restore = () => {
+      showLocally(removed);
+      set((current) => {
+        if (current.folderId !== originFolder) {
+          const key = folderKey(current.mailboxId, originFolder, current.search);
+          const cached = folderPages.get(key);
+          if (cached) {
+            const nextMessages = applyOptimistic(reinsert(cached.messages, removed), originFolder);
+            folderPages.set(key, {
+              ...cached,
+              messages: nextMessages,
+              selectedId: removed[0]?.message.id ?? cached.selectedId,
+            });
+          }
+          return current;
+        }
+        const nextMessages = applyOptimistic(reinsert(current.messages, removed), originFolder);
+        const selectedId = removed[0]?.message.id ?? current.selectedId;
+        rememberFolder({ ...current, messages: nextMessages, selectedId });
+        return { messages: nextMessages, selectedId };
+      });
+    };
 
     const entry: UndoEntry = {
       label,
       ids,
-      revert: async () => {
+      revert: () => {
+        const ticket = claim(ids);
         restore();
         const original = removed[0]?.message.folderId;
-        if (original) await send({ ids, action: "move", folderId: original });
+        if (!original) return;
+        void send({ ids, action: "move", folderId: original }).then((ok) => {
+          if (!claimed(ids, ticket)) return;
+          if (ok) return;
+          hideLocally(ids, originFolder);
+          set((current) => {
+            if (current.folderId !== originFolder) return current;
+            const nextMessages = current.messages.filter((message) => !ids.includes(message.id));
+            const selectedId = selectionAfterRemoval(current.messages, ids, current.selectedId);
+            rememberFolder({ ...current, messages: nextMessages, selectedId });
+            return { messages: nextMessages, selectedId };
+          });
+        });
       },
     };
     set((current) => ({ undoStack: [...current.undoStack.slice(-9), entry] }));
 
+    const ticket = claim(ids);
     void send({ ids, ...request }).then((ok) => {
-      if (!ok) {
-        restore();
-        set((current) => ({
-          undoStack: current.undoStack.filter((candidate) => candidate !== entry),
-        }));
-      }
+      if (!claimed(ids, ticket)) return;
+      if (ok) return;
+      restore();
+      set((current) => ({
+        undoStack: current.undoStack.filter((candidate) => candidate !== entry),
+      }));
     });
   },
 }));
 
-type RemovedRow = { message: MessageSummary; index: number };
+function claim(ids: string[]): number {
+  const ticket = ++actionSeq;
+  for (const id of ids) actionTicket.set(id, ticket);
+  return ticket;
+}
+
+function claimed(ids: string[], ticket: number): boolean {
+  return ids.every((id) => actionTicket.get(id) === ticket);
+}
+
+function hideLocally(ids: string[], folderId: string): void {
+  for (const id of ids) {
+    optimisticAbsent.set(id, folderId);
+    pendingRestores.delete(id);
+  }
+}
+
+function showLocally(removed: RemovedRow[]): void {
+  for (const entry of removed) {
+    optimisticAbsent.delete(entry.message.id);
+    pendingRestores.set(entry.message.id, entry);
+  }
+}
+
+function applyOptimistic(messages: MessageSummary[], folderId: string): MessageSummary[] {
+  const seen = new Set<string>();
+  const next: MessageSummary[] = [];
+  for (const message of messages) {
+    if (optimisticAbsent.get(message.id) === folderId || seen.has(message.id)) continue;
+    seen.add(message.id);
+    next.push(message);
+  }
+  const restores = [...pendingRestores.values()].filter(
+    (row) => row.message.folderId === folderId && !seen.has(row.message.id),
+  );
+  return restores.length > 0 ? reinsert(next, restores) : next;
+}
 
 function reinsert(messages: MessageSummary[], removed: RemovedRow[]): MessageSummary[] {
   const restored = [...messages];
+  const existing = new Set(messages.map((message) => message.id));
   for (const entry of [...removed].sort((a, b) => a.index - b.index)) {
+    if (existing.has(entry.message.id)) continue;
+    existing.add(entry.message.id);
     restored.splice(Math.min(entry.index, restored.length), 0, entry.message);
   }
   return restored;
