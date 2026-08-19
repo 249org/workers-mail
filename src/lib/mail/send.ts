@@ -1,7 +1,7 @@
 import { EmailMessage } from "cloudflare:email";
 import { eq } from "drizzle-orm";
 import type { Database } from "@/lib/db";
-import { deliveryLog, messages, users, type Addr } from "@/lib/db/schema";
+import { deliveryLog, messages, type Addr } from "@/lib/db/schema";
 import { newId } from "@/lib/ids";
 import { buildRawMessage, generateMessageId, type OutboundAttachment } from "./build";
 import { domainOf, normalizeAddress } from "./address";
@@ -12,7 +12,6 @@ import { storeMessage } from "./store";
 import { smtpAuth } from "@/lib/transport/credentials";
 import { sendViaSmtp } from "@/lib/transport/smtp";
 import { plainTextToHtml } from "./sanitize";
-import { PROFILE_PHOTO_CID } from "./profile-photo";
 
 export class SendError extends Error {
   constructor(message: string) {

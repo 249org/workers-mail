@@ -1,26 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sniffImageType, wrapOutboundHtml } from "@/lib/mail/profile-photo";
-
-describe("wrapOutboundHtml", () => {
-  it("puts a cid photo above the body", () => {
-    const html = wrapOutboundHtml("<p>Hi</p>", { name: "Sam", address: "sam@example.com" });
-    expect(html).toContain('src="cid:profile-photo@workers-mail"');
-    expect(html).toContain("Sam");
-    expect(html).toContain("sam@example.com");
-    expect(html).toContain("<p>Hi</p>");
-  });
-
-  it("does not wrap twice", () => {
-    const once = wrapOutboundHtml("<p>Hi</p>", { address: "sam@example.com" });
-    expect(wrapOutboundHtml(once, { address: "sam@example.com" })).toBe(once);
-  });
-
-  it("escapes the sender name", () => {
-    const html = wrapOutboundHtml("<p>Hi</p>", { name: "A <B>", address: "a@b.c" });
-    expect(html).toContain("A &lt;B&gt;");
-    expect(html).not.toContain("A <B>");
-  });
-});
+import { sniffImageType } from "@/lib/mail/profile-photo";
 
 describe("sniffImageType", () => {
   it("reads jpeg, png, and webp magic", () => {

@@ -43,6 +43,8 @@ export default async function DomainsPage() {
           routingEnabled: domain.routingEnabled,
           sendingEnabled: domain.sendingEnabled,
           dnsRecords: domain.dnsRecords ?? [],
+          bimiLogoUrl: domain.bimiLogoUrl,
+          bimiCertUrl: domain.bimiCertUrl,
           lastCheckedAt: domain.lastCheckedAt,
           rules: rules
             .filter((rule) => rule.domainId === domain.id)

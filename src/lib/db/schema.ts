@@ -40,6 +40,10 @@ export const domains = sqliteTable("domains", {
   routingEnabled: integer("routing_enabled", { mode: "boolean" }).notNull().default(false),
   sendingEnabled: integer("sending_enabled", { mode: "boolean" }).notNull().default(false),
   dnsRecords: text("dns_records", { mode: "json" }).$type<DnsRecord[]>(),
+  /** HTTPS URL of an SVG Tiny PS logo, published in the BIMI record. */
+  bimiLogoUrl: text("bimi_logo_url"),
+  /** VMC or CMC PEM URL. Gmail will not show the logo without one. */
+  bimiCertUrl: text("bimi_cert_url"),
   lastCheckedAt: integer("last_checked_at"),
   createdAt: integer("created_at").notNull().default(now),
 }, (t) => [uniqueIndex("domains_name_idx").on(t.name)]);

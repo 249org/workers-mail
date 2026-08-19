@@ -5,6 +5,8 @@ import { useState } from "react";
 import type { DnsRecord } from "@/lib/db/schema";
 import type { PublicMailbox } from "@/lib/mail/mailboxes";
 import { formatRelative } from "@/lib/format";
+import { dmarcPolicyOf } from "@/lib/mail/bimi";
+import { BimiPanel } from "./bimi-panel";
 
 export type RuleView = {
   id: string;
@@ -25,6 +27,8 @@ export type DomainView = {
   dnsRecords: DnsRecord[];
   lastCheckedAt: number | null;
   rules: RuleView[];
+  bimiLogoUrl: string | null;
+  bimiCertUrl: string | null;
 };
 
 export function DomainManager({
@@ -252,6 +256,17 @@ function DomainCard({
           />
         )}
       </div>
+
+      <BimiPanel
+        domainId={domain.id}
+        domainName={domain.name}
+        logoUrl={domain.bimiLogoUrl}
+        certUrl={domain.bimiCertUrl}
+        dmarcPolicy={dmarcPolicyOf(
+          domain.dnsRecords.find((record) => record.name === `_dmarc.${domain.name}` && record.present)
+            ?.content,
+        )}
+      />
     </section>
   );
 }

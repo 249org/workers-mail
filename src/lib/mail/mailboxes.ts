@@ -2,6 +2,7 @@ import { and, asc, eq } from "drizzle-orm";
 import type { Database } from "@/lib/db";
 import { folders, mailboxes, type DnsRecord } from "@/lib/db/schema";
 import { newId } from "@/lib/ids";
+import { bimiRecordName, bimiRecordValue, type BimiConfig } from "./bimi";
 import { normalizeAddress } from "./address";
 
 export type Mailbox = typeof mailboxes.$inferSelect;
@@ -183,8 +184,8 @@ export function publicMailbox(mailbox: Mailbox) {
 
 export type PublicMailbox = ReturnType<typeof publicMailbox>;
 
-export function dnsRecordsFor(domain: string): DnsRecord[] {
-  return [
+export function dnsRecordsFor(domain: string, bimi?: BimiConfig): DnsRecord[] {
+  const records: DnsRecord[] = [
     {
       type: "MX",
       name: domain,
@@ -224,4 +225,18 @@ export function dnsRecordsFor(domain: string): DnsRecord[] {
       present: false,
     },
   ];
+
+  // Only advertised once a logo is configured; an empty BIMI record is worse than none.
+  const bimiValue = bimi ? bimiRecordValue(bimi) : null;
+  if (bimiValue) {
+    records.push({
+      type: "TXT",
+      name: bimiRecordName(domain),
+      content: bimiValue,
+      purpose: "Show your logo beside your name in Gmail and Apple Mail",
+      present: false,
+    });
+  }
+
+  return records;
 }

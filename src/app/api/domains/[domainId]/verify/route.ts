@@ -5,6 +5,7 @@ import { env as cloudflareEnv } from "@/lib/env";
 import { domains, mailboxes, type DnsRecord } from "@/lib/db/schema";
 import { ApiTokenMissingError, cloudflareApi, CloudflareApiError } from "@/lib/cloudflare/api";
 import { dnsRecordsFor } from "@/lib/mail/mailboxes";
+import { bimiIssues, dmarcPolicyOf } from "@/lib/mail/bimi";
 
 type Params = { params: Promise<{ domainId: string }> };
 
@@ -51,10 +52,24 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
     }
 
     const present = await presentRecords(api, zone.id);
-    const records: DnsRecord[] = dnsRecordsFor(domain.name).map((record) => ({
+    const bimi = { logoUrl: domain.bimiLogoUrl, certUrl: domain.bimiCertUrl };
+    const records: DnsRecord[] = dnsRecordsFor(domain.name, bimi).map((record) => ({
       ...record,
       present: present.has(recordKey(record.type, record.name, record.content)),
     }));
+
+    // Read the policy actually published rather than the one we suggest, since BIMI
+    // only counts a domain as authenticated at quarantine or reject.
+    const publishedDmarc = await api
+      .listDnsRecords(zone.id, "TXT")
+      .then((rows) =>
+        rows.find((row) => row.name.toLowerCase() === `_dmarc.${domain.name}`)?.content ?? null,
+      )
+      .catch(() => null);
+    const bimiStatus = {
+      configured: Boolean(domain.bimiLogoUrl),
+      issues: bimiIssues(bimi, dmarcPolicyOf(publishedDmarc)),
+    };
 
     const routingReady = records
       .filter((record) => record.type === "MX")
@@ -81,6 +96,7 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
       sendingEnabled: sendingReady,
       records,
       routedAddresses: routed,
+      bimi: bimiStatus,
     });
   } catch (error) {
     if (error instanceof ApiTokenMissingError) {
