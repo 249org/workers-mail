@@ -172,3 +172,26 @@ export async function deleteImapMailbox(
     await session.close();
   }
 }
+
+/**
+ * Uploads a copy of an outgoing message to the server's Sent mailbox.
+ *
+ * SMTP only hands a message to the next hop — it never files it. Without this the
+ * message exists only in this app's own index, which is why other clients on the same
+ * account show an empty Sent folder.
+ */
+export async function appendToSentMailbox(
+  mailbox: Mailbox,
+  env: CloudflareEnv,
+  db: Database,
+  sent: Folder,
+  raw: Uint8Array,
+): Promise<void> {
+  const credentials = await imapAuth(mailbox, env, db);
+  const session = await ImapMutator.open(credentials);
+  try {
+    await session.appendMessage(remoteMailbox(sent), raw, ["\\Seen"]);
+  } finally {
+    await session.close();
+  }
+}

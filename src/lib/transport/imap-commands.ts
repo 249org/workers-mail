@@ -12,6 +12,19 @@ import {
 import { connectImapSocket } from "./oauth-connect";
 
 const decoder = new TextDecoder();
+const CR = 0x0d;
+const LF = 0x0a;
+
+function endsWithCrlf(bytes: Uint8Array): boolean {
+  return bytes.length >= 2 && bytes[bytes.length - 2] === CR && bytes[bytes.length - 1] === LF;
+}
+
+function concatCrlf(bytes: Uint8Array): Uint8Array {
+  const out = new Uint8Array(bytes.byteLength + 2);
+  out.set(bytes, 0);
+  out.set([CR, LF], bytes.byteLength);
+  return out;
+}
 
 export class ImapCommandError extends Error {
   constructor(
@@ -160,6 +173,31 @@ export class ImapMutator {
     }
     this.#selected = null;
     await this.#socket.close();
+  }
+
+  /**
+   * Uploads a message into a mailbox. APPEND cannot go through `command` because the
+   * body is sent as a literal: the server answers `+` to say it is ready, and only
+   * then are the raw octets written.
+   */
+  async appendMessage(mailbox: string, raw: Uint8Array, flags: string[] = []): Promise<void> {
+    // The literal length counts octets exactly, and the message must end CRLF.
+    const body = endsWithCrlf(raw) ? raw : concatCrlf(raw);
+    const tag = this.#nextTag();
+    const flagPart = flags.length > 0 ? ` (${flags.join(" ")})` : "";
+
+    await this.#socket.writer.writeLine(
+      `${tag} APPEND ${imapMailboxArg(mailbox)}${flagPart} {${body.byteLength}}`,
+    );
+
+    const ready = await this.#socket.reader.readLine(this.#timeoutMs);
+    if (!ready.startsWith("+")) throw new ImapCommandError("NO", ready.trim());
+
+    await this.#socket.writer.write(body);
+    await this.#socket.writer.writeLine("");
+
+    const result = await this.#readResponse(tag);
+    if (result.status !== "OK") throw new ImapCommandError(result.status, result.text);
   }
 
   async command(line: string): Promise<ImapResponse> {

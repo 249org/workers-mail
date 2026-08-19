@@ -49,12 +49,26 @@ export function buildRawMessage(message: OutboundMessage): string {
   headers.push("MIME-Version: 1.0");
 
   const stack = bodyStack(message, boundaryAlt, boundaryRelated, inline);
-  const body = files.length > 0 ? wrapMixed(stack, files, boundaryMixed) : stack.body;
-  headers.push(
-    files.length > 0 ? `Content-Type: multipart/mixed; boundary="${boundaryMixed}"` : stack.contentType,
-  );
 
+  if (files.length > 0) {
+    headers.push(`Content-Type: multipart/mixed; boundary="${boundaryMixed}"`);
+    return joinPart(headers, wrapMixed(stack, files, boundaryMixed));
+  }
+
+  // The part's own headers belong in the top-level block, above the blank line.
+  headers.push(...stack.headers);
+  return joinPart(headers, stack.body);
+}
+
+/** A MIME part: its header lines, and the body that follows one blank line. */
+type Part = { headers: string[]; body: string };
+
+function joinPart(headers: string[], body: string): string {
   return `${headers.join(CRLF)}${CRLF}${CRLF}${body}`;
+}
+
+function renderPart(boundary: string, part: Part): string {
+  return `--${boundary}${CRLF}${joinPart(part.headers, part.body)}`;
 }
 
 function bodyStack(
@@ -62,40 +76,35 @@ function bodyStack(
   boundaryAlt: string,
   boundaryRelated: string,
   inline: OutboundAttachment[],
-): { contentType: string; body: string } {
-  const alternative = Boolean(message.html);
-  const innerType = alternative
-    ? `multipart/alternative; boundary="${boundaryAlt}"`
-    : 'text/plain; charset="utf-8"';
-  const innerBody = alternative
-    ? alternativeBody(message, boundaryAlt)
-    : `Content-Transfer-Encoding: base64${CRLF}${CRLF}${base64Lines(encodeText(message.text))}`;
+): Part {
+  const inner: Part = message.html
+    ? {
+        headers: [`Content-Type: multipart/alternative; boundary="${boundaryAlt}"`],
+        body: alternativeBody(message, boundaryAlt),
+      }
+    : {
+        headers: ['Content-Type: text/plain; charset="utf-8"', "Content-Transfer-Encoding: base64"],
+        body: base64Lines(encodeText(message.text)),
+      };
 
-  if (inline.length === 0) {
-    return {
-      contentType: alternative
-        ? `Content-Type: multipart/alternative; boundary="${boundaryAlt}"`
-        : 'Content-Type: text/plain; charset="utf-8"',
-      body: alternative ? alternativeBody(message, boundaryAlt) : innerBody,
-    };
-  }
+  if (inline.length === 0) return inner;
 
-  const start = alternative
-    ? [`--${boundaryRelated}`, `Content-Type: ${innerType}`, "", innerBody].join(CRLF)
-    : [`--${boundaryRelated}`, `Content-Type: ${innerType}`, innerBody].join(CRLF);
-  const parts = [start, ...inline.map((item) => inlinePart(boundaryRelated, item))];
+  const type = message.html ? "multipart/alternative" : "text/plain";
+  const parts = [
+    renderPart(boundaryRelated, inner),
+    ...inline.map((item) => inlinePart(boundaryRelated, item)),
+  ];
+
   return {
-    contentType: `Content-Type: multipart/related; type="${innerType.split(";")[0]}"; boundary="${boundaryRelated}"`,
+    headers: [
+      `Content-Type: multipart/related; type="${type}"; boundary="${boundaryRelated}"`,
+    ],
     body: `${parts.join(CRLF)}${CRLF}--${boundaryRelated}--${CRLF}`,
   };
 }
 
-function wrapMixed(
-  stack: { contentType: string; body: string },
-  files: OutboundAttachment[],
-  boundary: string,
-): string {
-  const inner = [`--${boundary}`, stack.contentType, "", stack.body].join(CRLF);
+function wrapMixed(stack: Part, files: OutboundAttachment[], boundary: string): string {
+  const inner = renderPart(boundary, stack);
   const attached = files.map((file) =>
     [
       `--${boundary}`,

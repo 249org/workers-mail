@@ -11,6 +11,8 @@ import { canSendAs } from "./routing";
 import { storeMessage } from "./store";
 import { smtpAuth } from "@/lib/transport/credentials";
 import { sendViaSmtp } from "@/lib/transport/smtp";
+import { appendToSentMailbox } from "@/lib/transport/imap-push";
+import { smtpSavesToSentFolder } from "@/lib/transport/presets";
 import { plainTextToHtml } from "./sanitize";
 
 export class SendError extends Error {
@@ -116,8 +118,35 @@ export async function sendMessage(
   await logDelivery(deps.db, mailbox.id, recipients, transport, "sent");
 
   const storedMessageId = await writeSentCopy(deps, mailbox, rawBytes, request.draftId);
+  await fileOnServer(deps, mailbox, rawBytes);
   const localDeliveries = await deliverLocalCopies(deps, recipients, rawBytes);
   return { messageId, storedMessageId, transport, localDeliveries };
+}
+
+/**
+ * Files the sent copy in the IMAP account's own Sent mailbox so other clients on the
+ * same account see it. Delivery already succeeded by this point, so a failure here is
+ * logged rather than surfaced as a send error.
+ */
+async function fileOnServer(
+  deps: SendDeps,
+  mailbox: Mailbox,
+  rawBytes: Uint8Array,
+): Promise<void> {
+  if (mailbox.type !== "external_imap") return;
+  if (smtpSavesToSentFolder(mailbox.smtpHost)) return;
+
+  const sent = await folderByRole(deps.db, mailbox.id, "sent");
+  if (!sent) return;
+
+  try {
+    await appendToSentMailbox(mailbox, deps.env, deps.db, sent, rawBytes);
+  } catch (error) {
+    console.warn("could not file the sent copy on the server", {
+      mailboxId: mailbox.id,
+      error: describe(error),
+    });
+  }
 }
 
 /** Puts a copy in any in-app inbox that matches a recipient, so the open mailbox does not wait on IMAP. */

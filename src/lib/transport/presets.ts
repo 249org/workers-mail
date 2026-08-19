@@ -201,3 +201,24 @@ export function tlsForImapPort(port: number): "implicit" | "starttls" {
 export function tlsForSmtpPort(port: number): "implicit" | "starttls" {
   return port === 465 ? "implicit" : "starttls";
 }
+
+/**
+ * Gmail and Microsoft copy anything sent through their SMTP into Sent themselves.
+ * Appending a second copy there duplicates the message and can make the server
+ * reject the upload, so those providers are skipped.
+ */
+export function smtpSavesToSentFolder(smtpHost: string | null | undefined): boolean {
+  const host = smtpHost?.trim().toLowerCase().replace(/\.$/, "");
+  if (!host) return false;
+  // Exact hosts only. Suffix matching would let a lookalike domain suppress the
+  // append, and an unknown host is better served by a possible duplicate than by a
+  // Sent folder that stays empty.
+  return SELF_FILING_SMTP_HOSTS.has(host);
+}
+
+const SELF_FILING_SMTP_HOSTS = new Set([
+  "smtp.gmail.com",
+  "smtp.office365.com",
+  "smtp-mail.outlook.com",
+  "smtp.live.com",
+]);
