@@ -4,7 +4,12 @@ import { createDb } from "@/lib/db";
 import { mailboxes } from "@/lib/db/schema";
 import { describe, markSyncState, syncMailbox } from "@/lib/transport/imap";
 import { describeImapError, isImapTimeout } from "@/lib/transport/imap-error";
-import { createImapMailbox, pushImapChanges } from "@/lib/transport/imap-push";
+import {
+  createImapMailbox,
+  deleteImapMailbox,
+  pushImapChanges,
+  renameImapMailbox,
+} from "@/lib/transport/imap-push";
 import { listFolders } from "@/lib/mail/mailboxes";
 import type { CreateFolderResult, RemoteMailChange, RemoteMailResult } from "@/lib/transport/imap-remote";
 import type { MailboxEvent, SyncStatus } from "@/lib/mail/events";
@@ -153,6 +158,47 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
       };
     } catch (error) {
       console.error("imap create folder failed", { mailboxId: input.mailboxId, error: describe(error) });
+      return { ok: false, error: describe(error) };
+    }
+  }
+
+  /** RENAME or DELETE a mailbox on the IMAP server. */
+  async mutateRemoteFolder(input: {
+    mailboxId: string;
+    folderId: string;
+    action: "rename" | "delete";
+    name?: string;
+  }): Promise<{ ok: true; remotePath?: string } | { ok: false; error: string }> {
+    await this.rememberMailbox(input.mailboxId);
+    const db = createDb(this.env.DB);
+    const rows = await db.select().from(mailboxes).where(eq(mailboxes.id, input.mailboxId)).limit(1);
+    const mailbox = rows[0];
+    if (!mailbox || mailbox.type !== "external_imap") {
+      return { ok: false, error: "This mailbox does not use IMAP folders." };
+    }
+
+    const folder = (await listFolders(db, mailbox.id)).find((entry) => entry.id === input.folderId);
+    if (!folder) return { ok: false, error: "Folder not found." };
+
+    try {
+      if (input.action === "delete") {
+        await deleteImapMailbox(mailbox, this.env, db, folder);
+        return { ok: true };
+      }
+      const remotePath = await renameImapMailbox(
+        mailbox,
+        this.env,
+        db,
+        folder,
+        input.name ?? folder.name,
+      );
+      return { ok: true, remotePath };
+    } catch (error) {
+      console.error("imap folder mutation failed", {
+        mailboxId: input.mailboxId,
+        action: input.action,
+        error: describe(error),
+      });
       return { ok: false, error: describe(error) };
     }
   }

@@ -69,7 +69,7 @@ export function MessageView({ messageId, onReply, listHidden, onToggleList }: Pr
   const sentAt = new Date(detail.sentAt * 1000);
 
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const { trigger: readerTrigger } = useContextMenu();
+  const { bind: bindReaderMenu } = useContextMenu();
   const readerMenuItems = [
     {
       type: "item" as const,
@@ -119,7 +119,10 @@ export function MessageView({ messageId, onReply, listHidden, onToggleList }: Pr
   ];
 
   return (
-    <section className="mail-reader flex min-w-0 flex-1 flex-col bg-card" onContextMenu={readerTrigger(readerMenuItems)}>
+    <section
+      className="mail-reader flex min-w-0 flex-1 flex-col bg-card"
+      {...bindReaderMenu(readerMenuItems)}
+    >
       <header className="z-[21] shrink-0 border-b border-border bg-card">
         <div className="pane-toolbar" data-wide={listHidden ? "" : undefined}>
           <ChromeButton

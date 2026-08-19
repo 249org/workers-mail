@@ -21,6 +21,8 @@ export type FolderSummary = {
   name: string;
   role: string;
   unread: number;
+  icon?: string | null;
+  color?: string | null;
 };
 
 export type MailAction = "read" | "unread" | "flag" | "unflag" | "move" | "trash" | "delete" | "empty-trash";
@@ -133,6 +135,10 @@ type Actions = {
   createFolder: (name: string) => Promise<FolderSummary>;
   renameFolder: (folderId: string, name: string) => Promise<void>;
   deleteFolder: (folderId: string) => Promise<void>;
+  setFolderAppearance: (
+    folderId: string,
+    patch: { icon?: string | null; color?: string | null },
+  ) => Promise<void>;
 };
 
 export const useMailStore = create<State & Actions>((set, get) => ({
@@ -477,6 +483,29 @@ export const useMailStore = create<State & Actions>((set, get) => ({
       throw new Error(payload.error ?? "Could not rename the folder.");
     }
     set({ folders: folders.map((f) => (f.id === folderId ? { ...f, name } : f)) });
+  },
+
+  /** Appearance is local styling, so it applies optimistically and rolls back on failure. */
+  setFolderAppearance: async (folderId, patch) => {
+    const { mailboxId, folders } = get();
+    const previous = folders.find((entry) => entry.id === folderId);
+    if (!previous) return;
+
+    set({
+      folders: folders.map((entry) => (entry.id === folderId ? { ...entry, ...patch } : entry)),
+    });
+
+    const response = await fetch(`/api/mailboxes/${mailboxId}/folders/${folderId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+
+    if (!response.ok) {
+      set({
+        folders: get().folders.map((entry) => (entry.id === folderId ? previous : entry)),
+      });
+    }
   },
 
   deleteFolder: async (folderId) => {

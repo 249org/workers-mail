@@ -36,6 +36,13 @@
       "when": 1787137264177,
       "tag": "0004_bimi",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1787137804876,
+      "tag": "0005_folder_appearance",
+      "breakpoints": true
     }
   ]
 }

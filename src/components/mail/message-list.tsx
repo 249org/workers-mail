@@ -153,7 +153,7 @@ function Row({
   onToggle: () => void;
   onHover: () => void;
 }) {
-  const { trigger } = useContextMenu();
+  const { bind } = useContextMenu();
   const store = useMailStore.getState();
   const folders = useMailStore((state) => state.folders);
   const { system, custom } = partitionFolders(folders);
@@ -225,7 +225,7 @@ function Row({
         tabIndex={-1}
         onClick={onSelect}
         onMouseEnter={onHover}
-        onContextMenu={trigger(menuItems)}
+        {...bind(menuItems)}
         className="flex cursor-pointer gap-2.5 border-b border-border px-3 py-2.5 md:py-2"
         style={{
           background: active ? "var(--accent-subtle)" : "transparent",

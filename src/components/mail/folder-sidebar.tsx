@@ -13,6 +13,8 @@ import { useShortcutStore } from "@/lib/keyboard/store";
 import { toast } from "sonner";
 import { ChromeButton } from "./chrome-button";
 import { folderIconName, MailIcon } from "./icons";
+import { FolderAppearancePicker } from "./folder-appearance-picker";
+import { folderColorVar, isFolderIcon } from "@/lib/mail/folder-appearance";
 import { useIsMac } from "./key-caps";
 import { useContextMenu } from "@/components/ui/context-menu";
 import type { StreamState } from "./use-mail-stream";
@@ -288,7 +290,7 @@ function FolderLink({
   const tip = collapsed ? (jump ? labeled(folder.name, jump) : folder.name) : undefined;
   const isCustom = folder.role === "custom";
   const [renaming, setRenaming] = useState(false);
-  const { trigger } = useContextMenu();
+  const { bind } = useContextMenu();
 
   const menuItems = [
     { type: "label" as const, label: folder.name },
@@ -324,8 +326,36 @@ function FolderLink({
     {
       type: "item" as const,
       label: "Copy folder name",
-      onSelect: () => { void navigator.clipboard.writeText(folder.name); toast("Copied"); },
+      onSelect: () => {
+        void navigator.clipboard.writeText(folder.name);
+        toast("Copied");
+      },
     },
+    { type: "separator" as const },
+    {
+      type: "custom" as const,
+      id: "appearance",
+      render: () => (
+        <FolderAppearancePicker
+          icon={folder.icon ?? null}
+          color={folder.color ?? null}
+          fallbackIcon={folderIconName(folder)}
+          onPick={(patch) => void useMailStore.getState().setFolderAppearance(folder.id, patch)}
+        />
+      ),
+    },
+    ...(folder.icon || folder.color
+      ? [
+          {
+            type: "item" as const,
+            label: "Reset appearance",
+            onSelect: () =>
+              void useMailStore
+                .getState()
+                .setFolderAppearance(folder.id, { icon: null, color: null }),
+          },
+        ]
+      : []),
   ];
 
   if (renaming) {
@@ -346,7 +376,7 @@ function FolderLink({
       data-compact={collapsed ? "true" : undefined}
       data-tip={tip}
       aria-label={unread ? `${folder.name}, ${folder.unread} unread` : folder.name}
-      onContextMenu={trigger(menuItems)}
+      {...bind(menuItems)}
       onClick={(event) => {
         if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
         event.preventDefault();
@@ -355,7 +385,10 @@ function FolderLink({
       }}
     >
       <span className="flex min-w-0 items-center gap-2">
-        <MailIcon name={folderIconName(folder)} />
+        <MailIcon
+          name={isFolderIcon(folder.icon) ? folder.icon : folderIconName(folder)}
+          style={{ color: folderColorVar(folder.color) ?? undefined }}
+        />
         {!collapsed && <span className="truncate">{folder.name}</span>}
       </span>
       {unread && <span className="folder-count">{unread}</span>}

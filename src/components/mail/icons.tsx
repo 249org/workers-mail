@@ -18,6 +18,26 @@ export type IconName =
   | "seen"
   | "unseen"
   | "star"
+  | "tag"
+  | "flag"
+  | "bookmark"
+  | "bell"
+  | "briefcase"
+  | "receipt"
+  | "card"
+  | "cart"
+  | "plane"
+  | "home"
+  | "heart"
+  | "code"
+  | "calendar"
+  | "users"
+  | "lock"
+  | "bulb"
+  | "chart"
+  | "pin"
+  | "gift"
+  | "coffee"
   | "reply"
   | "replyAll"
   | "forward"
@@ -121,6 +141,107 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M3 8l9 6 9-6" />
     </>
   ),
+  tag: (
+    <>
+      <path d="M3 12.4V4.6a1 1 0 0 1 1-1h7.8a1 1 0 0 1 .7.3l7.5 7.5a1 1 0 0 1 0 1.4l-7.4 7.4a1 1 0 0 1-1.4 0L3.3 13.1a1 1 0 0 1-.3-.7Z" />
+      <circle cx="7.8" cy="7.8" r="1.3" />
+    </>
+  ),
+  flag: (
+    <>
+      <path d="M5 21V4" />
+      <path d="M5 4.5h11.5l-2 3.6 2 3.6H5" />
+    </>
+  ),
+  bookmark: <path d="M7 3.8h10a1 1 0 0 1 1 1v15.4l-6-4.2-6 4.2V4.8a1 1 0 0 1 1-1Z" />,
+  bell: (
+    <>
+      <path d="M6.5 10a5.5 5.5 0 1 1 11 0c0 4 1.5 5.4 1.5 5.4H5S6.5 14 6.5 10Z" />
+      <path d="M10.2 19a2 2 0 0 0 3.6 0" />
+    </>
+  ),
+  briefcase: (
+    <>
+      <rect x="3" y="7.5" width="18" height="12" rx="1.6" />
+      <path d="M9 7.5V5.6a1.2 1.2 0 0 1 1.2-1.2h3.6A1.2 1.2 0 0 1 15 5.6v1.9" />
+      <path d="M3 12.5h18" />
+    </>
+  ),
+  receipt: (
+    <>
+      <path d="M5.5 3.5h13v17l-2.2-1.4-2.1 1.4-2.2-1.4L9.8 20.5l-2.1-1.4-2.2 1.4Z" />
+      <path d="M9 8.5h6M9 12.5h6" />
+    </>
+  ),
+  card: (
+    <>
+      <rect x="2.5" y="5.5" width="19" height="13" rx="1.8" />
+      <path d="M2.5 10h19" />
+      <path d="M6.5 14.5h3" />
+    </>
+  ),
+  cart: (
+    <>
+      <path d="M2.5 4h2l2.2 10.4a1.4 1.4 0 0 0 1.4 1.1h8.6a1.4 1.4 0 0 0 1.4-1.1L20 7.5H5.4" />
+      <circle cx="9.5" cy="19.5" r="1.3" />
+      <circle cx="17" cy="19.5" r="1.3" />
+    </>
+  ),
+  plane: <path d="M10.5 13.5 3 11V9l7.5 1.4V5.2a1.7 1.7 0 0 1 3.4 0v5.2L21.4 9v2l-7.5 2.5v4.2l2.4 1.4v1.4l-4.1-1-4.1 1v-1.4l2.4-1.4Z" />,
+  home: (
+    <>
+      <path d="M3.5 10.6 12 4l8.5 6.6V20a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1Z" />
+      <path d="M9.5 21v-6.5h5V21" />
+    </>
+  ),
+  heart: <path d="M12 20.2 4.6 13a4.4 4.4 0 1 1 6.2-6.2l1.2 1.2 1.2-1.2A4.4 4.4 0 1 1 19.4 13Z" />,
+  code: <path d="m8.5 8.5-4 3.5 4 3.5M15.5 8.5l4 3.5-4 3.5M13.5 5l-3 14" />,
+  calendar: (
+    <>
+      <rect x="3.5" y="5" width="17" height="15.5" rx="1.6" />
+      <path d="M3.5 10h17M8.5 3.5v3M15.5 3.5v3" />
+    </>
+  ),
+  users: (
+    <>
+      <circle cx="9.5" cy="8.5" r="3.2" />
+      <path d="M3.5 19.5a6 6 0 0 1 12 0" />
+      <path d="M16 5.7a3.2 3.2 0 0 1 0 5.6M17.5 14.4a6 6 0 0 1 3 5.1" />
+    </>
+  ),
+  lock: (
+    <>
+      <rect x="4.5" y="10.5" width="15" height="10" rx="1.8" />
+      <path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7" />
+    </>
+  ),
+  bulb: (
+    <>
+      <path d="M9 16.5a6 6 0 1 1 6 0v1.8H9Z" />
+      <path d="M10 21h4" />
+    </>
+  ),
+  chart: <path d="M4 20V4M4 20h16M8 16.5v-5M12.5 16.5v-9M17 16.5v-3" />,
+  pin: (
+    <>
+      <path d="M12 21v-6.5" />
+      <path d="M8 3.5h8l-1 5 2.5 2.4v1.1H6.5v-1.1L9 8.5Z" />
+    </>
+  ),
+  gift: (
+    <>
+      <rect x="3.5" y="9" width="17" height="11.5" rx="1.4" />
+      <path d="M3.5 13.5h17M12 9v11.5" />
+      <path d="M12 9S10.6 4 8.2 4a2.1 2.1 0 0 0 0 5M12 9s1.4-5 3.8-5a2.1 2.1 0 0 1 0 5" />
+    </>
+  ),
+  coffee: (
+    <>
+      <path d="M4.5 8.5h12v6a5 5 0 0 1-10 0Z" />
+      <path d="M16.5 10h1.8a2.4 2.4 0 0 1 0 4.8h-1.8" />
+      <path d="M4.5 21h12" />
+    </>
+  ),
   star: (
     <path d="M12 4.2l2.2 5.1 5.5.5-4.2 3.7 1.2 5.4L12 16.3 7.3 18.9l1.2-5.4-4.2-3.7 5.5-.5z" />
   ),
@@ -155,10 +276,12 @@ export function MailIcon({
   name,
   size = 16,
   filled = false,
+  style,
 }: {
   name: IconName;
   size?: number;
   filled?: boolean;
+  style?: React.CSSProperties;
 }) {
   return (
     <svg
@@ -172,6 +295,7 @@ export function MailIcon({
       strokeLinejoin="round"
       aria-hidden
       className="shrink-0"
+      style={style}
     >
       {PATHS[name]}
     </svg>

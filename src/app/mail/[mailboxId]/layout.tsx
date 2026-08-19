@@ -40,6 +40,8 @@ export default async function MailboxLayout({ children, params }: LayoutProps) {
           name: entry.name,
           role: entry.role,
           unread: unread.get(entry.id) ?? 0,
+          icon: entry.icon,
+          color: entry.color,
         }))}
         initialLastSyncedAt={mailbox.lastSyncedAt}
         initialSyncError={mailbox.syncError}

@@ -75,6 +75,15 @@
   --dur-press: 130ms;
   --dur-popover: 180ms;
   --dur-modal: 220ms;
+  /* Folder accents. Stored as token names so a colour picked in light mode still
+     reads correctly in dark; the day/night pair below is the only place hues live. */
+  --folder-red: #c8453a;
+  --folder-amber: #a1700c;
+  --folder-green: #1f7a4b;
+  --folder-teal: #12707f;
+  --folder-blue: #2f5bd7;
+  --folder-violet: #6b4bd0;
+  --folder-pink: #b83f7d;
 }
 
 
@@ -771,6 +780,30 @@ section:has(> header .pane-toolbar[data-wide]) .message-sheet {
 }
 
 /* ─── Context menu ─────────────────────────────────────────────────── */
+
+/* Night: same hues lifted for contrast against a charcoal card. */
+html[data-scheme="dark"] {
+  --folder-red: #f08a7e;
+  --folder-amber: #e0ad51;
+  --folder-green: #58c78d;
+  --folder-teal: #4dbdd0;
+  --folder-blue: #7ea2ff;
+  --folder-violet: #a894f5;
+  --folder-pink: #ef8bbd;
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-scheme="system"],
+  html:not([data-scheme]) {
+    --folder-red: #f08a7e;
+    --folder-amber: #e0ad51;
+    --folder-green: #58c78d;
+    --folder-teal: #4dbdd0;
+    --folder-blue: #7ea2ff;
+    --folder-violet: #a894f5;
+    --folder-pink: #ef8bbd;
+  }
+}
 
 .ctx-menu {
   position: fixed;

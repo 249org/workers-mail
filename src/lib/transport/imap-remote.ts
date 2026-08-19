@@ -46,3 +46,24 @@ export async function createRemoteFolder(
   if (!result.ok) throw new Error(result.error);
   return result.folder;
 }
+
+export type FolderMutationResult =
+  | { ok: true; remotePath?: string }
+  | { ok: false; error: string };
+
+/** Mirrors a rename or delete onto the IMAP server via the mailbox's Durable Object. */
+export async function mutateRemoteFolder(
+  env: CloudflareEnv,
+  mailboxId: string,
+  folderId: string,
+  action: "rename" | "delete",
+  name?: string,
+): Promise<FolderMutationResult> {
+  const stub = env.MAILBOX.get(env.MAILBOX.idFromName(mailboxId));
+  return (await stub.mutateRemoteFolder({
+    mailboxId,
+    folderId,
+    action,
+    name,
+  })) as FolderMutationResult;
+}

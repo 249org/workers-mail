@@ -27,6 +27,8 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
         name: folder.name,
         role: folder.role,
         unread: unread.get(folder.id) ?? 0,
+        icon: folder.icon,
+        color: folder.color,
       })),
     });
   } catch (error) {

@@ -104,6 +104,10 @@ export const folders = sqliteTable("folders", {
     .notNull()
     .default("custom"),
   remotePath: text("remote_path"),
+  /** Icon id from the curated set; null falls back to the role's default. */
+  icon: text("icon"),
+  /** Accent token name, not a raw colour, so it tracks the theme. */
+  color: text("color"),
   uidValidity: integer("uid_validity"),
   lastUid: integer("last_uid"),
   oldestUid: integer("oldest_uid"),

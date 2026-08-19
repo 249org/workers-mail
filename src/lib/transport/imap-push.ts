@@ -132,3 +132,43 @@ export async function createImapMailbox(
     await session.close();
   }
 }
+
+/** RENAME on the server, keeping the stored remote path in step. */
+export async function renameImapMailbox(
+  mailbox: Mailbox,
+  env: CloudflareEnv,
+  db: Database,
+  folder: Folder,
+  name: string,
+): Promise<string> {
+  const from = remoteMailbox(folder);
+  const delimiter = from.includes("/") ? "/" : from.includes(".") ? "." : null;
+  const parent = delimiter ? from.slice(0, from.lastIndexOf(delimiter) + 1) : "";
+  const to = `${parent}${name}`;
+  if (to === from) return from;
+
+  const credentials = await imapAuth(mailbox, env, db);
+  const session = await ImapMutator.open(credentials);
+  try {
+    await session.renameMailbox(from, to);
+    return to;
+  } finally {
+    await session.close();
+  }
+}
+
+/** DELETE on the server so every other client drops the folder too. */
+export async function deleteImapMailbox(
+  mailbox: Mailbox,
+  env: CloudflareEnv,
+  db: Database,
+  folder: Folder,
+): Promise<void> {
+  const credentials = await imapAuth(mailbox, env, db);
+  const session = await ImapMutator.open(credentials);
+  try {
+    await session.deleteMailbox(remoteMailbox(folder));
+  } finally {
+    await session.close();
+  }
+}

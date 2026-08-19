@@ -1,5 +1,6 @@
 import type { CoreSocket } from "edgeport/core";
 import type { MailAuth } from "./credentials";
+import { imapMailboxArg } from "./imap-mailbox-names";
 import {
   imapQuote,
   parseCopyUid,
@@ -56,7 +57,7 @@ export class ImapMutator {
 
   async select(mailbox: string): Promise<void> {
     if (this.#selected === mailbox) return;
-    await this.command(`SELECT ${imapQuote(mailbox)}`);
+    await this.command(`SELECT ${imapMailboxArg(mailbox)}`);
     this.#selected = mailbox;
   }
 
@@ -67,7 +68,28 @@ export class ImapMutator {
   }
 
   async createMailbox(name: string): Promise<void> {
-    await this.command(`CREATE ${imapQuote(name)}`);
+    await this.command(`CREATE ${imapMailboxArg(name)}`);
+    // Subscribing is what makes the folder appear in other clients' folder lists.
+    await this.subscribe(name).catch(() => undefined);
+  }
+
+  async renameMailbox(from: string, to: string): Promise<void> {
+    await this.command(`RENAME ${imapMailboxArg(from)} ${imapMailboxArg(to)}`);
+    await this.subscribe(to).catch(() => undefined);
+  }
+
+  async deleteMailbox(name: string): Promise<void> {
+    // A selected mailbox cannot be deleted, so step off it first.
+    if (this.#selected) {
+      await this.command("CLOSE").catch(() => undefined);
+      this.#selected = null;
+    }
+    await this.command(`UNSUBSCRIBE ${imapMailboxArg(name)}`).catch(() => undefined);
+    await this.command(`DELETE ${imapMailboxArg(name)}`);
+  }
+
+  async subscribe(name: string): Promise<void> {
+    await this.command(`SUBSCRIBE ${imapMailboxArg(name)}`);
   }
 
   async listMailboxes(): Promise<string[]> {
@@ -102,7 +124,7 @@ export class ImapMutator {
 
   async move(uids: number[], destination: string): Promise<Map<number, number>> {
     if (uids.length === 0) return new Map();
-    const dest = imapQuote(destination);
+    const dest = imapMailboxArg(destination);
     const set = uids.join(",");
     try {
       return parseCopyUid(await this.command(`UID MOVE ${set} ${dest}`));
