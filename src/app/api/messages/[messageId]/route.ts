@@ -2,9 +2,10 @@ import { and, eq } from "drizzle-orm";
 import { ApiError, authenticate, errorResponse, readJson } from "@/lib/auth/api";
 import { env as cloudflareEnv } from "@/lib/env";
 import { messages } from "@/lib/db/schema";
-import { getOwnedMailbox } from "@/lib/mail/mailboxes";
+import { getOwnedMailbox, listFolders } from "@/lib/mail/mailboxes";
 import { parseMime, stripHtml, type ParsedAttachment } from "@/lib/mail/mime";
 import { getMessage, listThread } from "@/lib/mail/queries";
+import { pushImapChanges } from "@/lib/transport/imap-push";
 import { plainTextToHtml, sanitizeMessageHtml, inlineSrcMap, normalizeCid } from "@/lib/mail/sanitize";
 
 type Params = { params: Promise<{ messageId: string }> };
@@ -111,19 +112,50 @@ function cidMapFrom(
 
 export async function PATCH(request: Request, { params }: Params): Promise<Response> {
   try {
-    const { user, db } = await authenticate(request, cloudflareEnv());
+    const { user, db, env } = await authenticate(request, cloudflareEnv());
     const { messageId } = await params;
     const body = await readJson<PatchBody>(request);
     if (!body.mailboxId) throw new ApiError(400, "mailboxId is required");
-    if (!(await getOwnedMailbox(db, user.id, body.mailboxId))) {
-      throw new ApiError(404, "Mailbox not found");
-    }
+    const mailbox = await getOwnedMailbox(db, user.id, body.mailboxId);
+    if (!mailbox) throw new ApiError(404, "Mailbox not found");
 
     const patch: Partial<typeof messages.$inferInsert> = {};
     if (typeof body.seen === "boolean") patch.seen = body.seen;
     if (typeof body.flagged === "boolean") patch.flagged = body.flagged;
     if (body.folderId) patch.folderId = body.folderId;
     if (Object.keys(patch).length === 0) throw new ApiError(400, "Nothing to update");
+
+    const current = await db
+      .select({ id: messages.id, folderId: messages.folderId, remoteUid: messages.remoteUid })
+      .from(messages)
+      .where(and(eq(messages.id, messageId), eq(messages.mailboxId, body.mailboxId)))
+      .limit(1);
+    const row = current[0];
+    if (!row) throw new ApiError(404, "Message not found");
+
+    if (mailbox.type === "external_imap") {
+      const folders = await listFolders(db, mailbox.id);
+      try {
+        if (body.folderId) {
+          const destination = folders.find((folder) => folder.id === body.folderId);
+          if (!destination) throw new ApiError(404, "Folder not found");
+          const uids = await pushImapChanges(mailbox, env, db, folders, [row], {
+            action: "move",
+            destination,
+          });
+          if (uids.has(row.id)) patch.remoteUid = uids.get(row.id) ?? null;
+        } else {
+          await pushImapChanges(mailbox, env, db, folders, [row], {
+            action: "flags",
+            seen: typeof body.seen === "boolean" ? body.seen : undefined,
+            flagged: typeof body.flagged === "boolean" ? body.flagged : undefined,
+          });
+        }
+      } catch (error) {
+        if (error instanceof ApiError) throw error;
+        throw new ApiError(502, "The mail server could not apply that change.");
+      }
+    }
 
     await db
       .update(messages)

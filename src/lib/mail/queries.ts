@@ -176,12 +176,25 @@ export async function ownedMessageIds(
   mailboxId: string,
   ids: string[],
 ): Promise<string[]> {
+  return (await ownedMessageRefs(db, mailboxId, ids)).map((row) => row.id);
+}
+
+export type MessageImapRef = {
+  id: string;
+  folderId: string;
+  remoteUid: number | null;
+};
+
+export async function ownedMessageRefs(
+  db: Database,
+  mailboxId: string,
+  ids: string[],
+): Promise<MessageImapRef[]> {
   if (ids.length === 0) return [];
-  const rows = await db
-    .select({ id: messages.id })
+  return db
+    .select({ id: messages.id, folderId: messages.folderId, remoteUid: messages.remoteUid })
     .from(messages)
     .where(and(eq(messages.mailboxId, mailboxId), inArray(messages.id, ids)));
-  return rows.map((row) => row.id);
 }
 
 export async function folderInMailbox(
