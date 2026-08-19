@@ -6,6 +6,7 @@ import type { PublicMailbox } from "@/lib/mail/mailboxes";
 import { parseFolderName, partitionFolders } from "@/lib/mail/folder-name";
 import { navigateMailFolder, useMailStore, type FolderSummary } from "@/lib/mail/view-store";
 import { formatRelative } from "@/lib/format";
+import { describeImapError } from "@/lib/transport/imap-error";
 import { primaryCombo } from "@/lib/keyboard/bindings";
 import { formatComboHint, type ShortcutAction } from "@/lib/keyboard/shortcuts";
 import { useShortcutStore } from "@/lib/keyboard/store";
@@ -257,7 +258,9 @@ export function FolderSidebar({
             Synced {formatRelative(lastSyncedAt)}
           </p>
         )}
-        {!collapsed && syncError && <p className="mt-1.5 text-[var(--danger)]">{syncError}</p>}
+        {!collapsed && syncError && (
+          <p className="mt-1.5 text-[var(--danger)]">{describeImapError(syncError)}</p>
+        )}
       </div>
     </aside>
   );

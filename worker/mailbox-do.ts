@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { createDb } from "@/lib/db";
 import { mailboxes } from "@/lib/db/schema";
 import { describe, markSyncState, syncMailbox } from "@/lib/transport/imap";
+import { describeImapError, isImapTimeout } from "@/lib/transport/imap-error";
 import { createImapMailbox, pushImapChanges } from "@/lib/transport/imap-push";
 import { listFolders } from "@/lib/mail/mailboxes";
 import type { CreateFolderResult, RemoteMailChange, RemoteMailResult } from "@/lib/transport/imap-remote";
@@ -237,12 +238,19 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
           backfill: options.backfill,
           inboxOnly: options.inboxOnly,
           folderId: options.folderId,
-          maxFolders: options.inboxOnly ? 1 : 12,
+          maxFolders: options.inboxOnly ? 1 : 8,
         },
       );
 
-      this.state.lastState = summary.errors.length > 0 ? "error" : "idle";
-      this.state.lastError = summary.errors[0] ?? null;
+      const timedOut = summary.errors.some((entry) => isImapTimeout(entry));
+      const transient = Boolean(options.inboxOnly && timedOut);
+
+      this.state.lastState = transient ? "idle" : summary.errors.length > 0 ? "error" : "idle";
+      this.state.lastError = transient
+        ? null
+        : summary.errors[0]
+          ? describeImapError(summary.errors[0])
+          : null;
       this.state.lastSyncedAt = Math.floor(Date.now() / 1000);
 
       if (!options.inboxOnly && !options.folderId) {
@@ -252,7 +260,14 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
           .where(eq(mailboxes.id, mailboxId));
       }
       if (!options.folderId) {
-        await markSyncState(db, mailboxId, this.state.lastState, this.state.lastError ?? undefined);
+        if (transient) {
+          await db
+            .update(mailboxes)
+            .set({ syncState: "idle", syncError: null })
+            .where(eq(mailboxes.id, mailboxId));
+        } else {
+          await markSyncState(db, mailboxId, this.state.lastState, this.state.lastError ?? undefined);
+        }
       }
 
       if (!options.inboxOnly || summary.stored > 0 || this.state.lastState === "error") {
@@ -262,6 +277,8 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
           stored: summary.stored,
           error: this.state.lastError ?? undefined,
         });
+      } else if (transient) {
+        this.broadcast({ type: "sync", state: "idle", stored: 0 });
       }
       console.info("mailbox sync finished", {
         mailboxId,
@@ -272,12 +289,23 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
         errors: summary.errors,
       });
     } catch (error) {
-      this.state.lastState = "error";
-      this.state.lastError = describe(error);
-      if (!options.folderId) {
-        await markSyncState(db, mailboxId, "error", this.state.lastError);
+      if (options.inboxOnly && isImapTimeout(error)) {
+        this.state.lastState = "idle";
+        this.state.lastError = null;
+        await db
+          .update(mailboxes)
+          .set({ syncState: "idle", syncError: null })
+          .where(eq(mailboxes.id, mailboxId));
+        this.broadcast({ type: "sync", state: "idle", stored: 0 });
+        console.warn("mailbox inbox poll timed out", { mailboxId, error: describe(error) });
+      } else {
+        this.state.lastState = "error";
+        this.state.lastError = describeImapError(error);
+        if (!options.folderId) {
+          await markSyncState(db, mailboxId, "error", this.state.lastError);
+        }
+        this.broadcast({ type: "sync", state: "error", error: this.state.lastError });
       }
-      this.broadcast({ type: "sync", state: "error", error: this.state.lastError });
     } finally {
       this.state.syncingUntil = 0;
       await this.persist();

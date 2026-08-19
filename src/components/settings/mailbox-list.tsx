@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { PublicMailbox } from "@/lib/mail/mailboxes";
 import { formatRelative } from "@/lib/format";
+import { describeImapError } from "@/lib/transport/imap-error";
 import { MailIcon } from "@/components/mail/icons";
 
 export function MailboxList({ mailboxes }: { mailboxes: PublicMailbox[] }) {
@@ -50,7 +51,9 @@ export function MailboxList({ mailboxes }: { mailboxes: PublicMailbox[] }) {
           <div className="min-w-0">
             <p className="truncate text-[13px] font-medium">{mailbox.address}</p>
             {mailbox.syncError ? (
-              <p className="mt-0.5 truncate text-[13px] text-[var(--danger)]">{mailbox.syncError}</p>
+              <p className="mt-0.5 truncate text-[13px] text-[var(--danger)]">
+                {describeImapError(mailbox.syncError)}
+              </p>
             ) : null}
           </div>
           <span className="text-[13px] text-muted-foreground">

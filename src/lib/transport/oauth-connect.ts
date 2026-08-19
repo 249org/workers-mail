@@ -44,7 +44,7 @@ export async function openImap(credentials: MailAuth): Promise<ImapSession> {
         username: credentials.username,
         password: credentials.mechanism === "xoauth2" ? "xoauth2" : credentials.password,
       },
-      timeoutMs: 15_000,
+      timeoutMs: 30_000,
     });
   } catch (error) {
     await socket.close().catch(() => undefined);

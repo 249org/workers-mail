@@ -8,9 +8,12 @@ import { upsertRemoteFolder, folderByRole, listFolders, type Folder, type Mailbo
 import { imapAuth, type MailAuth } from "./credentials";
 import { openImap } from "./oauth-connect";
 import { imapUidSet } from "./imap-uid-set";
+import { describeImapError, isImapTimeout } from "./imap-error";
 
-const INCREMENTAL_BATCH = 40;
-const BACKFILL_BATCH = 12;
+const INCREMENTAL_BATCH = 8;
+const BACKFILL_BATCH = 6;
+/** Full RFC822 bodies in one UID FETCH; keep this small so a slow host cannot stall the poll. */
+const BODY_CHUNK = 3;
 /** Leave the isolate before a hung IMAP fetch can kill the whole pass. */
 const PASS_BUDGET_MS = 20_000;
 const SPECIAL_FOLDERS: Array<{ match: RegExp; role: Folder["role"]; name: string }> = [
@@ -178,40 +181,56 @@ async function syncFolder(
 
   // Newest missing first so the open inbox is current. Backfill walks the rest later.
   const batchSize = backfill ? BACKFILL_BATCH : INCREMENTAL_BATCH;
-  const batch = backfill ? missing.slice(0, batchSize) : missing.slice(-batchSize);
-  const fetched = await session.fetch(batch, { flags: true, body: true, size: true });
+  const selected = backfill ? missing.slice(0, batchSize) : missing.slice(-batchSize);
+  const chunks = bodyChunks(selected, BODY_CHUNK, !backfill);
+  const deadline = Date.now() + PASS_BUDGET_MS;
 
   let stored = 0;
+  let scanned = 0;
   let highest = lastUid;
   let lowest = oldestUid;
-  for (const message of fetched) {
-    if (!message.body) continue;
-    const parsed = await parseMime(message.body);
-    const result = await storeMessage(deps.db, deps.bucket, parsed, {
-      mailboxId: mailbox.id,
-      folderId: folder.id,
-      ownerId: mailbox.ownerId,
-      raw: message.body,
-      size: message.size ?? message.body.byteLength,
-      seen: message.flags.includes("\\Seen"),
-      remoteUid: message.uid,
-    });
-    if (result.created) stored += 1;
-    if (message.uid > highest) highest = message.uid;
-    if (lowest === 0 || message.uid < lowest) lowest = message.uid;
-  }
 
-  const cursor: Partial<Folder> = {};
-  if (highest > lastUid) cursor.lastUid = highest;
-  if (lowest !== oldestUid) cursor.oldestUid = lowest;
-  if (Object.keys(cursor).length > 0) {
-    await deps.db.update(folders).set(cursor).where(eq(folders.id, folder.id));
+  for (const chunk of chunks) {
+    if (Date.now() > deadline) break;
+    let fetched: Awaited<ReturnType<ImapSession["fetch"]>>;
+    try {
+      fetched = await session.fetch(chunk, { flags: true, body: true, size: true });
+    } catch (error) {
+      if (stored > 0 && isImapTimeout(error)) break;
+      throw error;
+    }
+    scanned += fetched.length;
+    for (const message of fetched) {
+      if (!message.body) continue;
+      const parsed = await parseMime(message.body);
+      const result = await storeMessage(deps.db, deps.bucket, parsed, {
+        mailboxId: mailbox.id,
+        folderId: folder.id,
+        ownerId: mailbox.ownerId,
+        raw: message.body,
+        size: message.size ?? message.body.byteLength,
+        seen: message.flags.includes("\\Seen"),
+        remoteUid: message.uid,
+      });
+      if (result.created) stored += 1;
+      if (message.uid > highest) highest = message.uid;
+      if (lowest === 0 || message.uid < lowest) lowest = message.uid;
+    }
+
+    const cursor: Partial<Folder> = {};
+    if (highest > lastUid) cursor.lastUid = highest;
+    if (lowest !== oldestUid) cursor.oldestUid = lowest;
+    if (Object.keys(cursor).length > 0) {
+      await deps.db.update(folders).set(cursor).where(eq(folders.id, folder.id));
+      lastUid = highest;
+      oldestUid = lowest;
+    }
   }
 
   return {
     stored,
-    scanned: fetched.length,
-    caughtUp: batch.length === missing.length,
+    scanned,
+    caughtUp: scanned === missing.length || (selected.length === missing.length && scanned === selected.length),
   };
 }
 
@@ -315,6 +334,21 @@ function rank(folder: Folder): number {
   if (folder.role === "archive") return 2;
   if (folder.lastUid == null) return 3;
   return 4;
+}
+
+/** Newest-first for live mail; oldest-first when backfilling. */
+function bodyChunks(uids: number[], size: number, newestFirst: boolean): number[][] {
+  const chunks: number[][] = [];
+  if (newestFirst) {
+    for (let end = uids.length; end > 0; end -= size) {
+      chunks.push(uids.slice(Math.max(0, end - size), end));
+    }
+  } else {
+    for (let start = 0; start < uids.length; start += size) {
+      chunks.push(uids.slice(start, start + size));
+    }
+  }
+  return chunks;
 }
 
 export async function markSyncState(

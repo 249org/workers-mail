@@ -35,7 +35,7 @@ export class ImapMutator {
     this.#timeoutMs = timeoutMs;
   }
 
-  static async open(credentials: MailAuth, timeoutMs = 15_000): Promise<ImapMutator> {
+  static async open(credentials: MailAuth, timeoutMs = 30_000): Promise<ImapMutator> {
     const socket = await connectImapSocket(credentials);
     const mutator = new ImapMutator(socket, timeoutMs);
     try {
