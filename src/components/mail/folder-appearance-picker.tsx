@@ -1,6 +1,7 @@
 "use client";
 
 import { MailIcon, type IconName } from "./icons";
+import { useMailStore } from "@/lib/mail/view-store";
 import {
   FOLDER_COLOR_LABELS,
   FOLDER_COLORS,
@@ -9,19 +10,27 @@ import {
 } from "@/lib/mail/folder-appearance";
 
 type Props = {
-  icon: string | null;
-  color: string | null;
-  /** Shown as the icon when nothing is picked, so "Default" previews correctly. */
+  folderId: string;
+  /** Shown as selected when nothing is picked, so the role default previews correctly. */
   fallbackIcon: IconName;
-  onPick: (patch: { icon?: string | null; color?: string | null }) => void;
 };
 
 /**
  * Rendered inside the folder context menu. Icons and colours are separate axes, so a
- * folder can keep its role icon and only take a colour.
+ * folder can keep its role icon and take only a colour.
+ *
+ * State is read from the store rather than props: the menu builds its items once when
+ * it opens, so captured props would leave the selection ring behind after a pick.
  */
-export function FolderAppearancePicker({ icon, color, fallbackIcon, onPick }: Props) {
+export function FolderAppearancePicker({ folderId, fallbackIcon }: Props) {
+  const folder = useMailStore((state) => state.folders.find((entry) => entry.id === folderId));
+  const setFolderAppearance = useMailStore((state) => state.setFolderAppearance);
+
+  const icon = folder?.icon ?? null;
+  const color = folder?.color ?? null;
   const activeColor = color ?? "default";
+  const onPick = (patch: { icon?: string | null; color?: string | null }) =>
+    void setFolderAppearance(folderId, patch);
 
   return (
     <div>

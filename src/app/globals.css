@@ -858,6 +858,77 @@ html[data-scheme="dark"] {
   background: var(--border);
 }
 
+/* Menu widens only when it carries a picker, so plain menus stay compact. */
+.ctx-menu:has(.ctx-grid) {
+  min-width: 15rem;
+}
+
+.ctx-item[data-checked="true"]::after {
+  content: "";
+  width: 0.375rem;
+  height: 0.375rem;
+  margin-left: auto;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.ctx-swatch-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.15rem 0.6rem 0.4rem;
+}
+
+.ctx-swatch {
+  width: 1.05rem;
+  height: 1.05rem;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--foreground) 18%, transparent);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.ctx-swatch[data-selected="true"] {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.ctx-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 0.1rem;
+  padding: 0.15rem 0.45rem 0.4rem;
+}
+
+.ctx-tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  border: 1px solid transparent;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: var(--foreground);
+  cursor: pointer;
+}
+
+.ctx-tile[data-selected="true"] {
+  border-color: var(--primary);
+  background: var(--accent-subtle);
+  color: var(--primary);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ctx-tile:hover {
+    background: var(--accent-wash);
+  }
+  .ctx-swatch:hover {
+    outline: 2px solid color-mix(in srgb, var(--foreground) 25%, transparent);
+    outline-offset: 2px;
+  }
+}
+
 .ctx-label {
   padding: 0.35rem 0.6rem 0.15rem;
   font-size: 11px;

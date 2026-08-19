@@ -111,7 +111,10 @@ function MenuSurface({ request, onClose }: { request: MenuRequest; onClose: () =
     });
   }, [request.anchor.x, request.anchor.y]);
 
+  // Focus only once the panel is positioned: focus() is a no-op inside a
+  // visibility:hidden subtree, which is how the menu renders on its measuring pass.
   useEffect(() => {
+    if (!position) return;
     const first = selectable[0];
     if (first === undefined) {
       panelRef.current?.focus();
@@ -119,7 +122,7 @@ function MenuSurface({ request, onClose }: { request: MenuRequest; onClose: () =
     }
     setActive(first);
     itemRefs.current.get(first)?.focus();
-  }, [selectable]);
+  }, [position, selectable]);
 
   useEffect(() => {
     const onPointerDown = (event: PointerEvent) => {

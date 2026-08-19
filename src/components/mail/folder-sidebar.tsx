@@ -336,12 +336,7 @@ function FolderLink({
       type: "custom" as const,
       id: "appearance",
       render: () => (
-        <FolderAppearancePicker
-          icon={folder.icon ?? null}
-          color={folder.color ?? null}
-          fallbackIcon={folderIconName(folder)}
-          onPick={(patch) => void useMailStore.getState().setFolderAppearance(folder.id, patch)}
-        />
+        <FolderAppearancePicker folderId={folder.id} fallbackIcon={folderIconName(folder)} />
       ),
     },
     ...(folder.icon || folder.color
