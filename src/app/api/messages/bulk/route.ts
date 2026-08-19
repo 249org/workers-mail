@@ -5,7 +5,7 @@ import { env as cloudflareEnv } from "@/lib/env";
 import { attachments, messages } from "@/lib/db/schema";
 import { folderByRole, getOwnedMailbox, listFolders, type Mailbox } from "@/lib/mail/mailboxes";
 import { ownedMessageRefs } from "@/lib/mail/queries";
-import { pushImapChanges, type ImapMessageRef, type ImapPush } from "@/lib/transport/imap-push";
+import { applyRemoteMail, type ImapMessageRef, type RemoteMailChange } from "@/lib/transport/imap-remote";
 
 type BulkBody = {
   mailboxId?: string;
@@ -34,7 +34,7 @@ export async function POST(request: Request): Promise<Response> {
         .from(messages)
         .where(and(eq(messages.mailboxId, mailbox.id), eq(messages.folderId, trash.id)));
       if (rows.length === 0) return Response.json({ updated: 0 });
-      await applyImap(mailbox, env, db, folders, rows, { action: "delete" });
+      await applyImap(mailbox, env, rows, { action: "delete" });
       const trashIds = rows.map((row) => row.id);
       await purgeObjects(db, env.MAIL_BUCKET, trashIds);
       await db
@@ -50,28 +50,28 @@ export async function POST(request: Request): Promise<Response> {
 
     switch (body.action) {
       case "read":
-        await applyImap(mailbox, env, db, folders, refs, { action: "flags", seen: true });
+        await applyImap(mailbox, env, refs, { action: "flags", seen: true });
         await db.update(messages).set({ seen: true }).where(scope);
         break;
       case "unread":
-        await applyImap(mailbox, env, db, folders, refs, { action: "flags", seen: false });
+        await applyImap(mailbox, env, refs, { action: "flags", seen: false });
         await db.update(messages).set({ seen: false }).where(scope);
         break;
       case "flag":
-        await applyImap(mailbox, env, db, folders, refs, { action: "flags", flagged: true });
+        await applyImap(mailbox, env, refs, { action: "flags", flagged: true });
         await db.update(messages).set({ flagged: true }).where(scope);
         break;
       case "unflag":
-        await applyImap(mailbox, env, db, folders, refs, { action: "flags", flagged: false });
+        await applyImap(mailbox, env, refs, { action: "flags", flagged: false });
         await db.update(messages).set({ flagged: false }).where(scope);
         break;
       case "move": {
         if (!body.folderId) throw new ApiError(400, "folderId is required to move");
         const destination = folders.find((folder) => folder.id === body.folderId);
         if (!destination) throw new ApiError(404, "Folder not found");
-        const uids = await applyImap(mailbox, env, db, folders, refs, {
+        const uids = await applyImap(mailbox, env, refs, {
           action: "move",
-          destination,
+          folderId: destination.id,
         });
         await applyMoveLocally(db, mailbox.id, refs, destination.id, uids);
         break;
@@ -79,15 +79,15 @@ export async function POST(request: Request): Promise<Response> {
       case "trash": {
         const trash = folders.find((folder) => folder.role === "trash");
         if (!trash) throw new ApiError(409, "This mailbox has no trash folder");
-        const uids = await applyImap(mailbox, env, db, folders, refs, {
+        const uids = await applyImap(mailbox, env, refs, {
           action: "move",
-          destination: trash,
+          folderId: trash.id,
         });
         await applyMoveLocally(db, mailbox.id, refs, trash.id, uids);
         break;
       }
       case "delete": {
-        await applyImap(mailbox, env, db, folders, refs, { action: "delete" });
+        await applyImap(mailbox, env, refs, { action: "delete" });
         await purgeObjects(db, env.MAIL_BUCKET, ids);
         await db.delete(messages).where(scope);
         break;
@@ -105,14 +105,12 @@ export async function POST(request: Request): Promise<Response> {
 async function applyImap(
   mailbox: Mailbox,
   env: CloudflareEnv,
-  db: Database,
-  folders: Awaited<ReturnType<typeof listFolders>>,
   refs: ImapMessageRef[],
-  change: ImapPush,
+  change: RemoteMailChange,
 ): Promise<Map<string, number | null>> {
   if (mailbox.type !== "external_imap") return new Map();
   try {
-    return await pushImapChanges(mailbox, env, db, folders, refs, change);
+    return await applyRemoteMail(env, mailbox.id, refs, change);
   } catch {
     throw new ApiError(502, "The mail server could not apply that change.");
   }

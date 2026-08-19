@@ -3,6 +3,9 @@ import { eq } from "drizzle-orm";
 import { createDb } from "@/lib/db";
 import { mailboxes } from "@/lib/db/schema";
 import { describe, markSyncState, syncMailbox } from "@/lib/transport/imap";
+import { pushImapChanges } from "@/lib/transport/imap-push";
+import { listFolders } from "@/lib/mail/mailboxes";
+import type { RemoteMailChange, RemoteMailResult } from "@/lib/transport/imap-remote";
 import type { MailboxEvent, SyncStatus } from "@/lib/mail/events";
 
 /** Poll cadence while at least one client is watching the mailbox. */
@@ -121,6 +124,41 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
     this.kickSync({ backfill: options.backfill ?? false });
     await this.scheduleNextPoll();
     return this.status();
+  }
+
+  /**
+   * Applies a local mutation on the IMAP server so Gmail, Roundcube, and other
+   * clients see the same move, delete, or flag change.
+   */
+  async applyRemote(input: {
+    mailboxId: string;
+    refs: Array<{ id: string; folderId: string; remoteUid: number | null }>;
+    change: RemoteMailChange;
+  }): Promise<RemoteMailResult> {
+    await this.rememberMailbox(input.mailboxId);
+    const db = createDb(this.env.DB);
+    const rows = await db.select().from(mailboxes).where(eq(mailboxes.id, input.mailboxId)).limit(1);
+    const mailbox = rows[0];
+    if (!mailbox || mailbox.type !== "external_imap") return { ok: true, uids: [] };
+
+    const folders = await listFolders(db, mailbox.id);
+    const request = input.change;
+    let change: Parameters<typeof pushImapChanges>[5];
+    if (request.action === "move") {
+      const destination = folders.find((folder) => folder.id === request.folderId);
+      if (!destination) return { ok: false };
+      change = { action: "move", destination };
+    } else {
+      change = request;
+    }
+
+    try {
+      const uids = await pushImapChanges(mailbox, this.env, db, folders, input.refs, change);
+      return { ok: true, uids: [...uids.entries()] };
+    } catch (error) {
+      console.error("imap apply failed", { mailboxId: input.mailboxId, error: describe(error) });
+      return { ok: false };
+    }
   }
 
   private async runSync(options: { backfill: boolean; inboxOnly?: boolean }): Promise<void> {

@@ -2,10 +2,10 @@ import { and, eq } from "drizzle-orm";
 import { ApiError, authenticate, errorResponse, readJson } from "@/lib/auth/api";
 import { env as cloudflareEnv } from "@/lib/env";
 import { messages } from "@/lib/db/schema";
-import { getOwnedMailbox, listFolders } from "@/lib/mail/mailboxes";
+import { getOwnedMailbox } from "@/lib/mail/mailboxes";
 import { parseMime, stripHtml, type ParsedAttachment } from "@/lib/mail/mime";
-import { getMessage, listThread } from "@/lib/mail/queries";
-import { pushImapChanges } from "@/lib/transport/imap-push";
+import { getMessage, listThread, folderInMailbox } from "@/lib/mail/queries";
+import { applyRemoteMail } from "@/lib/transport/imap-remote";
 import { plainTextToHtml, sanitizeMessageHtml, inlineSrcMap, normalizeCid } from "@/lib/mail/sanitize";
 
 type Params = { params: Promise<{ messageId: string }> };
@@ -134,18 +134,18 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
     if (!row) throw new ApiError(404, "Message not found");
 
     if (mailbox.type === "external_imap") {
-      const folders = await listFolders(db, mailbox.id);
       try {
         if (body.folderId) {
-          const destination = folders.find((folder) => folder.id === body.folderId);
-          if (!destination) throw new ApiError(404, "Folder not found");
-          const uids = await pushImapChanges(mailbox, env, db, folders, [row], {
+          if (!(await folderInMailbox(db, mailbox.id, body.folderId))) {
+            throw new ApiError(404, "Folder not found");
+          }
+          const uids = await applyRemoteMail(env, mailbox.id, [row], {
             action: "move",
-            destination,
+            folderId: body.folderId,
           });
           if (uids.has(row.id)) patch.remoteUid = uids.get(row.id) ?? null;
         } else {
-          await pushImapChanges(mailbox, env, db, folders, [row], {
+          await applyRemoteMail(env, mailbox.id, [row], {
             action: "flags",
             seen: typeof body.seen === "boolean" ? body.seen : undefined,
             flagged: typeof body.flagged === "boolean" ? body.flagged : undefined,

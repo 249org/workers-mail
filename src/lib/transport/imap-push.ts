@@ -2,12 +2,9 @@ import type { Database } from "@/lib/db";
 import type { Folder, Mailbox } from "@/lib/mail/mailboxes";
 import { imapAuth } from "./credentials";
 import { ImapMutator } from "./imap-commands";
+import type { ImapMessageRef } from "./imap-remote";
 
-export type ImapMessageRef = {
-  id: string;
-  folderId: string;
-  remoteUid: number | null;
-};
+export type { ImapMessageRef };
 
 export type ImapPush =
   | { action: "flags"; seen?: boolean; flagged?: boolean }
