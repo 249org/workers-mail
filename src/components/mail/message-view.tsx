@@ -30,6 +30,7 @@ export function MessageView({ messageId, onReply, listHidden, onToggleList }: Pr
   const star = useMailStore((state) => state.star);
   const remoteImages = usePrivacyStore((state) => state.prefs.remoteImages);
   const [showImages, setShowImages] = useState(false);
+  const { bind: bindReaderMenu } = useContextMenu();
 
   useEffect(() => {
     setShowImages(remoteImages === "allow");
@@ -68,8 +69,6 @@ export function MessageView({ messageId, onReply, listHidden, onToggleList }: Pr
   const files = detail.attachments.filter((file) => !file.inline && !file.contentId);
   const sentAt = new Date(detail.sentAt * 1000);
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const { bind: bindReaderMenu } = useContextMenu();
   const readerMenuItems = [
     {
       type: "item" as const,

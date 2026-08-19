@@ -1,5 +1,6 @@
 import PostalMime, { type Address, type Attachment } from "postal-mime";
 import type { Addr } from "@/lib/db/schema";
+import { repairOrphanedEncoding } from "./repair-encoding";
 import { decodeEntities } from "./text";
 
 export type ParsedAttachment = {
@@ -28,7 +29,7 @@ export type ParsedMessage = {
 export async function parseMime(raw: ArrayBuffer | Uint8Array | string): Promise<ParsedMessage> {
   const email = await PostalMime.parse(raw, { attachmentEncoding: "arraybuffer" });
   const from = toAddr(email.from) ?? { address: "" };
-  const text = email.text ?? (email.html ? stripHtml(email.html) : "");
+  const text = repairOrphanedEncoding(email.text ?? (email.html ? stripHtml(email.html) : ""));
 
   return {
     messageId: cleanMessageId(email.messageId),
