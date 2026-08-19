@@ -1,7 +1,17 @@
-/**
- * Tutorial runs on every signed-in load while this is true, so the drawing
- * can be tested. Flip to false when it should only appear on first login.
- */
-export const TUTORIAL_EVERY_LOAD = true;
-
 export const TUTORIAL_STORAGE_KEY = "workers-mail.tutorial";
+
+export function hasSeenTutorial(): boolean {
+  try {
+    return localStorage.getItem(TUTORIAL_STORAGE_KEY) === "seen";
+  } catch {
+    return true;
+  }
+}
+
+export function markTutorialSeen(): void {
+  try {
+    localStorage.setItem(TUTORIAL_STORAGE_KEY, "seen");
+  } catch {
+    // Private mode — skip persistence; the tour still closes.
+  }
+}

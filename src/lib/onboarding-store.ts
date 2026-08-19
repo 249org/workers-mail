@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { markTutorialSeen } from "@/lib/onboarding";
 
 type State = {
   open: boolean;
@@ -11,5 +12,8 @@ type State = {
 export const useOnboardingStore = create<State>((set) => ({
   open: false,
   openTour: () => set({ open: true }),
-  closeTour: () => set({ open: false }),
+  closeTour: () => {
+    markTutorialSeen();
+    set({ open: false });
+  },
 }));

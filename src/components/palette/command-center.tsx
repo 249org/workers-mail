@@ -14,7 +14,7 @@ import { CommandPalette } from "./command-palette";
 import { ShortcutHelp } from "@/components/mail/shortcut-help";
 import { OnboardingTour } from "@/components/mail/onboarding-tour";
 import { useOnboardingStore } from "@/lib/onboarding-store";
-import { TUTORIAL_EVERY_LOAD } from "@/lib/onboarding";
+import { hasSeenTutorial } from "@/lib/onboarding";
 
 let shownThisRuntime = false;
 
@@ -49,9 +49,9 @@ export function CommandCenter({ mailboxes }: Props) {
   }, [hydrateAppearance, hydrateShortcuts, hydratePrivacy, hydrateSignature]);
 
   useEffect(() => {
-    if (!TUTORIAL_EVERY_LOAD) return;
     if (shownThisRuntime) return;
     shownThisRuntime = true;
+    if (hasSeenTutorial()) return;
     useOnboardingStore.getState().openTour();
   }, []);
 
