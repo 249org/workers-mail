@@ -51,6 +51,22 @@ export function displayName(addr: Addr | undefined): string {
   return addr.name?.trim() || addr.address;
 }
 
+/** The incomplete token after the last comma — what we match against contacts. */
+export function lastRecipientQuery(input: string): string {
+  const parts = splitOutsideQuotes(input);
+  return (parts[parts.length - 1] ?? "").trim();
+}
+
+/** Replaces the incomplete last token with a committed address. */
+export function commitRecipient(input: string, addr: Addr): string {
+  const prior = splitOutsideQuotes(input)
+    .slice(0, -1)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  prior.push(formatAddress(addr));
+  return prior.join(", ");
+}
+
 function splitOutsideQuotes(input: string): string[] {
   const parts: string[] = [];
   let current = "";

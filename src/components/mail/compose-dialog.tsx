@@ -6,6 +6,9 @@ import { avatarSrc } from "@/lib/mail/profile-photo";
 import { useHotkeys } from "@/lib/keyboard/use-hotkeys";
 import { formatBytes } from "@/lib/format";
 import { PersonAvatar } from "../person-avatar";
+import { AddressField } from "./address-field";
+import { parseAddressList } from "@/lib/mail/address";
+import { type SuggestContact } from "@/lib/mail/contact-match";
 import {
   applySignature,
   shouldIncludeSignature,
@@ -59,6 +62,7 @@ export function ComposeDialog({
   const [sending, setSending] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [avatarAt, setAvatarAt] = useState<number | null>(null);
+  const [contacts, setContacts] = useState<SuggestContact[]>([]);
   const draftId = useRef(draft.draftId);
   const lastDraft = useRef(draft);
   const title = MODE_LABEL[draft.mode ?? "compose"];
@@ -78,6 +82,19 @@ export function ComposeDialog({
         if (updatedAt) setAvatarAt(updatedAt);
       })
       .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    let live = true;
+    void fetch("/api/contacts")
+      .then((response) => (response.ok ? response.json() : { contacts: [] }))
+      .then((payload) => {
+        if (live) setContacts((payload as { contacts?: SuggestContact[] }).contacts ?? []);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -182,6 +199,10 @@ export function ComposeDialog({
     onSent();
   }
 
+  const taken = parseAddressList([form.to, form.cc, form.bcc].filter(Boolean).join(", ")).map(
+    (addr) => addr.address,
+  );
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-6"
@@ -208,6 +229,7 @@ export function ComposeDialog({
         </header>
 
         <div className="scroll-thin min-h-0 flex-1 overflow-y-auto px-4 py-3">
+          <form autoComplete="off" onSubmit={(event) => event.preventDefault()}>
           <Row label="From">
             <div className="flex items-center gap-2">
               <PersonAvatar
@@ -230,12 +252,14 @@ export function ComposeDialog({
 
           <Row label="To">
             <div className="flex gap-2">
-              <input
-                className="field !py-1.5"
+              <AddressField
                 value={form.to}
+                contacts={contacts}
+                taken={taken}
                 autoFocus
-                onChange={(event) => setForm({ ...form, to: event.target.value })}
                 placeholder="name@example.com, another@example.com"
+                aria-label="To"
+                onChange={(to) => setForm({ ...form, to })}
               />
               {!showCc && (
                 <button
@@ -252,17 +276,21 @@ export function ComposeDialog({
           {showCc && (
             <>
               <Row label="Cc">
-                <input
-                  className="field !py-1.5"
+                <AddressField
                   value={form.cc}
-                  onChange={(event) => setForm({ ...form, cc: event.target.value })}
+                  contacts={contacts}
+                  taken={taken}
+                  aria-label="Cc"
+                  onChange={(cc) => setForm({ ...form, cc })}
                 />
               </Row>
               <Row label="Bcc">
-                <input
-                  className="field !py-1.5"
+                <AddressField
                   value={form.bcc}
-                  onChange={(event) => setForm({ ...form, bcc: event.target.value })}
+                  contacts={contacts}
+                  taken={taken}
+                  aria-label="Bcc"
+                  onChange={(bcc) => setForm({ ...form, bcc })}
                 />
               </Row>
             </>
@@ -282,6 +310,7 @@ export function ComposeDialog({
             onChange={(event) => setForm({ ...form, text: event.target.value })}
             placeholder="Write your message…"
           />
+          </form>
 
           {files.length > 0 && (
             <ul className="mt-3 flex flex-wrap gap-2">

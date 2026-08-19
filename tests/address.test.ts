@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  commitRecipient,
   domainOf,
   formatAddressList,
   isEmailAddress,
+  lastRecipientQuery,
   localPartOf,
   parseAddressList,
 } from "@/lib/mail/address";
@@ -31,6 +33,22 @@ describe("parseAddressList", () => {
     expect(parseAddressList("Sam <Sam@Example.COM>")).toEqual([
       { name: "Sam", address: "sam@example.com" },
     ]);
+  });
+});
+
+describe("lastRecipientQuery", () => {
+  it("reads the token after the last comma", () => {
+    expect(lastRecipientQuery("a@example.com, aym")).toBe("aym");
+    expect(lastRecipientQuery('"Doe, Jane" <jane@example.com>, sam')).toBe("sam");
+    expect(lastRecipientQuery("  ")).toBe("");
+  });
+});
+
+describe("commitRecipient", () => {
+  it("replaces the incomplete last token", () => {
+    expect(commitRecipient("a@example.com, aym", { name: "Ayman", address: "a@x.com" })).toBe(
+      'a@example.com, "Ayman" <a@x.com>',
+    );
   });
 });
 
