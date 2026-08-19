@@ -12,7 +12,7 @@ import { storeMessage } from "./store";
 import { smtpAuth } from "@/lib/transport/credentials";
 import { sendViaSmtp } from "@/lib/transport/smtp";
 import { plainTextToHtml } from "./sanitize";
-import { PROFILE_PHOTO_CID, wrapOutboundHtml } from "./profile-photo";
+import { PROFILE_PHOTO_CID } from "./profile-photo";
 
 export class SendError extends Error {
   constructor(message: string) {
@@ -248,9 +248,7 @@ async function withProfilePhoto(
     inline: true,
   });
 
-  const html = wrapOutboundHtml(request.html ?? plainTextToHtml(request.text), {
-    name: from.name ?? row.name,
-    address: from.address,
-  });
-  return { html, attachments };
+  // Attach the photo so clients that support it can use it as the sender avatar,
+  // but do not inject a visible image block into the message body.
+  return { html: request.html, attachments };
 }
