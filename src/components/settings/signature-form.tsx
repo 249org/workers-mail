@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { PublicMailbox } from "@/lib/mail/mailboxes";
+import { mailboxSignatureMode, type MailboxSignatureMode } from "@/lib/signature";
 import {
   DEFAULT_SIGNATURE,
   MAX_SIGNATURE_CHARS,
@@ -109,29 +110,54 @@ export function SignatureForm({ mailboxes }: { mailboxes: PublicMailbox[] }) {
         <PrefRow
           stack
           title="Per mailbox"
-          hint="Leave a field blank to use the text above. Filled fields replace it for that address only."
+          hint="Each address can reuse the default, carry its own wording, or send nothing at all."
         >
           <div className="mt-4 grid gap-5">
-            {mailboxes.map((mailbox) => (
-              <div key={mailbox.id}>
-                <label className="label" htmlFor={`sig-${mailbox.id}`}>
-                  {mailbox.displayName ? `${mailbox.displayName} · ${mailbox.address}` : mailbox.address}
-                </label>
-                <textarea
-                  id={`sig-${mailbox.id}`}
-                  className="field mt-1.5 min-h-24 resize-y font-[inherit] leading-relaxed"
-                  value={local.byMailbox[mailbox.id] ?? ""}
-                  maxLength={MAX_SIGNATURE_CHARS}
-                  placeholder="Same as default"
-                  onChange={(event) => {
-                    const next = { ...local.byMailbox };
-                    if (event.target.value.trim()) next[mailbox.id] = event.target.value;
-                    else delete next[mailbox.id];
-                    update({ byMailbox: next });
-                  }}
-                />
-              </div>
-            ))}
+            {mailboxes.map((mailbox) => {
+              const mode = mailboxSignatureMode(local, mailbox.id);
+              return (
+                <div key={mailbox.id}>
+                  <label className="label" htmlFor={`sig-mode-${mailbox.id}`}>
+                    {mailbox.displayName
+                      ? `${mailbox.displayName} · ${mailbox.address}`
+                      : mailbox.address}
+                  </label>
+                  <select
+                    id={`sig-mode-${mailbox.id}`}
+                    className="field mt-1.5"
+                    value={mode}
+                    onChange={(event) => {
+                      const next = { ...local.byMailbox };
+                      const choice = event.target.value as MailboxSignatureMode;
+                      if (choice === "default") delete next[mailbox.id];
+                      // An empty string is the stored form of "send nothing".
+                      else if (choice === "none") next[mailbox.id] = "";
+                      else next[mailbox.id] = local.byMailbox[mailbox.id] || local.text;
+                      update({ byMailbox: next });
+                    }}
+                  >
+                    <option value="default">Use the default signature</option>
+                    <option value="custom">Its own signature</option>
+                    <option value="none">No signature</option>
+                  </select>
+
+                  {mode === "custom" ? (
+                    <textarea
+                      id={`sig-${mailbox.id}`}
+                      aria-label={`Signature for ${mailbox.address}`}
+                      className="field mt-2 min-h-24 resize-y font-[inherit] leading-relaxed"
+                      value={local.byMailbox[mailbox.id] ?? ""}
+                      maxLength={MAX_SIGNATURE_CHARS}
+                      onChange={(event) => {
+                        update({
+                          byMailbox: { ...local.byMailbox, [mailbox.id]: event.target.value },
+                        });
+                      }}
+                    />
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         </PrefRow>
       ) : null}

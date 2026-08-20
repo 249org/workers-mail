@@ -5,6 +5,7 @@ import {
   parseSignature,
   shouldIncludeSignature,
   signatureText,
+  mailboxSignatureMode,
 } from "@/lib/signature";
 
 describe("parseSignature", () => {
@@ -18,7 +19,9 @@ describe("parseSignature", () => {
   it("caps and sanitises the text", () => {
     expect(parseSignature({ text: "Best,\r\nAyman" }).text).toBe("Best,\nAyman");
     expect(parseSignature({ text: "x".repeat(5000) }).text.length).toBe(4000);
-    expect(parseSignature({ byMailbox: { "mb-1": "  " } }).byMailbox).toEqual({});
+    // A blank entry is kept, normalised to "": the mailbox was given an explicit
+    // choice of no signature, which differs from having no entry at all.
+    expect(parseSignature({ byMailbox: { "mb-1": "  " } }).byMailbox).toEqual({ "mb-1": "" });
     expect(parseSignature({ byMailbox: { "mb-1": "Ops" } }).byMailbox).toEqual({ "mb-1": "Ops" });
   });
 });
@@ -68,5 +71,53 @@ describe("applySignature", () => {
     expect(applySignature(`Thanks\n\n-- \nOld${quoted}`, "New")).toBe(
       "Thanks\n\n-- \nNew\n\nOn Tue, Jane wrote:\n> hi",
     );
+  });
+});
+
+describe("per-mailbox signatures", () => {
+  const prefs = parseSignature({
+    enabled: true,
+    text: "Regards,\nAyman\nMENA Speakers",
+    byMailbox: { mbx_gmail: "Ayman", mbx_quiet: "" },
+  });
+
+  it("uses a mailbox's own wording", () => {
+    expect(signatureText(prefs, "mbx_gmail")).toBe("Ayman");
+  });
+
+  it("falls back to the default for a mailbox with no entry", () => {
+    expect(signatureText(prefs, "mbx_other")).toContain("MENA Speakers");
+  });
+
+  it("sends nothing for a mailbox set to none", () => {
+    // The regression: an empty entry used to be dropped, so a signature written for
+    // one identity leaked onto mail sent from an unrelated account.
+    expect(signatureText(prefs, "mbx_quiet")).toBe("");
+  });
+
+  it("reports the mode each mailbox is in", () => {
+    expect(mailboxSignatureMode(prefs, "mbx_gmail")).toBe("custom");
+    expect(mailboxSignatureMode(prefs, "mbx_quiet")).toBe("none");
+    expect(mailboxSignatureMode(prefs, "mbx_other")).toBe("default");
+  });
+
+  it("survives a round trip through storage", () => {
+    const again = parseSignature(JSON.parse(JSON.stringify(prefs)));
+    expect(signatureText(again, "mbx_quiet")).toBe("");
+    expect(mailboxSignatureMode(again, "mbx_quiet")).toBe("none");
+  });
+
+  it("swaps the block when the From mailbox changes mid-compose", () => {
+    const body = applySignature("Hi there", signatureText(prefs, "mbx_other"));
+    const swapped = applySignature(body, signatureText(prefs, "mbx_gmail"));
+    expect(swapped).not.toContain("MENA Speakers");
+    expect(swapped).toContain("Ayman");
+  });
+
+  it("strips the block entirely when switching to a none mailbox", () => {
+    const body = applySignature("Hi there", signatureText(prefs, "mbx_other"));
+    const cleared = applySignature(body, signatureText(prefs, "mbx_quiet"));
+    expect(cleared).not.toContain("MENA Speakers");
+    expect(cleared.trim()).toBe("Hi there");
   });
 });

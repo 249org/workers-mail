@@ -38,11 +38,28 @@ export function cleanSignatureText(value: unknown): string {
   return value.replace(/\r\n/g, "\n").replace(/\0/g, "").slice(0, MAX_SIGNATURE_CHARS);
 }
 
+/**
+ * The sign-off for one mailbox. A mailbox present in `byMailbox` has been given an
+ * explicit choice and keeps it even when blank, so a signature written for one
+ * identity does not follow mail sent from an unrelated account.
+ */
 export function signatureText(prefs: SignaturePrefs, mailboxId: string): string {
   if (!prefs.enabled) return "";
-  const override = prefs.byMailbox[mailboxId];
-  if (override?.trim()) return override.trim();
+  if (Object.prototype.hasOwnProperty.call(prefs.byMailbox, mailboxId)) {
+    return (prefs.byMailbox[mailboxId] ?? "").trim();
+  }
   return prefs.text.trim();
+}
+
+/** How a mailbox resolves its signature, for the settings control. */
+export type MailboxSignatureMode = "default" | "custom" | "none";
+
+export function mailboxSignatureMode(
+  prefs: SignaturePrefs,
+  mailboxId: string,
+): MailboxSignatureMode {
+  if (!Object.prototype.hasOwnProperty.call(prefs.byMailbox, mailboxId)) return "default";
+  return (prefs.byMailbox[mailboxId] ?? "").trim() ? "custom" : "none";
 }
 
 export function shouldIncludeSignature(
@@ -69,8 +86,11 @@ function parseByMailbox(value: unknown): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [id, text] of Object.entries(value as Record<string, unknown>)) {
     if (!id || id.length > 80) continue;
+    // An empty entry is kept: it means "no signature for this mailbox", which is a
+    // different answer from having no entry at all.
+    if (typeof text !== "string") continue;
     const cleaned = cleanSignatureText(text);
-    if (cleaned.trim()) out[id] = cleaned;
+    out[id] = cleaned.trim() ? cleaned : "";
   }
   return out;
 }
