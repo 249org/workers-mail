@@ -106,7 +106,9 @@ export async function syncMailbox(
         summary.scanned = result.scanned;
         summary.folders = 1;
       } catch (error) {
-        summary.errors.push(`${folder.name}: ${describe(error)}`);
+        if (!isMissingMailbox(error)) {
+          summary.errors.push(`${folder.name}: ${describe(error)}`);
+        }
       }
       return summary;
     }
@@ -129,6 +131,10 @@ export async function syncMailbox(
         summary.folders += 1;
         if (!result.caughtUp) allCaughtUp = false;
       } catch (error) {
+        if (isMissingMailbox(error)) {
+          // Deleted or renamed on the server; the next LIST decides its fate.
+          continue;
+        }
         summary.errors.push(`${folder.name}: ${describe(error)}`);
         allCaughtUp = false;
       }
@@ -323,6 +329,12 @@ export async function discoverUids(
   return [...found];
 }
 
+/** A SELECT the server refuses because the mailbox is gone. */
+export function isMissingMailbox(error: unknown): boolean {
+  const text = error instanceof Error ? error.message : String(error);
+  return /nonexistent|unknown mailbox|no such mailbox/i.test(text);
+}
+
 async function trackFolders(
   db: Database,
   mailboxId: string,
@@ -330,7 +342,9 @@ async function trackFolders(
 ): Promise<Folder[]> {
   const tracked: Folder[] = [];
   for (const path of remotePaths) {
-    const leaf = path.split(/[/.]/).pop() ?? path;
+    // Split on the hierarchy separator only. Treating "." as one too renamed the
+    // Gmail folder "Unroll.me" to "me" and hid which mailbox it really was.
+    const leaf = path.split("/").pop() || path;
     const special = SPECIAL_FOLDERS.find(
       (entry) => entry.match.test(path) || entry.match.test(leaf),
     );

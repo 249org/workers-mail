@@ -97,19 +97,32 @@ export async function upsertRemoteFolder(
   remotePath: string,
   role: Folder["role"] = "custom",
 ): Promise<Folder> {
-  const existing = await db
-    .select()
-    .from(folders)
-    .where(and(eq(folders.mailboxId, mailboxId), eq(folders.name, name)))
-    .limit(1);
+  const all = await listFolders(db, mailboxId);
 
-  const found = existing[0];
+  /*
+   * The remote path is the folder's identity on the server; the display name is only
+   * derived from it. Matching on the name instead let two paths that share a leaf —
+   * `Work/Reports` and `Personal/Reports` — collide on one row and overwrite each
+   * other's path, and made a rename look like a brand new folder.
+   */
+  const found =
+    all.find((folder) => folder.remotePath === remotePath) ??
+    all.find((folder) => folder.remotePath === null && folder.name === name);
+
   if (found) {
-    if (found.remotePath !== remotePath) {
-      await db.update(folders).set({ remotePath }).where(eq(folders.id, found.id));
+    const patch: Partial<Folder> = {};
+    if (found.remotePath !== remotePath) patch.remotePath = remotePath;
+    if (found.name !== name && !all.some((f) => f.id !== found.id && f.name === name)) {
+      patch.name = name;
     }
-    return { ...found, remotePath };
+    if (Object.keys(patch).length > 0) {
+      await db.update(folders).set(patch).where(eq(folders.id, found.id));
+    }
+    return { ...found, ...patch };
   }
+
+  // Names are unique per mailbox, so a leaf already in use falls back to the full path.
+  if (all.some((folder) => folder.name === name)) name = remotePath;
 
   const folder: Folder = {
     id: newId("fld"),
