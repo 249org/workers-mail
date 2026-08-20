@@ -150,13 +150,11 @@ export function FirstRun({ encryptionReady }: { encryptionReady: boolean }) {
 
   return (
     <LoginShell
-      heading="Link IMAP"
-      lede="The password for this mailbox. The host is looked up from DNS — we will not guess it."
+      heading="Connect your mailbox"
+      lede="Your address and password. The mail host is looked up from DNS."
     >
       <p className="login-step-index">Step 2 of 2</p>
       <LinkInboxWizard
-        startAt="link"
-        initialKind="other"
         initialAddress={email}
         submitting={submitting}
         error={error}

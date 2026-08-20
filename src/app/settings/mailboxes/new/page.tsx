@@ -3,8 +3,6 @@ import { requireUser } from "@/lib/auth/server";
 import { domains } from "@/lib/db/schema";
 import { NewMailboxForm } from "@/components/settings/new-mailbox-form";
 import { PageHeader, SettingsBody } from "@/components/settings/page-header";
-import { oauthAvailability } from "@/lib/oauth/providers";
-import { env } from "@/lib/env";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Add a mailbox" };
@@ -21,10 +19,10 @@ export default async function NewMailboxPage() {
   return (
     <>
       <PageHeader title="Add a mailbox">
-        One-click Google or Microsoft, any other IMAP host, or an address on a domain you already run.
+        Your address and password. Gmail, Outlook and everything else connect the same way.
       </PageHeader>
       <SettingsBody>
-        <NewMailboxForm domains={available} oauth={oauthAvailability(env())} />
+        <NewMailboxForm domains={available} />
       </SettingsBody>
     </>
   );

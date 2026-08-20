@@ -2,46 +2,32 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { OauthButtons } from "@/components/auth/oauth-buttons";
-import {
-  AccountKindPicker,
-  type AccountKind,
-} from "@/components/mail/account-kind-picker";
 import { LinkInboxWizard, type ImapDraft } from "@/components/mail/link-inbox-wizard";
 import { useSettingsViewStore } from "@/components/settings/settings-view-store";
-import type { EasyProviderId } from "@/lib/transport/presets";
 
 type DomainOption = { id: string; name: string; status: string };
 
-export function NewMailboxForm({
-  domains,
-  oauth,
-}: {
-  domains: DomainOption[];
-  oauth: { google: boolean; microsoft: boolean };
-}) {
+/**
+ * Adding a mailbox is one form: an address and a password. Gmail and Microsoft speak
+ * IMAP like everyone else, so asking which provider it is only moved work onto the
+ * person connecting — the hosts come from the address instead.
+ */
+export function NewMailboxForm({ domains }: { domains: DomainOption[] }) {
   const router = useRouter();
-  const [stage, setStage] = useState<"kind" | "details">("kind");
-  const [kind, setKind] = useState<AccountKind>("other");
+  const [creatingAddress, setCreatingAddress] = useState(false);
   const [localPart, setLocalPart] = useState("");
   const [domainName, setDomainName] = useState(domains[0]?.name ?? "");
   const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function saveImap(draft: ImapDraft) {
+  async function create(body: Record<string, unknown>) {
     setBusy(true);
     setError(null);
     const response = await fetch("/api/mailboxes", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        type: "external_imap",
-        displayName: draft.displayName,
-        address: draft.address,
-        imap: draft.imap,
-        smtp: draft.smtp,
-      }),
+      body: JSON.stringify(body),
     });
     if (!response.ok) {
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
@@ -54,66 +40,9 @@ export function NewMailboxForm({
     router.refresh();
   }
 
-  async function saveNative() {
-    setBusy(true);
-    setError(null);
-    const response = await fetch("/api/mailboxes", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        type: "native",
-        address: `${localPart.trim()}@${domainName}`,
-        displayName,
-      }),
-    });
-    if (!response.ok) {
-      const payload = (await response.json().catch(() => ({}))) as { error?: string };
-      setError(payload.error ?? "The mailbox could not be created.");
-      setBusy(false);
-      return;
-    }
-    useSettingsViewStore.getState().prepare("/settings/mailboxes");
-    router.push("/settings/mailboxes");
-    router.refresh();
-  }
-
-  if (stage === "kind") {
+  if (creatingAddress) {
     return (
       <div className="mt-6">
-        <p className="login-step-index">Step 1 of 2</p>
-        <OauthButtons
-          intent="link"
-          google
-          microsoft
-          returnTo="/settings/mailboxes"
-        />
-        <p className="login-or">or</p>
-        <AccountKindPicker value={kind} onChange={setKind} allowNative />
-        <button
-          type="button"
-          className="btn btn-primary mt-5"
-          onClick={() => {
-            if (kind === "gmail" && oauth.google) {
-              window.location.href = "/api/oauth/google?intent=link&return=%2Fsettings%2Fmailboxes";
-              return;
-            }
-            if (kind === "outlook" && oauth.microsoft) {
-              window.location.href = "/api/oauth/microsoft?intent=link&return=%2Fsettings%2Fmailboxes";
-              return;
-            }
-            setStage("details");
-          }}
-        >
-          Continue
-        </button>
-      </div>
-    );
-  }
-
-  if (kind === "native") {
-    return (
-      <div className="mt-6">
-        <p className="login-step-index">Step 2 of 2</p>
         {domains.length === 0 ? (
           <p className="text-[13px] text-muted-foreground">
             Connect a domain first, then you can create addresses on it.
@@ -128,6 +57,7 @@ export function NewMailboxForm({
                 id="local-part"
                 className="field"
                 placeholder="hello"
+                autoFocus
                 value={localPart}
                 onChange={(event) => setLocalPart(event.target.value)}
               />
@@ -159,16 +89,31 @@ export function NewMailboxForm({
             </div>
           </>
         )}
+
         {error ? <p className="mt-4 text-[13px] text-[var(--danger)]">{error}</p> : null}
+
         <div className="mt-5 flex gap-2">
-          <button type="button" className="btn btn-ghost" onClick={() => setStage("kind")}>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => {
+              setError(null);
+              setCreatingAddress(false);
+            }}
+          >
             Back
           </button>
           <button
             type="button"
             className="btn btn-primary"
             disabled={busy || !localPart.trim() || !domainName}
-            onClick={() => void saveNative()}
+            onClick={() =>
+              void create({
+                type: "native",
+                address: `${localPart.trim()}@${domainName}`,
+                displayName,
+              })
+            }
           >
             {busy ? "Saving" : "Create address"}
           </button>
@@ -177,24 +122,35 @@ export function NewMailboxForm({
     );
   }
 
-  const heading =
-    kind === "gmail" ? "Connect Gmail" : kind === "outlook" ? "Connect Microsoft" : "Connect IMAP";
-
   return (
     <div className="mt-6">
-      <p className="login-step-index">Step 2 of 2 · {heading}</p>
       <LinkInboxWizard
-        startAt="link"
-        initialKind={kind as EasyProviderId | "other"}
         submitting={busy}
         error={error}
-        submitLabel={heading}
-        onBack={() => {
-          setError(null);
-          setStage("kind");
-        }}
-        onSubmit={(draft) => void saveImap(draft)}
+        submitLabel="Connect mailbox"
+        onSubmit={(draft: ImapDraft) =>
+          void create({
+            type: "external_imap",
+            displayName: draft.displayName,
+            address: draft.address,
+            imap: draft.imap,
+            smtp: draft.smtp,
+          })
+        }
       />
+
+      {domains.length > 0 ? (
+        <button
+          type="button"
+          className="mt-5 text-[12px] text-muted-foreground hover:underline"
+          onClick={() => {
+            setError(null);
+            setCreatingAddress(true);
+          }}
+        >
+          Create an address on a domain you run instead
+        </button>
+      ) : null}
     </div>
   );
 }

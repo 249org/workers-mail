@@ -1,4 +1,4 @@
-import { GoogleMark, MicrosoftMark } from "@/components/mail/account-kind-picker";
+import { GoogleMark, MicrosoftMark } from "@/components/mail/provider-marks";
 
 export function OauthButtons({
   intent,

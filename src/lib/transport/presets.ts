@@ -222,3 +222,35 @@ const SELF_FILING_SMTP_HOSTS = new Set([
   "smtp-mail.outlook.com",
   "smtp.live.com",
 ]);
+
+export type AppPasswordHelp = { label: string; href: string };
+
+/**
+ * Providers that reject a normal account password over IMAP. Gmail and Microsoft
+ * dropped plain-password IMAP, so "wrong password" is nearly always a missing app
+ * password rather than a typo — the form and the sync error both say so.
+ */
+const APP_PASSWORD_HELP: Record<string, AppPasswordHelp> = {
+  gmail: { label: "Gmail", href: "https://myaccount.google.com/apppasswords" },
+  outlook: { label: "Microsoft", href: "https://account.live.com/proofs/AppPassword" },
+  yahoo: { label: "Yahoo", href: "https://login.yahoo.com/account/security" },
+  icloud: { label: "iCloud", href: "https://appleid.apple.com/account/manage" },
+  fastmail: { label: "Fastmail", href: "https://app.fastmail.com/settings/security/apppasswords" },
+};
+
+/** Help for an address, or null when the provider takes the ordinary password. */
+export function appPasswordHelp(address: string): AppPasswordHelp | null {
+  const preset = presetFor(address);
+  return preset ? (APP_PASSWORD_HELP[preset.id] ?? null) : null;
+}
+
+/** Help keyed by the IMAP host, for errors raised after the mailbox is stored. */
+export function appPasswordHelpForHost(imapHost: string | null | undefined): AppPasswordHelp | null {
+  const host = imapHost?.trim().toLowerCase();
+  if (!host) return null;
+  for (const [id, help] of Object.entries(APP_PASSWORD_HELP)) {
+    const preset = presetById(id);
+    if (preset && preset.imapHost.toLowerCase() === host) return help;
+  }
+  return null;
+}

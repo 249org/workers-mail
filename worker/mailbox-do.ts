@@ -295,7 +295,7 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
       this.state.lastError = transient
         ? null
         : summary.errors[0]
-          ? describeImapError(summary.errors[0])
+          ? describeImapError(summary.errors[0], mailbox.imapHost)
           : null;
       this.state.lastSyncedAt = Math.floor(Date.now() / 1000);
 
@@ -346,7 +346,7 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
         console.warn("mailbox inbox poll timed out", { mailboxId, error: describe(error) });
       } else {
         this.state.lastState = "error";
-        this.state.lastError = describeImapError(error);
+        this.state.lastError = describeImapError(error, mailbox.imapHost);
         if (!options.folderId) {
           await markSyncState(db, mailboxId, "error", this.state.lastError);
         }
