@@ -26,6 +26,8 @@ type State = {
   lastSyncedAt: number | null;
   lastError: string | null;
   lastState: SyncStatus["state"];
+  /** Whether the previous alarm backfilled, so watched mailboxes can alternate. */
+  lastPassBackfilled?: boolean;
 };
 
 export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
@@ -104,7 +106,21 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
   override async alarm(): Promise<void> {
     await this.load();
     const watching = this.ctx.getWebSockets().length > 0;
-    await this.runSync({ backfill: !watching, inboxOnly: watching });
+
+    /*
+     * While a client is watching, alternate: a cheap inbox check keeps new mail
+     * arriving quickly, and every other tick fills in older messages. Backfilling only
+     * when nobody was connected meant an open inbox stayed at whatever the first pass
+     * managed to fetch.
+     */
+    const backfillTurn = !watching || !this.state.lastPassBackfilled;
+    await this.runSync({
+      backfill: backfillTurn,
+      inboxOnly: watching && !backfillTurn,
+    });
+
+    this.state.lastPassBackfilled = backfillTurn;
+    await this.persist();
     await this.scheduleNextPoll();
   }
 

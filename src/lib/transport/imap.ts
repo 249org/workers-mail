@@ -1,4 +1,4 @@
-import { type ImapSession } from "edgeport/imap";
+import type { ImapSession } from "edgeport/imap";
 import { and, eq, isNotNull } from "drizzle-orm";
 import type { Database } from "@/lib/db";
 import { folders, mailboxes, messages } from "@/lib/db/schema";
@@ -11,7 +11,9 @@ import { imapUidSet } from "./imap-uid-set";
 import { describeImapError, isImapTimeout } from "./imap-error";
 
 const INCREMENTAL_BATCH = 8;
-const BACKFILL_BATCH = 6;
+const BACKFILL_BATCH = 24;
+/** How far below the cursor one backfill pass looks for candidates. */
+const BACKFILL_SPAN = 400;
 /** Full RFC822 bodies in one UID FETCH; keep this small so a slow host cannot stall the poll. */
 const BODY_CHUNK = 3;
 /** Leave the isolate before a hung IMAP fetch can kill the whole pass. */
@@ -170,8 +172,13 @@ async function syncFolder(
 
   if (status.exists === 0) return { stored: 0, scanned: 0, caughtUp: true };
 
-  const preferRecent = !backfill || folder.role === "inbox";
-  const uids = await discoverUids(session, { lastUid, preferRecent });
+  const uids = await discoverUids(session, {
+    lastUid,
+    oldestUid,
+    backfill,
+    // Only a first pass, with no cursor yet, needs the recent-mail shortcut.
+    preferRecent: !backfill,
+  });
   const knownUids = uidValidityReset ? new Set<number>() : await remoteUidsFor(deps.db, folder.id);
   const missing = uids.filter((uid) => !knownUids.has(uid)).sort((a, b) => a - b);
   if (missing.length === 0) {
@@ -241,6 +248,18 @@ async function newestUid(session: ImapSession): Promise<number> {
   return high;
 }
 
+/** UIDs immediately below a cursor, as a bounded range rather than a SEARCH ALL. */
+async function uidsBefore(
+  session: ImapSession,
+  oldestUid: number,
+  span: number,
+): Promise<number[]> {
+  const low = Math.max(1, oldestUid - span);
+  if (low >= oldestUid) return [];
+  const range = await session.fetch(imapUidSet(`${low}:${oldestUid - 1}`), { flags: true });
+  return range.map((message) => message.uid).filter((uid) => uid < oldestUid);
+}
+
 async function uidsAfter(session: ImapSession, lastUid: number): Promise<number[]> {
   const high = await newestUid(session);
   if (high <= lastUid) return [];
@@ -257,14 +276,26 @@ async function uidsAfter(session: ImapSession, lastUid: number): Promise<number[
   return uids.length > 0 ? uids : [high];
 }
 
-async function discoverUids(
+export async function discoverUids(
   session: ImapSession,
-  options: { lastUid: number; preferRecent: boolean },
+  options: { lastUid: number; oldestUid: number; backfill: boolean; preferRecent: boolean },
 ): Promise<number[]> {
   const found = new Set<number>();
 
   function add(uids: number[]) {
     for (const uid of uids) found.add(uid);
+  }
+
+  /*
+   * Backfill walks down from the oldest message already held. Sharing the incremental
+   * path here is what pinned the inbox to its first batch: that path asks only for
+   * UIDs above the cursor, and the cursor sits at the newest message from the very
+   * first pass, so no older mail was ever reachable.
+   */
+  if (options.backfill && options.oldestUid > 0) {
+    // A cursor of 1 means the first message in the mailbox is already held.
+    if (options.oldestUid <= 1) return [];
+    return uidsBefore(session, options.oldestUid, BACKFILL_SPAN);
   }
 
   // Incremental: never SEARCH ALL. one.com truncates that result oldest-first, so a mailbox
