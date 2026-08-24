@@ -1,6 +1,6 @@
 import type { Database } from "@/lib/db";
 import { upsertRemoteFolder, type Folder, type Mailbox } from "@/lib/mail/mailboxes";
-import { imapAuth } from "./credentials";
+import { imapAuth, type MailAuth } from "./credentials";
 import { folderCreateRejected } from "./imap-error";
 import { ImapCommandError, ImapMutator } from "./imap-commands";
 import type { ImapMessageRef } from "./imap-remote";
@@ -49,7 +49,14 @@ export async function pushImapChanges(
 
   const folderById = new Map(folders.map((folder) => [folder.id, folder]));
   const credentials = await imapAuth(mailbox, env, db);
-  const session = await ImapMutator.open(credentials);
+
+  /*
+   * Each mutation dials its own connection, so deleting a run of messages from the
+   * keyboard opens one per keystroke and hosts start refusing them. A refused
+   * connection surfaced as a failed move, the row reappeared, and nothing said why.
+   * One short retry rides out that throttling.
+   */
+  const session = await openWithRetry(credentials);
   try {
     for (const [folderId, group] of groups) {
       const source = folderById.get(folderId);
@@ -83,6 +90,27 @@ export async function pushImapChanges(
   } finally {
     await session.close();
   }
+}
+
+const RETRY_DELAY_MS = 700;
+
+async function openWithRetry(credentials: MailAuth): Promise<ImapMutator> {
+  try {
+    return await ImapMutator.open(credentials);
+  } catch (error) {
+    if (!isTransientConnectionError(error)) throw error;
+    await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+    return ImapMutator.open(credentials);
+  }
+}
+
+/** Throttling and dropped sockets are worth one more try; a bad password is not. */
+export function isTransientConnectionError(error: unknown): boolean {
+  const text = error instanceof Error ? error.message : String(error);
+  if (/login rejected|authenticationfailed|invalid credentials/i.test(text)) return false;
+  return /too many|throttl|rate|timed out|timeout|connection|socket|closed|reset|unavailable|try again/i.test(
+    text,
+  );
 }
 
 /** CREATE on the IMAP server, then persist the folder with the LIST path. */

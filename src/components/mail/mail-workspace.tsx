@@ -8,7 +8,12 @@ import type { PublicMailbox } from "@/lib/mail/mailboxes";
 import { formatAddressList } from "@/lib/mail/address";
 import { normalizeSubject } from "@/lib/mail/thread";
 import { partitionFolders } from "@/lib/mail/folder-name";
-import { navigateMailFolder, useMailStore, type FolderSummary } from "@/lib/mail/view-store";
+import {
+  navigateMailFolder,
+  onMailActionFailure,
+  useMailStore,
+  type FolderSummary,
+} from "@/lib/mail/view-store";
 import { readMailLayout, writeMailLayout, type MailLayout } from "@/lib/mail/layout-prefs";
 import { usePaletteStore } from "@/lib/palette/store";
 import { useHotkeys } from "@/lib/keyboard/use-hotkeys";
@@ -70,6 +75,11 @@ export function MailWorkspace({
   const searchRef = useRef<HTMLInputElement>(null);
   const searchDirty = useRef(false);
   const narrow = useMediaQuery(NARROW_MAIL);
+
+  useEffect(() => {
+    onMailActionFailure((message) => toast.error(message, { id: ACTION_TOAST }));
+    return () => onMailActionFailure(null);
+  }, []);
 
   useEffect(() => {
     setLayout(readMailLayout());

@@ -732,6 +732,11 @@ function patchLocal(
   });
 }
 
+/**
+ * Applies a mutation server-side. A rejection used to be swallowed: the row was put
+ * back with no word to anyone, while the optimistic toast still claimed success, so a
+ * message that failed to move looked like it had returned from the dead.
+ */
 async function send(body: {
   ids?: string[];
   action: MailAction;
@@ -744,10 +749,27 @@ async function send(body: {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ mailboxId, ...body }),
     });
-    return response.ok;
+    if (response.ok) return true;
+
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+    reportMailActionFailure(payload.error ?? "The mail server rejected that change.");
+    return false;
   } catch {
+    reportMailActionFailure("Could not reach the mail server.");
     return false;
   }
+}
+
+type FailureListener = (message: string) => void;
+let failureListener: FailureListener | null = null;
+
+/** The workspace registers here so a rejected mutation can surface as a toast. */
+export function onMailActionFailure(listener: FailureListener | null): void {
+  failureListener = listener;
+}
+
+function reportMailActionFailure(message: string): void {
+  failureListener?.(message);
 }
 
 /** Instant folder switch: restore the cached list, then refresh in the background. */
