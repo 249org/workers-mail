@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { describeImapError, isImapAuthFailure } from "@/lib/transport/imap-error";
-import { appPasswordHelp, appPasswordHelpForHost } from "@/lib/transport/presets";
+import { providerAuthNote, providerAuthNoteForHost } from "@/lib/transport/presets";
 
 describe("isImapAuthFailure", () => {
   it("recognises the wordings servers and edgeport use", () => {
@@ -23,10 +23,12 @@ describe("describeImapError", () => {
     expect(text).toContain("https://myaccount.google.com/apppasswords");
   });
 
-  it("does the same for Microsoft", () => {
+  it("sends Microsoft to one-click sign-in, since no password can work", () => {
     const text = describeImapError(new Error("imap login rejected"), "outlook.office365.com");
     expect(text).toContain("Microsoft");
-    expect(text).toContain("app password");
+    expect(text).toContain("one-click");
+    // Microsoft retired app passwords with basic auth; suggesting one is a dead end.
+    expect(text).not.toContain("app password");
   });
 
   it("stays generic for a host with no known policy", () => {
@@ -48,21 +50,33 @@ describe("describeImapError", () => {
   });
 });
 
-describe("appPasswordHelp", () => {
-  it("flags providers that refuse ordinary passwords over IMAP", () => {
-    expect(appPasswordHelp("someone@gmail.com")?.label).toBe("Gmail");
-    expect(appPasswordHelp("someone@outlook.com")?.label).toBe("Microsoft");
-    expect(appPasswordHelp("someone@icloud.com")?.label).toBe("iCloud");
+describe("providerAuthNote", () => {
+  it("offers an app password where one still works", () => {
+    expect(providerAuthNote("someone@gmail.com")).toMatchObject({
+      kind: "app-password",
+      label: "Gmail",
+    });
+    expect(providerAuthNote("someone@icloud.com")?.kind).toBe("app-password");
+  });
+
+  it("marks Microsoft accounts as sign-in only", () => {
+    for (const address of ["a@outlook.com", "a@hotmail.com", "a@live.com"]) {
+      expect(providerAuthNote(address)).toMatchObject({
+        kind: "oauth-only",
+        provider: "microsoft",
+      });
+    }
   });
 
   it("stays quiet for hosts that accept the account password", () => {
-    expect(appPasswordHelp("support@mena-speakers.com")).toBeNull();
-    expect(appPasswordHelp("not-an-address")).toBeNull();
+    expect(providerAuthNote("support@mena-speakers.com")).toBeNull();
+    expect(providerAuthNote("not-an-address")).toBeNull();
   });
 
-  it("resolves the same help from an IMAP host", () => {
-    expect(appPasswordHelpForHost("imap.gmail.com")?.label).toBe("Gmail");
-    expect(appPasswordHelpForHost("imap.one.com")).toBeNull();
-    expect(appPasswordHelpForHost(null)).toBeNull();
+  it("resolves the same note from an IMAP host", () => {
+    expect(providerAuthNoteForHost("imap.gmail.com")?.kind).toBe("app-password");
+    expect(providerAuthNoteForHost("outlook.office365.com")?.kind).toBe("oauth-only");
+    expect(providerAuthNoteForHost("imap.one.com")).toBeNull();
+    expect(providerAuthNoteForHost(null)).toBeNull();
   });
 });

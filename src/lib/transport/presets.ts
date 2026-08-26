@@ -223,32 +223,62 @@ const SELF_FILING_SMTP_HOSTS = new Set([
   "smtp.live.com",
 ]);
 
-export type AppPasswordHelp = { label: string; href: string };
+export type ProviderAuthNote =
+  /** Ordinary password refused; a generated app password works. */
+  | { kind: "app-password"; label: string; href: string }
+  /** No password of any kind works; the account must be linked over OAuth. */
+  | { kind: "oauth-only"; label: string; provider: OauthLinkProvider };
+
+export type OauthLinkProvider = "google" | "microsoft";
 
 /**
  * Providers that reject a normal account password over IMAP. Gmail and Microsoft
  * dropped plain-password IMAP, so "wrong password" is nearly always a missing app
  * password rather than a typo — the form and the sync error both say so.
  */
-const APP_PASSWORD_HELP: Record<string, AppPasswordHelp> = {
-  gmail: { label: "Gmail", href: "https://myaccount.google.com/apppasswords" },
-  outlook: { label: "Microsoft", href: "https://account.live.com/proofs/AppPassword" },
-  yahoo: { label: "Yahoo", href: "https://login.yahoo.com/account/security" },
-  icloud: { label: "iCloud", href: "https://appleid.apple.com/account/manage" },
-  fastmail: { label: "Fastmail", href: "https://app.fastmail.com/settings/security/apppasswords" },
+/*
+ * Microsoft withdrew basic authentication from personal Outlook, Hotmail and Live
+ * accounts on 16 September 2024, which retired app passwords along with it: an IMAP
+ * login with one is refused outright now, so the only way in is one-click sign-in.
+ * The others still issue an app password for accounts with two-factor enabled.
+ */
+const PROVIDER_AUTH: Record<string, ProviderAuthNote> = {
+  gmail: {
+    kind: "app-password",
+    label: "Gmail",
+    href: "https://myaccount.google.com/apppasswords",
+  },
+  outlook: { kind: "oauth-only", label: "Microsoft", provider: "microsoft" },
+  yahoo: {
+    kind: "app-password",
+    label: "Yahoo",
+    href: "https://login.yahoo.com/account/security",
+  },
+  icloud: {
+    kind: "app-password",
+    label: "iCloud",
+    href: "https://appleid.apple.com/account/manage",
+  },
+  fastmail: {
+    kind: "app-password",
+    label: "Fastmail",
+    href: "https://app.fastmail.com/settings/security/apppasswords",
+  },
 };
 
-/** Help for an address, or null when the provider takes the ordinary password. */
-export function appPasswordHelp(address: string): AppPasswordHelp | null {
+/** What an address needs to sign in, or null when the account password is fine. */
+export function providerAuthNote(address: string): ProviderAuthNote | null {
   const preset = presetFor(address);
-  return preset ? (APP_PASSWORD_HELP[preset.id] ?? null) : null;
+  return preset ? (PROVIDER_AUTH[preset.id] ?? null) : null;
 }
 
-/** Help keyed by the IMAP host, for errors raised after the mailbox is stored. */
-export function appPasswordHelpForHost(imapHost: string | null | undefined): AppPasswordHelp | null {
+/** The same note keyed by IMAP host, for errors raised after the mailbox is stored. */
+export function providerAuthNoteForHost(
+  imapHost: string | null | undefined,
+): ProviderAuthNote | null {
   const host = imapHost?.trim().toLowerCase();
   if (!host) return null;
-  for (const [id, help] of Object.entries(APP_PASSWORD_HELP)) {
+  for (const [id, help] of Object.entries(PROVIDER_AUTH)) {
     const preset = presetById(id);
     if (preset && preset.imapHost.toLowerCase() === host) return help;
   }

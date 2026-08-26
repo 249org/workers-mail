@@ -128,6 +128,7 @@ export function NewMailboxForm({ domains }: { domains: DomainOption[] }) {
         submitting={busy}
         error={error}
         submitLabel="Connect mailbox"
+        returnTo="/settings/mailboxes"
         onSubmit={(draft: ImapDraft) =>
           void create({
             type: "external_imap",

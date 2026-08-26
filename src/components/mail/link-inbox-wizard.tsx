@@ -8,7 +8,7 @@ import {
 import { isEmailAddress } from "@/lib/mail/address";
 import type { DiscoverResult } from "@/lib/transport/autodiscover";
 import {
-  appPasswordHelp,
+  providerAuthNote,
   presetFor,
   tlsForImapPort,
   tlsForSmtpPort,
@@ -55,6 +55,7 @@ export function LinkInboxWizard({
   onSubmit,
   onBack,
   initialAddress = "",
+  returnTo,
 }: {
   submitting?: boolean;
   error?: string | null;
@@ -62,6 +63,8 @@ export function LinkInboxWizard({
   onSubmit: (draft: ImapDraft) => void;
   onBack?: () => void;
   initialAddress?: string;
+  /** Where one-click sign-in should land after linking. */
+  returnTo?: string;
 }) {
   const [address, setAddress] = useState(initialAddress);
   const [password, setPassword] = useState("");
@@ -72,7 +75,8 @@ export function LinkInboxWizard({
   const [discovering, setDiscovering] = useState(false);
   const [discovery, setDiscovery] = useState<DiscoverResult | null>(null);
 
-  const help = appPasswordHelp(address);
+  const auth = providerAuthNote(address);
+  const oauthOnly = auth?.kind === "oauth-only";
 
   useEffect(() => {
     if (serversEdited || !isEmailAddress(address)) {
@@ -199,10 +203,15 @@ export function LinkInboxWizard({
           />
         </Field>
 
+        {oauthOnly ? (
+          <OauthOnlyNotice label={auth.label} provider={auth.provider} returnTo={returnTo} />
+        ) : null}
+
         <Field
           label="Password"
           htmlFor="imap-password"
-          hint={help ? undefined : "The password you use for webmail."}
+          hidden={oauthOnly}
+          hint={auth ? undefined : "The password you use for webmail."}
         >
           <input
             id="imap-password"
@@ -213,11 +222,11 @@ export function LinkInboxWizard({
             value={password}
             onChange={(event) => setPassword(event.target.value)}
           />
-          {help ? (
+          {auth?.kind === "app-password" ? (
             <p className="mt-1.5 text-[12px] text-muted-foreground">
-              {help.label} needs an app password, not your normal one.{" "}
+              {auth.label} needs an app password, not your normal one.{" "}
               <a
-                href={help.href}
+                href={auth.href}
                 target="_blank"
                 rel="noreferrer noopener"
                 className="text-[var(--primary)] hover:underline"
@@ -313,17 +322,47 @@ function DiscoverStatus({
   );
 }
 
+/**
+ * Microsoft refuses every password over IMAP, so offering a password box would only
+ * lead somewhere that cannot work. Point at one-click sign-in instead.
+ */
+function OauthOnlyNotice({
+  label,
+  provider,
+  returnTo,
+}: {
+  label: string;
+  provider: "google" | "microsoft";
+  returnTo?: string;
+}) {
+  const extra = returnTo ? `&return=${encodeURIComponent(returnTo)}` : "";
+  return (
+    <div className="panel p-3">
+      <p className="text-[13px]">
+        {label} accounts cannot be linked with a password. They dropped that for IMAP, so
+        an app password will not work either.
+      </p>
+      <a className="btn btn-primary mt-3" href={`/api/oauth/${provider}?intent=link${extra}`}>
+        Continue with {label}
+      </a>
+    </div>
+  );
+}
+
 function Field({
   label,
   htmlFor,
   hint,
+  hidden,
   children,
 }: {
   label: string;
   htmlFor: string;
   hint?: string;
+  hidden?: boolean;
   children: React.ReactNode;
 }) {
+  if (hidden) return null;
   return (
     <div>
       <label className="label" htmlFor={htmlFor}>

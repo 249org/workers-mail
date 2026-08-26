@@ -1,4 +1,4 @@
-import { appPasswordHelpForHost } from "./presets";
+import { providerAuthNoteForHost } from "./presets";
 
 /** Socket/command stalls from edgeport and IMAP hosts such as one.com. */
 export function isImapTimeout(error: unknown): boolean {
@@ -27,10 +27,14 @@ export function describeImapError(error: unknown, imapHost?: string | null): str
     return "The mail server took too long to respond. Sync will try again.";
   }
   if (isImapAuthFailure(text)) {
-    const help = appPasswordHelpForHost(imapHost);
-    return help
-      ? `${help.label} rejected the sign-in. It no longer accepts your account password over IMAP — create an app password at ${help.href} and reconnect this mailbox.`
-      : "The mail server rejected the sign-in. Check the address and password, and whether the account needs an app password.";
+    const note = providerAuthNoteForHost(imapHost);
+    if (note?.kind === "app-password") {
+      return `${note.label} rejected the sign-in. It no longer accepts your account password over IMAP — create an app password at ${note.href} and reconnect this mailbox.`;
+    }
+    if (note?.kind === "oauth-only") {
+      return `${note.label} no longer accepts any password over IMAP. Reconnect this mailbox with one-click ${note.label} sign-in.`;
+    }
+    return "The mail server rejected the sign-in. Check the address and password, and whether the account needs an app password.";
   }
   return text;
 }
