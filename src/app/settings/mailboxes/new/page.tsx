@@ -1,6 +1,8 @@
 import { asc, eq } from "drizzle-orm";
 import { requireUser } from "@/lib/auth/server";
 import { domains } from "@/lib/db/schema";
+import { env } from "@/lib/env";
+import { oauthAvailability } from "@/lib/oauth/providers";
 import { NewMailboxForm } from "@/components/settings/new-mailbox-form";
 import { PageHeader, SettingsBody } from "@/components/settings/page-header";
 import type { Metadata } from "next";
@@ -22,7 +24,7 @@ export default async function NewMailboxPage() {
         Start with the address. Everything else — hosts, and whether a password will do — follows from it.
       </PageHeader>
       <SettingsBody>
-        <NewMailboxForm domains={available} />
+        <NewMailboxForm domains={available} oauth={oauthAvailability(env())} />
       </SettingsBody>
     </>
   );

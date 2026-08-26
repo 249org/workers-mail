@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth/server";
 import { listMailboxes, publicMailbox } from "@/lib/mail/mailboxes";
 import { MailboxList } from "@/components/settings/mailbox-list";
+import { OauthErrorNotice } from "@/components/settings/oauth-error-notice";
 import { PageHeader, SettingsBody } from "@/components/settings/page-header";
 import type { Metadata } from "next";
 
@@ -23,6 +24,7 @@ export default async function MailboxesPage() {
       >
         Addresses on your own domains, plus any external accounts you read over IMAP.
       </PageHeader>
+      <OauthErrorNotice />
       <SettingsBody flush>
         <MailboxList mailboxes={mailboxes.map(publicMailbox)} />
       </SettingsBody>

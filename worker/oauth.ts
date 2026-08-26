@@ -41,24 +41,27 @@ export async function handleOauthStart(
   env: CloudflareEnv,
   provider: OauthProviderId,
 ): Promise<Response> {
+  const url = new URL(request.url);
+  const intent = parseIntent(url.searchParams.get("intent"));
+  // Linking happens from inside the app, so failures belong on the page it started from.
+  const failTo = intent === "link" ? safeReturnTo(url.searchParams.get("return")) : undefined;
+
   try {
     const limit = await rateLimit(env.SESSION_STORE, clientKey(request, `oauth:${provider}`), 12, 300);
     if (!limit.allowed) {
-      return oauthRedirect(request, "Too many sign-in attempts. Try again shortly.");
+      return oauthRedirect(request, "Too many sign-in attempts. Try again shortly.", failTo);
     }
     if (!oauthReady(env, provider)) {
-      const origin = new URL(request.url).origin;
       return oauthRedirect(
         request,
-        `${label(provider)} one-click is not configured. Create an OAuth web client and set the secrets. Redirect URI: ${redirectUri(origin, provider)}`,
+        `${label(provider)} sign-in is not configured. Register an OAuth app and set its client id and secret. Redirect URI: ${redirectUri(url.origin, provider)}`,
+        failTo,
       );
     }
     if (!env.MAIL_ENCRYPTION_KEY) {
-      return oauthRedirect(request, "Set MAIL_ENCRYPTION_KEY before connecting a mailbox.");
+      return oauthRedirect(request, "Set MAIL_ENCRYPTION_KEY before connecting a mailbox.", failTo);
     }
 
-    const url = new URL(request.url);
-    const intent = parseIntent(url.searchParams.get("intent"));
     const sessionUser = await resolveSession(env, readCookie(request.headers.get("cookie"), SESSION_COOKIE));
     if (intent === "link" && !sessionUser) {
       return oauthRedirect(request, "Sign in first, then connect a mailbox.");
@@ -90,6 +93,8 @@ export async function handleOauthCallback(
   provider: OauthProviderId,
 ): Promise<Response> {
   const url = new URL(request.url);
+  // Where a failure should report. Only known once the state is read, so it starts unset.
+  let failTo: string | undefined;
   const denied = url.searchParams.get("error_description") || url.searchParams.get("error");
   if (denied) return oauthRedirect(request, denied);
 
@@ -102,6 +107,7 @@ export async function handleOauthCallback(
     await env.SESSION_STORE.delete(`oauth-state:${stateKey}`);
     if (!raw) throw new ApiError(400, "This sign-in expired. Try again.");
     const state = JSON.parse(raw) as OauthState;
+    if (state.intent === "link") failTo = state.returnTo;
     if (state.provider !== provider) throw new ApiError(400, "This sign-in was started with a different provider.");
 
     const tokens = await exchangeCode(env, url.origin, provider, code, state.verifier);
@@ -192,9 +198,13 @@ export async function handleOauthCallback(
       },
     });
   } catch (error) {
-    if (error instanceof ApiError) return oauthRedirect(request, error.message);
+    if (error instanceof ApiError) return oauthRedirect(request, error.message, failTo);
     console.error("oauth callback failed", error);
-    return oauthRedirect(request, error instanceof Error ? error.message : "Sign-in failed.");
+    return oauthRedirect(
+      request,
+      error instanceof Error ? error.message : "Sign-in failed.",
+      failTo,
+    );
   }
 }
 
@@ -277,8 +287,12 @@ function parseIntent(value: string | null): OauthIntent {
   return "login";
 }
 
-function oauthRedirect(request: Request, message: string): Response {
-  const url = new URL("/login", request.url);
+/**
+ * /login sends a signed-in user straight to their mail, so reporting a failed link
+ * there loses the message. Anything started from inside the app reports where it began.
+ */
+function oauthRedirect(request: Request, message: string, returnTo?: string): Response {
+  const url = new URL(returnTo ?? "/login", request.url);
   url.searchParams.set("oauth_error", message.slice(0, 280));
   return Response.redirect(url.toString(), 302);
 }

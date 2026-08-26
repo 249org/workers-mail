@@ -14,6 +14,9 @@ import {
   tlsForSmtpPort,
 } from "@/lib/transport/presets";
 
+/** Which one-click providers this deployment has OAuth secrets for. */
+export type OauthAvailability = { google: boolean; microsoft: boolean };
+
 export type ImapDraft = {
   address: string;
   password: string;
@@ -56,6 +59,7 @@ export function LinkInboxWizard({
   onBack,
   initialAddress = "",
   returnTo,
+  oauth,
 }: {
   submitting?: boolean;
   error?: string | null;
@@ -65,6 +69,7 @@ export function LinkInboxWizard({
   initialAddress?: string;
   /** Where one-click sign-in should land after linking. */
   returnTo?: string;
+  oauth?: OauthAvailability;
 }) {
   const [address, setAddress] = useState(initialAddress);
   const [password, setPassword] = useState("");
@@ -206,7 +211,12 @@ export function LinkInboxWizard({
         </Field>
 
         {oauthOnly ? (
-          <OauthOnlyNotice label={auth.label} provider={auth.provider} returnTo={returnTo} />
+          <OauthOnlyNotice
+            label={auth.label}
+            provider={auth.provider}
+            returnTo={returnTo}
+            configured={oauth?.[auth.provider] ?? true}
+          />
         ) : null}
 
         <Field
@@ -335,10 +345,12 @@ function OauthOnlyNotice({
   label,
   provider,
   returnTo,
+  configured,
 }: {
   label: string;
   provider: "google" | "microsoft";
   returnTo?: string;
+  configured: boolean;
 }) {
   const extra = returnTo ? `&return=${encodeURIComponent(returnTo)}` : "";
   return (
@@ -347,9 +359,16 @@ function OauthOnlyNotice({
         This address is hosted by {label}, which stopped accepting passwords over IMAP —
         app passwords went with them. Sign in to link it instead.
       </p>
-      <a className="btn btn-primary mt-3" href={`/api/oauth/${provider}?intent=link${extra}`}>
-        Continue with {label}
-      </a>
+      {configured ? (
+        <a className="btn btn-primary mt-3" href={`/api/oauth/${provider}?intent=link${extra}`}>
+          Continue with {label}
+        </a>
+      ) : (
+        <p className="mt-2 text-[12px] text-[var(--warning)]">
+          {label} sign-in has no client credentials on this Worker yet. Register an OAuth app
+          and set its id and secret, then this becomes a button.
+        </p>
+      )}
     </div>
   );
 }
