@@ -47,7 +47,7 @@ const NAMED_PROVIDERS: NamedProvider[] = [
     imapPort: 993,
     smtpHost: "smtp.office365.com",
     smtpPort: 587,
-    note: "Microsoft accounts with two-step verification need an app password.",
+    note: "Microsoft dropped password logins for IMAP; these accounts link over OAuth.",
   },
   {
     id: "yahoo",
@@ -98,41 +98,6 @@ export const OTHER_PROVIDER_ID = "other";
 
 export type EasyProviderId = "gmail" | "outlook";
 
-export type EasyProvider = {
-  id: EasyProviderId;
-  label: string;
-  blurb: string;
-  addressPlaceholder: string;
-  passwordLabel: string;
-  passwordHint: string;
-  helpHref: string;
-  helpLabel: string;
-};
-
-/** First-class connect options — one-click OAuth, not an app password. */
-export const EASY_PROVIDERS: EasyProvider[] = [
-  {
-    id: "gmail",
-    label: "Google",
-    blurb: "One-click sign in",
-    addressPlaceholder: "you@gmail.com",
-    passwordLabel: "App password",
-    passwordHint: "A 16-character password from Google — not the one you sign in with.",
-    helpHref: "https://myaccount.google.com/apppasswords",
-    helpLabel: "Create an app password",
-  },
-  {
-    id: "outlook",
-    label: "Microsoft",
-    blurb: "One-click sign in",
-    addressPlaceholder: "you@outlook.com",
-    passwordLabel: "App password",
-    passwordHint: "From your Microsoft account if two-step verification is on.",
-    helpHref: "https://account.live.com/proofs/AppPassword",
-    helpLabel: "Create an app password",
-  },
-];
-
 export type TransportHosts = {
   imapHost: string;
   imapPort: number;
@@ -153,12 +118,6 @@ export function hostsForEasyProvider(id: EasyProviderId): TransportHosts {
   const preset = presetById(id);
   if (!preset) throw new Error(`No IMAP preset for ${id}`);
   return hostsFromPreset(preset);
-}
-
-export function easyProvider(id: EasyProviderId): EasyProvider {
-  const match = EASY_PROVIDERS.find((provider) => provider.id === id);
-  if (!match) throw new Error(`Unknown easy provider ${id}`);
-  return match;
 }
 
 /** Providers the user can pick when the address domain is not the mail host. */

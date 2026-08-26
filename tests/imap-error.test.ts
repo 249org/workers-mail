@@ -74,9 +74,19 @@ describe("providerAuthNote", () => {
   });
 
   it("resolves the same note from an IMAP host", () => {
+    // A custom domain on Microsoft 365 or Google Workspace names neither in the
+    // address, so the host discovery resolved is the only thing that identifies it.
     expect(providerAuthNoteForHost("imap.gmail.com")?.kind).toBe("app-password");
     expect(providerAuthNoteForHost("outlook.office365.com")?.kind).toBe("oauth-only");
     expect(providerAuthNoteForHost("imap.one.com")).toBeNull();
     expect(providerAuthNoteForHost(null)).toBeNull();
+  });
+
+  it("says nothing about a custom domain until its host is known", () => {
+    expect(providerAuthNote("noreply@sharjahtourism.ae")).toBeNull();
+    expect(providerAuthNoteForHost("outlook.office365.com")).toMatchObject({
+      kind: "oauth-only",
+      provider: "microsoft",
+    });
   });
 });

@@ -19,7 +19,7 @@ export default async function NewMailboxPage() {
   return (
     <>
       <PageHeader title="Add a mailbox">
-        Your address and password. Gmail, Outlook and everything else connect the same way.
+        Start with the address. Everything else — hosts, and whether a password will do — follows from it.
       </PageHeader>
       <SettingsBody>
         <NewMailboxForm domains={available} />

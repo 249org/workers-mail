@@ -9,7 +9,7 @@ import { isEmailAddress } from "@/lib/mail/address";
 import type { DiscoverResult } from "@/lib/transport/autodiscover";
 import {
   providerAuthNote,
-  presetFor,
+  providerAuthNoteForHost,
   tlsForImapPort,
   tlsForSmtpPort,
 } from "@/lib/transport/presets";
@@ -75,7 +75,9 @@ export function LinkInboxWizard({
   const [discovering, setDiscovering] = useState(false);
   const [discovery, setDiscovery] = useState<DiscoverResult | null>(null);
 
-  const auth = providerAuthNote(address);
+  // A custom domain gives nothing away — sharjahtourism.ae is Microsoft 365, and only
+  // the host discovery resolves says so. Prefer that over the address it was typed with.
+  const auth = providerAuthNoteForHost(servers.imapHost) ?? providerAuthNote(address);
   const oauthOnly = auth?.kind === "oauth-only";
 
   useEffect(() => {
@@ -238,7 +240,7 @@ export function LinkInboxWizard({
           ) : null}
         </Field>
 
-        <Field label="Display name" htmlFor="imap-display-name">
+        <Field label="Display name" htmlFor="imap-display-name" hidden={oauthOnly}>
           <input
             id="imap-display-name"
             className="field"
@@ -249,7 +251,7 @@ export function LinkInboxWizard({
 
         <DiscoverStatus address={address} discovering={discovering} discovery={discovery} />
 
-        {advanced ? (
+        {oauthOnly ? null : advanced ? (
           <ServerSettingsFields
             value={servers}
             onChange={(next) => {
@@ -276,20 +278,22 @@ export function LinkInboxWizard({
             Back
           </button>
         ) : null}
-        <button
-          type="submit"
-          className="btn btn-primary"
-          disabled={
-            submitting ||
-            discovering ||
-            !address ||
-            !password ||
-            !servers.imapHost ||
-            !servers.smtpHost
-          }
-        >
-          {submitting ? "Connecting" : discovering ? "Looking up host" : submitLabel}
-        </button>
+        {oauthOnly ? null : (
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={
+              submitting ||
+              discovering ||
+              !address ||
+              !password ||
+              !servers.imapHost ||
+              !servers.smtpHost
+            }
+          >
+            {submitting ? "Connecting" : discovering ? "Looking up host" : submitLabel}
+          </button>
+        )}
       </div>
     </form>
   );
@@ -324,7 +328,8 @@ function DiscoverStatus({
 
 /**
  * Microsoft refuses every password over IMAP, so offering a password box would only
- * lead somewhere that cannot work. Point at one-click sign-in instead.
+ * lead somewhere that cannot work. Point at sign-in instead. Custom domains land here
+ * too — the provider comes from the host discovery resolved, not from the address.
  */
 function OauthOnlyNotice({
   label,
@@ -339,8 +344,8 @@ function OauthOnlyNotice({
   return (
     <div className="panel p-3">
       <p className="text-[13px]">
-        {label} accounts cannot be linked with a password. They dropped that for IMAP, so
-        an app password will not work either.
+        This address is hosted by {label}, which stopped accepting passwords over IMAP —
+        app passwords went with them. Sign in to link it instead.
       </p>
       <a className="btn btn-primary mt-3" href={`/api/oauth/${provider}?intent=link${extra}`}>
         Continue with {label}
