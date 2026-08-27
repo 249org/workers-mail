@@ -49,21 +49,29 @@ export async function POST(request: Request): Promise<Response> {
     const scope = and(eq(messages.mailboxId, mailbox.id), inArray(messages.id, ids));
 
     switch (body.action) {
+      /*
+       * Flags are saved locally first and pushed afterwards, and a refused push does not
+       * fail the request. Reading is driven by the cursor, so walking a list with the
+       * arrow keys asks the server to set `\\Seen` once per message and a busy host starts
+       * turning those connections away; pushing first meant every refusal also threw away
+       * the local read, and the message the user had just read came back unread. Moving
+       * or deleting still has to reach the server, since those cannot be replayed.
+       */
       case "read":
-        await applyImap(mailbox, env, refs, { action: "flags", seen: true });
         await db.update(messages).set({ seen: true }).where(scope);
+        await pushFlags(mailbox, env, refs, { action: "flags", seen: true });
         break;
       case "unread":
-        await applyImap(mailbox, env, refs, { action: "flags", seen: false });
         await db.update(messages).set({ seen: false }).where(scope);
+        await pushFlags(mailbox, env, refs, { action: "flags", seen: false });
         break;
       case "flag":
-        await applyImap(mailbox, env, refs, { action: "flags", flagged: true });
         await db.update(messages).set({ flagged: true }).where(scope);
+        await pushFlags(mailbox, env, refs, { action: "flags", flagged: true });
         break;
       case "unflag":
-        await applyImap(mailbox, env, refs, { action: "flags", flagged: false });
         await db.update(messages).set({ flagged: false }).where(scope);
+        await pushFlags(mailbox, env, refs, { action: "flags", flagged: false });
         break;
       case "move": {
         if (!body.folderId) throw new ApiError(400, "folderId is required to move");
@@ -99,6 +107,21 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ updated: ids.length });
   } catch (error) {
     return errorResponse(error);
+  }
+}
+
+/** Best-effort flag mirroring: the local change stands even when the server refuses. */
+async function pushFlags(
+  mailbox: Mailbox,
+  env: CloudflareEnv,
+  refs: ImapMessageRef[],
+  change: RemoteMailChange,
+): Promise<void> {
+  if (mailbox.type !== "external_imap") return;
+  try {
+    await applyRemoteMail(env, mailbox.id, refs, change);
+  } catch (error) {
+    console.warn("imap flag push failed", { mailboxId: mailbox.id, error });
   }
 }
 

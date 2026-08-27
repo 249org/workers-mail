@@ -9,6 +9,7 @@ import { formatAddressList } from "@/lib/mail/address";
 import { normalizeSubject } from "@/lib/mail/thread";
 import { partitionFolders } from "@/lib/mail/folder-name";
 import {
+  flushPendingReads,
   navigateMailFolder,
   onMailActionFailure,
   useMailStore,
@@ -79,6 +80,18 @@ export function MailWorkspace({
   useEffect(() => {
     onMailActionFailure((message) => toast.error(message, { id: ACTION_TOAST }));
     return () => onMailActionFailure(null);
+  }, []);
+
+  // Reads are batched, so anything still waiting has to go before the page does.
+  useEffect(() => {
+    const flush = () => flushPendingReads();
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", flush);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", flush);
+      flush();
+    };
   }, []);
 
   useEffect(() => {

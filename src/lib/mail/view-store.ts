@@ -327,7 +327,7 @@ export const useMailStore = create<State & Actions>((set, get) => ({
   markRead: (ids, seen) => {
     if (ids.length === 0) return;
     patchLocal(set, ids, { seen });
-    void send({ ids, action: seen ? "read" : "unread" });
+    queueSeen(ids, seen);
   },
 
   star: (ids, flagged) => {
@@ -758,6 +758,45 @@ async function send(body: {
     reportMailActionFailure("Could not reach the mail server.");
     return false;
   }
+}
+
+/*
+ * Landing on a message reads it, so walking a list with j/k marks one per keystroke.
+ * Sent one at a time that is a request and an IMAP connection per row, which a host
+ * answers by refusing them. Runs are collected and sent as a single batch instead.
+ */
+const SEEN_BATCH_MS = 400;
+const pendingSeen = new Map<boolean, Set<string>>();
+let seenTimer: ReturnType<typeof setTimeout> | null = null;
+
+function queueSeen(ids: string[], seen: boolean): void {
+  const batch = pendingSeen.get(seen) ?? new Set<string>();
+  const opposite = pendingSeen.get(!seen);
+  for (const id of ids) {
+    batch.add(id);
+    // A message read then marked unread inside one window must not be sent as both.
+    opposite?.delete(id);
+  }
+  pendingSeen.set(seen, batch);
+
+  if (seenTimer) clearTimeout(seenTimer);
+  seenTimer = setTimeout(flushSeen, SEEN_BATCH_MS);
+}
+
+function flushSeen(): void {
+  seenTimer = null;
+  const batches = [...pendingSeen.entries()];
+  pendingSeen.clear();
+  for (const [seen, ids] of batches) {
+    if (ids.size === 0) continue;
+    void send({ ids: [...ids], action: seen ? "read" : "unread" });
+  }
+}
+
+/** Sends anything still queued — leaving the page must not lose a read. */
+export function flushPendingReads(): void {
+  if (seenTimer) clearTimeout(seenTimer);
+  flushSeen();
 }
 
 type FailureListener = (message: string) => void;

@@ -1,6 +1,6 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import type { Database } from "@/lib/db";
-import { folders, mailboxes, type DnsRecord } from "@/lib/db/schema";
+import { folders, mailboxes, messages, type DnsRecord } from "@/lib/db/schema";
 import { newId } from "@/lib/ids";
 import { bimiRecordName, bimiRecordValue, type BimiConfig } from "./bimi";
 import { normalizeAddress } from "./address";
@@ -110,9 +110,22 @@ export async function upsertRemoteFolder(
     all.find((folder) => folder.remotePath === null && folder.name === name);
 
   if (found) {
+    /*
+     * A mailbox is seeded with the five system folders before anything is known about the
+     * server, so a role can already be held by a placeholder that points nowhere. Once the
+     * real one is identified it has to take the role over — otherwise a UK Gmail keeps an
+     * empty Trash beside a `Bin` filed as an ordinary folder, and deleting for good, which
+     * only offers itself inside the trash, can never be reached.
+     */
+    if (role !== "custom" && found.role !== role) {
+      await absorbPlaceholderFolder(db, mailboxId, role, found.id);
+    }
+
     const patch: Partial<Folder> = {};
     if (found.remotePath !== remotePath) patch.remotePath = remotePath;
-    if (found.name !== name && !all.some((f) => f.id !== found.id && f.name === name)) {
+    if (role !== "custom" && found.role !== role) patch.role = role;
+    const others = await listFolders(db, mailboxId);
+    if (found.name !== name && !others.some((f) => f.id !== found.id && f.name === name)) {
       patch.name = name;
     }
     if (Object.keys(patch).length > 0) {
@@ -139,6 +152,29 @@ export async function upsertRemoteFolder(
   };
   await db.insert(folders).values(folder);
   return folder;
+}
+
+/**
+ * Hands `role` to `keepId`, moving anything filed under the placeholder that held it and
+ * then dropping it. Only a folder with no remote path is treated as a placeholder — two
+ * real server folders claiming one role is not something to resolve by deleting either.
+ */
+async function absorbPlaceholderFolder(
+  db: Database,
+  mailboxId: string,
+  role: Folder["role"],
+  keepId: string,
+): Promise<void> {
+  const stale = await db
+    .select({ id: folders.id })
+    .from(folders)
+    .where(and(eq(folders.mailboxId, mailboxId), eq(folders.role, role), isNull(folders.remotePath)));
+
+  for (const row of stale) {
+    if (row.id === keepId) continue;
+    await db.update(messages).set({ folderId: keepId }).where(eq(messages.folderId, row.id));
+    await db.delete(folders).where(eq(folders.id, row.id));
+  }
 }
 
 export async function insertCustomFolder(

@@ -40,6 +40,22 @@ export function parseListMailbox(line: string): string | null {
   return atom?.[1] ?? null;
 }
 
+/**
+ * Attributes from `* LIST (\HasNoChildren \Trash) "/" "[Gmail]/Bin"`, lowercased and
+ * stripped of their leading backslash. These carry SPECIAL-USE (RFC 6154), which is the
+ * only locale-independent way to tell which mailbox is the trash: Gmail calls it Bin in
+ * en-GB, Corbeille in French, and only the `\Trash` attribute says so in every locale.
+ */
+export function parseListAttributes(line: string): string[] {
+  if (!/^\* LIST\b/i.test(line)) return [];
+  const match = /^\* LIST \(([^)]*)\)/i.exec(line);
+  if (!match?.[1]) return [];
+  return match[1]
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((flag) => flag.replace(/^\\/, "").toLowerCase());
+}
+
 /** Hierarchy delimiter from `* LIST (flags) delim mailbox`. NIL means flat. */
 export function parseListDelimiter(line: string): string | null {
   if (!/^\* LIST\b/i.test(line)) return null;

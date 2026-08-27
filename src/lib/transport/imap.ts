@@ -8,6 +8,8 @@ import { upsertRemoteFolder, folderByRole, listFolders, type Folder, type Mailbo
 import { imapAuth, type MailAuth } from "./credentials";
 import { openImap } from "./oauth-connect";
 import { imapUidSet } from "./imap-uid-set";
+import { ImapMutator, type MailboxEntry } from "./imap-commands";
+import { roleForMailbox } from "./imap-folder-roles";
 import { describeImapError, isImapTimeout } from "./imap-error";
 
 const INCREMENTAL_BATCH = 8;
@@ -18,14 +20,6 @@ const BACKFILL_SPAN = 400;
 const BODY_CHUNK = 3;
 /** Leave the isolate before a hung IMAP fetch can kill the whole pass. */
 const PASS_BUDGET_MS = 20_000;
-const SPECIAL_FOLDERS: Array<{ match: RegExp; role: Folder["role"]; name: string }> = [
-  { match: /^inbox$/i, role: "inbox", name: "Inbox" },
-  { match: /sent/i, role: "sent", name: "Sent" },
-  { match: /draft/i, role: "drafts", name: "Drafts" },
-  { match: /(trash|deleted)/i, role: "trash", name: "Trash" },
-  { match: /(archive|all mail)/i, role: "archive", name: "Archive" },
-];
-
 export type SyncDeps = {
   db: Database;
   bucket: R2Bucket;
@@ -113,8 +107,11 @@ export async function syncMailbox(
       return summary;
     }
 
-    const remotePaths = await session.listMailboxes();
-    const tracked = await trackFolders(deps.db, mailbox.id, remotePaths);
+    const tracked = await trackFolders(
+      deps.db,
+      mailbox.id,
+      await listRemoteMailboxes(session, mailbox, deps.env, deps.db),
+    );
     const selected = tracked.slice(0, options.maxFolders ?? tracked.length);
 
     let allCaughtUp = true;
@@ -338,27 +335,54 @@ export function isMissingMailbox(error: unknown): boolean {
 async function trackFolders(
   db: Database,
   mailboxId: string,
-  remotePaths: string[],
+  entries: MailboxEntry[],
 ): Promise<Folder[]> {
   const tracked: Folder[] = [];
-  for (const path of remotePaths) {
-    // Split on the hierarchy separator only. Treating "." as one too renamed the
-    // Gmail folder "Unroll.me" to "me" and hid which mailbox it really was.
-    const leaf = path.split("/").pop() || path;
-    const special = SPECIAL_FOLDERS.find(
-      (entry) => entry.match.test(path) || entry.match.test(leaf),
-    );
+  for (const entry of entries) {
+    // `\Noselect` marks a container the server refuses to open — Gmail's bare `[Gmail]`
+    // is one. Tracking it added a folder to the rail that could only ever fail to load.
+    if (entry.attributes.includes("noselect") || entry.attributes.includes("nonexistent")) {
+      continue;
+    }
+    const special = roleForMailbox(entry);
+    const leaf = entry.path.split("/").pop() || entry.path;
     const folder = await upsertRemoteFolder(
       db,
       mailboxId,
       special?.name ?? leaf,
-      path,
+      entry.path,
       special?.role ?? "custom",
     );
     tracked.push(folder);
   }
   // Inbox first, then the rest, so a truncated pass still refreshes what users look at.
   return tracked.sort((a, b) => rank(a) - rank(b));
+}
+
+/*
+ * edgeport's LIST returns names only, and the SPECIAL-USE attributes are the whole point
+ * of the lookup, so it goes over a raw connection. This runs once per full pass — not per
+ * folder — and closes immediately, which is a far cry from the per-mutation dialling that
+ * gets a busy host to start refusing connections.
+ */
+async function listRemoteMailboxes(
+  session: ImapSession,
+  mailbox: Mailbox,
+  env: CloudflareEnv,
+  db: Database,
+): Promise<MailboxEntry[]> {
+  let mutator: ImapMutator | null = null;
+  try {
+    mutator = await ImapMutator.open(await imapAuth(mailbox, env, db));
+    return (await mutator.listMailboxListing()).entries;
+  } catch (error) {
+    // Losing the attributes costs accuracy on localised folder names, not the sync.
+    console.warn("special-use LIST failed", { mailboxId: mailbox.id, error: describe(error) });
+    const paths = await session.listMailboxes();
+    return paths.map((path) => ({ path, attributes: [] }));
+  } finally {
+    await mutator?.close();
+  }
 }
 
 async function remoteUidsFor(db: Database, folderId: string): Promise<Set<number>> {

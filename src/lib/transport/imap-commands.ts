@@ -4,6 +4,7 @@ import { imapMailboxArg } from "./imap-mailbox-names";
 import {
   imapQuote,
   parseCopyUid,
+  parseListAttributes,
   parseListDelimiter,
   parseListMailbox,
   parseNamespacePersonal,
@@ -25,6 +26,15 @@ function concatCrlf(bytes: Uint8Array): Uint8Array {
   out.set([CR, LF], bytes.byteLength);
   return out;
 }
+
+/** One `* LIST` reply: the mailbox path and its attributes, SPECIAL-USE included. */
+export type MailboxEntry = { path: string; attributes: string[] };
+
+export type MailboxListing = {
+  entries: MailboxEntry[];
+  paths: string[];
+  delimiter: string | null;
+};
 
 export class ImapCommandError extends Error {
   constructor(
@@ -109,17 +119,17 @@ export class ImapMutator {
     return (await this.listMailboxListing()).paths;
   }
 
-  async listMailboxListing(): Promise<{ paths: string[]; delimiter: string | null }> {
+  async listMailboxListing(): Promise<MailboxListing> {
     const result = await this.command('LIST "" "*"');
-    const paths: string[] = [];
+    const entries: MailboxEntry[] = [];
     let delimiter: string | null = null;
     for (const line of result.untagged) {
       const delim = parseListDelimiter(line);
       if (delim && delimiter == null) delimiter = delim;
       const mailbox = parseListMailbox(line);
-      if (mailbox) paths.push(mailbox);
+      if (mailbox) entries.push({ path: mailbox, attributes: parseListAttributes(line) });
     }
-    return { paths, delimiter };
+    return { entries, paths: entries.map((entry) => entry.path), delimiter };
   }
 
   async personalNamespace(): Promise<MailboxNamespace | null> {
