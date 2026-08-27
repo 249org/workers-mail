@@ -176,6 +176,47 @@ function isEmpty(query: SearchQuery): boolean {
   );
 }
 
+/**
+ * The filters offered as buttons when the search bar opens. Each is only a shortcut for
+ * typing its own token, so the query string stays the single source of truth — a chip
+ * lights up because the query says so, whether it was clicked or typed.
+ */
+export const SEARCH_FILTERS = [
+  { id: "unread", label: "Unread", token: "is:unread", replaces: ["is:read"] },
+  { id: "starred", label: "Starred", token: "is:starred", replaces: ["is:unstarred"] },
+  { id: "attachments", label: "Has file", token: "has:attachment", replaces: [] },
+  { id: "recent", label: "Past week", token: "after:7d", replaces: [] },
+] as const;
+
+export type SearchFilterId = (typeof SEARCH_FILTERS)[number]["id"];
+
+/** True when the query already carries this filter's token. */
+export function hasSearchToken(query: string, token: string): boolean {
+  return tokenize(query).some(
+    (entry) => !entry.literal && entry.value.toLowerCase() === token.toLowerCase(),
+  );
+}
+
+/**
+ * Adds the token, or takes it back out when it is already there. Tokens it contradicts
+ * go with it — turning on Unread while `is:read` is typed would otherwise leave a query
+ * that can never match anything.
+ */
+export function toggleSearchToken(
+  query: string,
+  token: string,
+  replaces: readonly string[] = [],
+): string {
+  const drop = new Set([token.toLowerCase(), ...replaces.map((entry) => entry.toLowerCase())]);
+  const kept = tokenize(query).filter(
+    (entry) => entry.literal || !drop.has(entry.value.toLowerCase()),
+  );
+  const rendered = kept.map((entry) => (entry.literal ? `"${entry.value}"` : entry.value));
+
+  if (hasSearchToken(query, token)) return rendered.join(" ");
+  return [...rendered, token].join(" ").trim();
+}
+
 export const SEARCH_OPERATORS = [
   { token: "from:", hint: "sender name or address" },
   { token: "to:", hint: "recipient address" },

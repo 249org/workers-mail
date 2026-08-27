@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { displayName } from "@/lib/mail/address";
 import type { MessageSummary } from "@/lib/mail/queries";
 import { isSystemFolderRole, partitionFolders } from "@/lib/mail/folder-name";
+import { SEARCH_FILTERS, hasSearchToken, toggleSearchToken } from "@/lib/mail/search";
 import { navigateMailFolder, useMailStore, type FolderSummary } from "@/lib/mail/view-store";
 import { formatMessageDate } from "@/lib/format";
 import { toast } from "sonner";
@@ -46,6 +47,10 @@ export function MessageList({
   const prefetchAround = useMailStore((state) => state.prefetchAround);
 
   const listRef = useRef<HTMLUListElement>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  // The filters stay up while a query is on, so what is narrowing the list is never
+  // hidden just because focus moved to the results.
+  const filtersVisible = searchOpen || search.trim().length > 0;
 
   // Keep the cursor row on screen as j/k walks past the fold. `nearest` avoids the
   // jump-to-centre that makes keyboard navigation feel like it is fighting you.
@@ -77,7 +82,21 @@ export function MessageList({
             value={search}
             placeholder="Search, or try from:sam is:unread"
             onChange={(event) => setSearch(event.target.value)}
-            onFocus={onOpenSearch}
+            onFocus={() => {
+              setSearchOpen(true);
+              onOpenSearch?.();
+            }}
+            onBlur={(event) => {
+              // Moving to a chip is still using search; only leaving the pair closes it.
+              if ((event.relatedTarget as HTMLElement | null)?.closest(".filter-row")) return;
+              setSearchOpen(false);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Escape" && search) {
+                event.stopPropagation();
+                setSearch("");
+              }
+            }}
             className="field pr-12"
             aria-label="Search messages"
           />
@@ -92,6 +111,8 @@ export function MessageList({
         ) : null}
         {inTrash && messages.length > 0 && <EmptyTrashButton />}
       </div>
+
+      {filtersVisible && <SearchFilters search={search} onChange={setSearch} />}
 
       {checked.size > 0 && (
         <BulkBar count={checked.size} total={messages.length} inTrash={inTrash} />
@@ -289,6 +310,51 @@ function Row({
         </div>
       </div>
     </li>
+  );
+}
+
+/**
+ * Filters offered as buttons, so narrowing a search does not depend on remembering the
+ * operator. Each writes its own token into the query rather than holding state beside
+ * it, which is what keeps a clicked chip and a typed `is:unread` the same thing.
+ */
+function SearchFilters({
+  search,
+  onChange,
+}: {
+  search: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="filter-row" role="group" aria-label="Search filters">
+      {SEARCH_FILTERS.map((filter) => {
+        const active = hasSearchToken(search, filter.token);
+        return (
+          <button
+            key={filter.id}
+            type="button"
+            className="filter-chip"
+            aria-pressed={active}
+            title={filter.token}
+            // Keep the caret in the search field so a chip never costs a click back.
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => onChange(toggleSearchToken(search, filter.token, filter.replaces))}
+          >
+            {filter.label}
+          </button>
+        );
+      })}
+      {search.trim() ? (
+        <button
+          type="button"
+          className="filter-chip-clear"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => onChange("")}
+        >
+          Clear
+        </button>
+      ) : null}
+    </div>
   );
 }
 
