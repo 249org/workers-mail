@@ -7,6 +7,9 @@ const SPECIAL_FOLDERS: Array<{ match: RegExp; role: Folder["role"]; name: string
   { match: /draft/i, role: "drafts", name: "Drafts" },
   { match: /(trash|deleted)/i, role: "trash", name: "Trash" },
   { match: /(archive|all mail)/i, role: "archive", name: "Archive" },
+  // Anchored, unlike the rest: "Sent" appearing anywhere in a path is a fair signal, but
+  // a folder called "Junk drawer" is somebody's filing, not the spam the server keeps.
+  { match: /^(spam|junk|bulk mail)$/i, role: "junk", name: "Spam" },
 ];
 
 /*
@@ -19,6 +22,7 @@ const SPECIAL_USE_ROLES: Array<{ attribute: string; role: Folder["role"]; name: 
   { attribute: "sent", role: "sent", name: "Sent" },
   { attribute: "drafts", role: "drafts", name: "Drafts" },
   { attribute: "trash", role: "trash", name: "Trash" },
+  { attribute: "junk", role: "junk", name: "Spam" },
   { attribute: "archive", role: "archive", name: "Archive" },
   { attribute: "all", role: "archive", name: "Archive" },
 ];

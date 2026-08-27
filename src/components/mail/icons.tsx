@@ -308,6 +308,6 @@ export function folderIconName(folder: { role: string; name: string }): IconName
   if (folder.role === "drafts") return "drafts";
   if (folder.role === "archive") return "archive";
   if (folder.role === "trash") return "trash";
-  if (/spam|junk/i.test(folder.name)) return "spam";
+  if (folder.role === "junk" || /spam|junk/i.test(folder.name)) return "spam";
   return "folder";
 }

@@ -100,7 +100,7 @@ export const folders = sqliteTable("folders", {
     .notNull()
     .references(() => mailboxes.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
-  role: text("role", { enum: ["inbox", "sent", "drafts", "trash", "archive", "custom"] })
+  role: text("role", { enum: ["inbox", "sent", "drafts", "trash", "archive", "junk", "custom"] })
     .notNull()
     .default("custom"),
   remotePath: text("remote_path"),

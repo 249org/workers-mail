@@ -152,11 +152,11 @@ export async function folderCounts(
 }
 
 /*
- * Unread is the wrong number for a folder nothing arrives in. Trash held fourteen
- * messages and showed 2, because two of them happened to be unread — what anyone wants
- * to know there is how much is in it. Drafts is the same.
+ * Unread only means something where mail is read. Trash held fourteen and showed 2,
+ * because two happened to be unread; Spam held four and showed 1. In the folders nobody
+ * reads through, the number worth showing is how much is sitting in them.
  */
-const COUNT_BY_TOTAL = new Set(["trash", "drafts"]);
+const COUNT_BY_TOTAL = new Set(["trash", "drafts", "junk"]);
 
 export function folderBadge(role: string, count: FolderCount | undefined): number {
   if (!count) return 0;

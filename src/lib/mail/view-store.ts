@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import type { MessageDetail, MessageSummary } from "./queries";
+import { isSystemFolderRole } from "./folder-name";
 
 export type MessageBody = {
   html: string;
@@ -446,7 +447,8 @@ export const useMailStore = create<State & Actions>((set, get) => ({
   syncOpenFolder: async () => {
     const { mailboxId, folderId, folders } = get();
     const folder = folders.find((entry) => entry.id === folderId);
-    if (!mailboxId || !folder || folder.role !== "custom") return;
+    // Anything off the system rail is only refreshed when it is opened, spam included.
+    if (!mailboxId || !folder || isSystemFolderRole(folder.role)) return;
 
     set({ syncing: true });
     try {

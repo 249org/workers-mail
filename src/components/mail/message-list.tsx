@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { displayName } from "@/lib/mail/address";
 import type { MessageSummary } from "@/lib/mail/queries";
-import { partitionFolders } from "@/lib/mail/folder-name";
+import { isSystemFolderRole, partitionFolders } from "@/lib/mail/folder-name";
 import { navigateMailFolder, useMailStore, type FolderSummary } from "@/lib/mail/view-store";
 import { formatMessageDate } from "@/lib/format";
 import { toast } from "sonner";
@@ -317,14 +317,14 @@ function EmptyFolder({
             ? "No sent mail."
             : folder?.role === "archive"
               ? "Archive is empty."
-              : folder?.role === "custom" && syncing
+              : folder && !isSystemFolderRole(folder.role) && syncing
                 ? "Loading this folder…"
                 : "Nothing here yet.";
 
   return (
     <div className="px-6 py-10 text-center">
       <p className="text-[13px] text-[var(--ink-muted)]">{copy}</p>
-      {!search && folder?.role !== "inbox" && inbox && !(folder?.role === "custom" && syncing) && (
+      {!search && folder?.role !== "inbox" && inbox && !(folder && !isSystemFolderRole(folder.role) && syncing) && (
         <button
           type="button"
           className="btn btn-ghost mt-4"
