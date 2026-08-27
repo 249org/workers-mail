@@ -26,6 +26,7 @@ export type ShortcutAction =
   | "goSent"
   | "goDrafts"
   | "goArchive"
+  | "goTrash"
   | "goSettings"
   | "toggleSidebar"
   | "toggleList";
@@ -77,6 +78,7 @@ export const SHORTCUTS: Shortcut[] = [
   { action: "goStarred", keys: ["g f"], label: "Starred", group: "Jump to", scope: "global" },
   { action: "goDrafts", keys: ["g d"], label: "Drafts", group: "Jump to", scope: "global" },
   { action: "goArchive", keys: ["g a"], label: "Archive", group: "Jump to", scope: "global" },
+  { action: "goTrash", keys: ["g t"], label: "Trash", group: "Jump to", scope: "global" },
   { action: "goSettings", keys: ["g ,"], label: "Settings", group: "Jump to", scope: "global" },
 ];
 

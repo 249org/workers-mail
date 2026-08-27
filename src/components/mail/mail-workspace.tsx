@@ -385,6 +385,7 @@ export function MailWorkspace({
     goSent: () => goToRole("sent"),
     goDrafts: () => goToRole("drafts"),
     goArchive: () => goToRole("archive"),
+    goTrash: () => goToRole("trash"),
     goSettings: () => router.push("/settings"),
   });
 

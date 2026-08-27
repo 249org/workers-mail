@@ -130,3 +130,35 @@ describe("formatComboHint", () => {
     expect(formatComboHint("g i", true)).toBe("G I");
   });
 });
+
+describe("the jump-to sequences", () => {
+  const jumps = SHORTCUTS.filter((shortcut) => shortcut.group === "Jump to");
+
+  it("sends g t to the trash", () => {
+    const trash = jumps.find((shortcut) => shortcut.action === "goTrash");
+    expect(trash?.keys).toContain("g t");
+    expect(isSequencePrefix("g")).toBe(true);
+  });
+
+  it("gives every jump its own keys", () => {
+    const keys = jumps.flatMap((shortcut) => shortcut.keys);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it("leaves the key that opens a sequence unbound on its own", () => {
+    /*
+     * A tail may repeat a bare key — `g s` beats `s` because a pending prefix is tried
+     * first. The head cannot: the dispatcher parks on it and returns, so anything bound
+     * to `g` by itself would never fire.
+     */
+    const bare = new Set(
+      SHORTCUTS.flatMap((shortcut) => shortcut.keys).filter((combo) => !combo.includes(" ")),
+    );
+    const heads = new Set(
+      SHORTCUTS.flatMap((shortcut) => shortcut.keys)
+        .filter((combo) => combo.includes(" "))
+        .map((combo) => combo.split(" ")[0] as string),
+    );
+    for (const head of heads) expect(bare.has(head)).toBe(false);
+  });
+});
