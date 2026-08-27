@@ -1336,6 +1336,17 @@ html[data-scheme="dark"] {
   color: var(--primary) !important;
 }
 
+/*
+ * And the surfaces those colours were written for. Outlook paints white onto the blocks
+ * it wraps a message in, which is ignored when deciding the message has no design of its
+ * own — but left in place it still paints, so the text ends up light on white. Anything
+ * reaching this branch has only ever set a neutral background, so there is none to lose.
+ */
+.message-body[data-kind="simple"] [style*="background"],
+.message-body[data-kind="simple"] [bgcolor] {
+  background: transparent !important;
+}
+
 .message-body[data-kind="html"] a {
   color: inherit;
 }
