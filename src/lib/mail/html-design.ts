@@ -11,31 +11,75 @@
  * own theme.
  */
 
-/** Backgrounds are decisive on their own: they are the thing a dark reader cannot honour. */
-const BACKGROUND = /(?:\bbgcolor\s*=|\bbackground\s*=|background(?:-color)?\s*:)/i;
+/*
+ * A background is decisive — it is the thing a dark reader cannot honour — but only when
+ * it is actually a colour. Outlook stamps `background-color: rgb(255,255,255)` on plain
+ * correspondence, and white is not a design, it is the absence of one.
+ */
+const BG_ATTRIBUTE = /\bbgcolor\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi;
+const BG_STYLE = /background(?:-color)?\s*:\s*([^;"'}]+)/gi;
+/** `background="tile.png"` and `background: url(...)` are images, not colours. */
+const BG_IMAGE = /\bbackground\s*=\s*["']?[^"'\s>]+|background[^;:]*:\s*[^;"'}]*url\(/i;
 
-const TABLE = /<table\b/gi;
+const NEUTRAL = new Set([
+  "#fff",
+  "#ffffff",
+  "white",
+  "transparent",
+  "none",
+  "inherit",
+  "initial",
+  "unset",
+  "revert",
+  "currentcolor",
+]);
+
+/** True for white, transparent, or anything that defers to what is underneath. */
+function isNeutralBackground(value: string): boolean {
+  const text = value.trim().toLowerCase().replace(/\s+/g, "");
+  if (!text) return true;
+  if (NEUTRAL.has(text)) return true;
+  const rgb = /^rgba?\((\d+),(\d+),(\d+)(?:,([\d.]+))?\)$/.exec(text);
+  if (rgb) {
+    // Fully transparent is nothing at all; otherwise only pure white is neutral.
+    if (rgb[4] !== undefined && Number(rgb[4]) === 0) return true;
+    return rgb[1] === "255" && rgb[2] === "255" && rgb[3] === "255";
+  }
+  return false;
+}
+
+function paintsItsOwnBackground(html: string): boolean {
+  if (BG_IMAGE.test(html)) return true;
+
+  for (const match of html.matchAll(BG_ATTRIBUTE)) {
+    const value = match[1] ?? match[2] ?? match[3] ?? "";
+    if (!isNeutralBackground(value)) return true;
+  }
+  for (const match of html.matchAll(BG_STYLE)) {
+    if (!isNeutralBackground(match[1] ?? "")) return true;
+  }
+  return false;
+}
+
 const IMAGE = /<img\b[^>]*>/gi;
 
 /** A pixel that exists to report a read is not evidence of design. */
 const TRACKING_PIXEL = /(?:width|height)\s*=\s*["']?[0-3]["']?[\s/>]/i;
 
-/** Layout tables and picture-led designs both come in multiples; one of either does not. */
-const LAYOUT_TABLES = 2;
+/*
+ * One picture is a signature logo. Several is a message built around them — and the
+ * count deliberately excludes tables, which prove nothing either way: Word wraps quoted
+ * replies in dozens of them, and a thread that had collected eighteen was being shown on
+ * a white sheet on the strength of markup nobody chose.
+ */
 const DESIGN_IMAGES = 2;
 
 export function htmlCarriesOwnDesign(html: string): boolean {
   if (!html) return false;
-  if (BACKGROUND.test(html)) return true;
-
-  if (countMatches(html, TABLE) >= LAYOUT_TABLES) return true;
+  if (paintsItsOwnBackground(html)) return true;
 
   const images = (html.match(IMAGE) ?? []).filter((tag) => !TRACKING_PIXEL.test(tag));
   return images.length >= DESIGN_IMAGES;
-}
-
-function countMatches(value: string, pattern: RegExp): number {
-  return (value.match(pattern) ?? []).length;
 }
 
 export type BodyKind = "plain" | "simple" | "html";
