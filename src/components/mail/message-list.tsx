@@ -379,10 +379,33 @@ function SearchMenu({
   active: number;
   onPick: (suggestion: SearchSuggestion) => void;
 }) {
+  const menuRef = useRef<HTMLDivElement>(null);
   let heading: string | null = null;
 
+  /*
+   * The panel scrolls, so walking past its fold has to bring the row along — otherwise
+   * the arrow keys run out of visible list and the last few options can only be reached
+   * with the mouse. `nearest` keeps it from jumping the row to the middle on every press,
+   * and going back to the top shows the group heading again rather than stopping under it.
+   */
+  useEffect(() => {
+    const menu = menuRef.current;
+    if (!menu) return;
+    if (active === 0) {
+      menu.scrollTop = 0;
+      return;
+    }
+    menu.querySelector(`#search-option-${active}`)?.scrollIntoView({ block: "nearest" });
+  }, [active]);
+
   return (
-    <div id="search-menu" className="search-menu" role="listbox" aria-label="Search suggestions">
+    <div
+      ref={menuRef}
+      id="search-menu"
+      className="search-menu"
+      role="listbox"
+      aria-label="Search suggestions"
+    >
       {suggestions.map((suggestion, index) => {
         const group = suggestion.kind === "filter" ? "Filters" : "Narrow by";
         const showHeading = group !== heading;
