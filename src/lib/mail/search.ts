@@ -177,18 +177,54 @@ function isEmpty(query: SearchQuery): boolean {
 }
 
 /**
- * The filters offered as buttons when the search bar opens. Each is only a shortcut for
- * typing its own token, so the query string stays the single source of truth — a chip
- * lights up because the query says so, whether it was clicked or typed.
+ * What the search bar offers when it opens. A `filter` is complete on its own and
+ * narrows the list as soon as it is picked; a `prefix` only writes the operator and
+ * leaves the caret after it, because the useful part is what gets typed next.
  */
-export const SEARCH_FILTERS = [
-  { id: "unread", label: "Unread", token: "is:unread", replaces: ["is:read"] },
-  { id: "starred", label: "Starred", token: "is:starred", replaces: ["is:unstarred"] },
-  { id: "attachments", label: "Has file", token: "has:attachment", replaces: [] },
-  { id: "recent", label: "Past week", token: "after:7d", replaces: [] },
-] as const;
+export type SearchSuggestion = {
+  id: string;
+  label: string;
+  token: string;
+  hint?: string;
+  kind: "filter" | "prefix";
+  /** Tokens this one contradicts, dropped when it is applied. */
+  replaces?: readonly string[];
+};
 
-export type SearchFilterId = (typeof SEARCH_FILTERS)[number]["id"];
+export const SEARCH_FILTERS: readonly SearchSuggestion[] = [
+  { id: "unread", kind: "filter", label: "Unread", token: "is:unread", replaces: ["is:read"] },
+  {
+    id: "starred",
+    kind: "filter",
+    label: "Starred",
+    token: "is:starred",
+    replaces: ["is:unstarred"],
+  },
+  { id: "attachments", kind: "filter", label: "Has attachment", token: "has:attachment" },
+  { id: "recent", kind: "filter", label: "Past week", token: "after:7d" },
+];
+
+export const SEARCH_PREFIXES: readonly SearchSuggestion[] = [
+  { id: "from", kind: "prefix", label: "From", token: "from:", hint: "sender" },
+  { id: "to", kind: "prefix", label: "To", token: "to:", hint: "recipient" },
+  { id: "subject", kind: "prefix", label: "Subject", token: "subject:", hint: "words in subject" },
+  { id: "in", kind: "prefix", label: "In folder", token: "in:", hint: "folder name" },
+  { id: "after", kind: "prefix", label: "After", token: "after:", hint: "7d, 2024-01-01" },
+  { id: "before", kind: "prefix", label: "Before", token: "before:", hint: "30d, 2024-06-01" },
+];
+
+/**
+ * Applies a suggestion to the query. A filter is added or taken back out; a prefix is
+ * appended for typing, and picking a second one replaces the prefix left dangling by the
+ * first rather than leaving `from: to:` behind.
+ */
+export function applySuggestion(query: string, suggestion: SearchSuggestion): string {
+  if (suggestion.kind === "filter") {
+    return toggleSearchToken(query, suggestion.token, suggestion.replaces ?? []);
+  }
+  const base = query.replace(/(^|\s)[a-z]+:\s*$/i, "$1").trimEnd();
+  return base ? `${base} ${suggestion.token}` : suggestion.token;
+}
 
 /** True when the query already carries this filter's token. */
 export function hasSearchToken(query: string, token: string): boolean {

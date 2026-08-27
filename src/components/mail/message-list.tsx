@@ -4,7 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { displayName } from "@/lib/mail/address";
 import type { MessageSummary } from "@/lib/mail/queries";
 import { isSystemFolderRole, partitionFolders } from "@/lib/mail/folder-name";
-import { SEARCH_FILTERS, hasSearchToken, toggleSearchToken } from "@/lib/mail/search";
+import {
+  SEARCH_FILTERS,
+  SEARCH_PREFIXES,
+  applySuggestion,
+  type SearchSuggestion,
+} from "@/lib/mail/search";
 import { navigateMailFolder, useMailStore, type FolderSummary } from "@/lib/mail/view-store";
 import { formatMessageDate } from "@/lib/format";
 import { toast } from "sonner";
@@ -48,9 +53,26 @@ export function MessageList({
 
   const listRef = useRef<HTMLUListElement>(null);
   const [searchOpen, setSearchOpen] = useState(false);
-  // The filters stay up while a query is on, so what is narrowing the list is never
-  // hidden just because focus moved to the results.
-  const filtersVisible = searchOpen || search.trim().length > 0;
+  const [active, setActive] = useState(0);
+
+  /*
+   * The suggestions are for starting a query, not amending one, so they clear out of the
+   * way as soon as there is something to read. A trailing space is the exception: it says
+   * the last token is finished and another is about to begin.
+   */
+  const menuOpen = searchOpen && (search === "" || search.endsWith(" "));
+  const suggestions = menuOpen ? [...SEARCH_FILTERS, ...SEARCH_PREFIXES] : [];
+
+  /*
+   * Picking never closes search itself. The list hides because the query stops looking
+   * like the start of one, which means a trailing space brings it straight back and a
+   * second filter costs no more than the first.
+   */
+  function choose(suggestion: SearchSuggestion) {
+    setSearch(applySuggestion(search, suggestion));
+    setActive(0);
+    searchRef.current?.focus();
+  }
 
   // Keep the cursor row on screen as j/k walks past the fold. `nearest` avoids the
   // jump-to-centre that makes keyboard navigation feel like it is fighting you.
@@ -81,25 +103,57 @@ export function MessageList({
             type="search"
             value={search}
             placeholder="Search, or try from:sam is:unread"
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              // Reopening on a trailing space has to start at the top, not wherever the
+              // highlight was left the last time the list was up.
+              setActive(0);
+            }}
             onFocus={() => {
               setSearchOpen(true);
+              setActive(0);
               onOpenSearch?.();
             }}
-            onBlur={(event) => {
-              // Moving to a chip is still using search; only leaving the pair closes it.
-              if ((event.relatedTarget as HTMLElement | null)?.closest(".filter-row")) return;
-              setSearchOpen(false);
-            }}
+            onBlur={() => setSearchOpen(false)}
             onKeyDown={(event) => {
-              if (event.key === "Escape" && search) {
+              if (menuOpen && suggestions.length > 0) {
+                if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  const step = event.key === "ArrowDown" ? 1 : -1;
+                  setActive((index) => {
+                    const next = index + step;
+                    return next < 0 ? suggestions.length - 1 : next % suggestions.length;
+                  });
+                  return;
+                }
+                if (event.key === "Enter" || event.key === "Tab") {
+                  const picked = suggestions[active];
+                  if (!picked) return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  choose(picked);
+                  return;
+                }
+              }
+              if (event.key === "Escape") {
                 event.stopPropagation();
-                setSearch("");
+                if (menuOpen) setSearchOpen(false);
+                else if (search) setSearch("");
+                else searchRef.current?.blur();
               }
             }}
             className="field pr-12"
             aria-label="Search messages"
+            role="combobox"
+            aria-expanded={menuOpen}
+            aria-controls="search-menu"
+            aria-activedescendant={menuOpen ? `search-option-${active}` : undefined}
+            autoComplete="off"
           />
+          {menuOpen && (
+            <SearchMenu suggestions={suggestions} active={active} onPick={choose} />
+          )}
           <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 max-md:hidden">
             <span className="kbd">/</span>
           </span>
@@ -111,8 +165,6 @@ export function MessageList({
         ) : null}
         {inTrash && messages.length > 0 && <EmptyTrashButton />}
       </div>
-
-      {filtersVisible && <SearchFilters search={search} onChange={setSearch} />}
 
       {checked.size > 0 && (
         <BulkBar count={checked.size} total={messages.length} inTrash={inTrash} />
@@ -314,46 +366,49 @@ function Row({
 }
 
 /**
- * Filters offered as buttons, so narrowing a search does not depend on remembering the
- * operator. Each writes its own token into the query rather than holding state beside
- * it, which is what keeps a clicked chip and a typed `is:unread` the same thing.
+ * What the search bar offers before anything is typed. Searching otherwise means knowing
+ * the operators, which is fine once learned and a dead end before that; the list names
+ * them, and picking one writes it into the query the same as typing it would.
  */
-function SearchFilters({
-  search,
-  onChange,
+function SearchMenu({
+  suggestions,
+  active,
+  onPick,
 }: {
-  search: string;
-  onChange: (value: string) => void;
+  suggestions: SearchSuggestion[];
+  active: number;
+  onPick: (suggestion: SearchSuggestion) => void;
 }) {
+  let heading: string | null = null;
+
   return (
-    <div className="filter-row" role="group" aria-label="Search filters">
-      {SEARCH_FILTERS.map((filter) => {
-        const active = hasSearchToken(search, filter.token);
+    <div id="search-menu" className="search-menu" role="listbox" aria-label="Search suggestions">
+      {suggestions.map((suggestion, index) => {
+        const group = suggestion.kind === "filter" ? "Filters" : "Narrow by";
+        const showHeading = group !== heading;
+        heading = group;
+
         return (
-          <button
-            key={filter.id}
-            type="button"
-            className="filter-chip"
-            aria-pressed={active}
-            title={filter.token}
-            // Keep the caret in the search field so a chip never costs a click back.
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => onChange(toggleSearchToken(search, filter.token, filter.replaces))}
-          >
-            {filter.label}
-          </button>
+          <div key={suggestion.id}>
+            {showHeading && <p className="search-menu-heading">{group}</p>}
+            <button
+              type="button"
+              id={`search-option-${index}`}
+              role="option"
+              aria-selected={index === active}
+              data-active={index === active}
+              className="search-menu-item"
+              // Keep the caret in the field so picking never costs a click back.
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => onPick(suggestion)}
+            >
+              <span>{suggestion.label}</span>
+              <span className="search-menu-token">{suggestion.token}</span>
+              {suggestion.hint && <span className="search-menu-hint">{suggestion.hint}</span>}
+            </button>
+          </div>
         );
       })}
-      {search.trim() ? (
-        <button
-          type="button"
-          className="filter-chip-clear"
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => onChange("")}
-        >
-          Clear
-        </button>
-      ) : null}
     </div>
   );
 }

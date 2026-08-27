@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   SEARCH_FILTERS,
+  SEARCH_PREFIXES,
+  applySuggestion,
   hasSearchToken,
   parseSearch,
   toggleSearchToken,
@@ -22,8 +24,8 @@ describe("toggleSearchToken", () => {
 
   it("drops the filters it contradicts", () => {
     // `is:read is:unread` matches nothing, so turning one on turns the other off.
-    const filter = SEARCH_FILTERS.find((entry) => entry.id === "unread");
-    expect(toggleSearchToken("is:read report", filter!.token, filter!.replaces)).toBe(
+    const filter = SEARCH_FILTERS.find((entry) => entry.id === "unread")!;
+    expect(toggleSearchToken("is:read report", filter.token, filter.replaces)).toBe(
       "report is:unread",
     );
   });
@@ -82,5 +84,51 @@ describe("every offered filter is one the parser understands", () => {
       query = toggleSearchToken(query, filter.token, filter.replaces);
     }
     expect(query).toBe("");
+  });
+});
+
+describe("applySuggestion", () => {
+  const filter = (id: string) => SEARCH_FILTERS.find((entry) => entry.id === id)!;
+  const prefix = (id: string) => SEARCH_PREFIXES.find((entry) => entry.id === id)!;
+
+  it("applies a filter outright, and takes it back on a second pick", () => {
+    expect(applySuggestion("", filter("unread"))).toBe("is:unread");
+    expect(applySuggestion("is:unread", filter("unread"))).toBe("");
+  });
+
+  it("leaves a prefix waiting for what comes next", () => {
+    expect(applySuggestion("", prefix("from"))).toBe("from:");
+    expect(applySuggestion("is:unread", prefix("from"))).toBe("is:unread from:");
+  });
+
+  it("replaces a prefix nothing was typed into", () => {
+    // Picking To after From must not leave `from: to:` behind.
+    expect(applySuggestion("from:", prefix("to"))).toBe("to:");
+    expect(applySuggestion("is:unread from:", prefix("to"))).toBe("is:unread to:");
+  });
+
+  it("keeps a prefix that was actually filled in", () => {
+    expect(applySuggestion("from:sam", prefix("to"))).toBe("from:sam to:");
+  });
+
+  it("does not mistake a finished filter for a dangling prefix", () => {
+    expect(applySuggestion("has:attachment", prefix("from"))).toBe("has:attachment from:");
+  });
+
+  it("every prefix is one the parser understands once filled in", () => {
+    const sample: Record<string, string> = {
+      from: "sam",
+      to: "sam",
+      subject: "launch",
+      in: "archive",
+      after: "7d",
+      before: "2024-06-01",
+    };
+    for (const entry of SEARCH_PREFIXES) {
+      const parsed = parseSearch(`${entry.token}${sample[entry.id]}`);
+      expect(parsed.empty).toBe(false);
+      // A prefix the parser did not recognise would survive as a bare search term.
+      expect(parsed.terms).toEqual([]);
+    }
   });
 });
