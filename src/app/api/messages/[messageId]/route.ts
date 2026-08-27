@@ -7,6 +7,7 @@ import { parseMime, stripHtml, type ParsedAttachment } from "@/lib/mail/mime";
 import { getMessage, listThread, folderInMailbox } from "@/lib/mail/queries";
 import { applyRemoteMail } from "@/lib/transport/imap-remote";
 import { plainTextToHtml, sanitizeMessageHtml, inlineSrcMap, normalizeCid } from "@/lib/mail/sanitize";
+import { bodyKindFor } from "@/lib/mail/html-design";
 
 type Params = { params: Promise<{ messageId: string }> };
 type PatchBody = { mailboxId?: string; seen?: boolean; flagged?: boolean; folderId?: string };
@@ -82,7 +83,7 @@ async function renderBody(
     html: sanitized.html,
     blockedImages: sanitized.blockedImages,
     text: parsed.text || stripHtml(parsed.html ?? ""),
-    kind: fromHtml ? ("html" as const) : ("plain" as const),
+    kind: bodyKindFor(fromHtml, sanitized.html),
   };
 }
 

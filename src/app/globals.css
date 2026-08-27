@@ -1275,6 +1275,11 @@ html[data-scheme="dark"] {
 /* HTML mail is an authored light letter. Isolate it from the app scheme so
    table cells without their own colour do not inherit night-mode CanvasText
    onto a white bgcolor — and so `bgcolor` on td/th is not wiped by our CSS. */
+/*
+ * A message that owns its presentation is shown on the surface it was built for, in
+ * either theme. There is no way to recolour a newsletter without wrecking it, so the
+ * reader hands it a white page and gets out of the way.
+ */
 .message-body[data-kind="html"] {
   font-size: 14px;
   line-height: 1.5;
@@ -1282,6 +1287,53 @@ html[data-scheme="dark"] {
   background-color: #fff;
   color-scheme: light;
   color-scheme: only light;
+}
+
+/*
+ * HTML with nothing to preserve — a note typed in a mail client — follows the reader
+ * instead. It is still real markup, so it keeps normal whitespace rather than the
+ * pre-wrap the generated plain-text markup needs.
+ */
+.message-body[data-kind="simple"] {
+  color: var(--foreground);
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+.message-body[data-kind="simple"] p {
+  margin: 0 0 0.9em;
+}
+
+.message-body[data-kind="simple"] p:last-child {
+  margin-bottom: 0;
+}
+
+.message-body[data-kind="simple"] a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+}
+
+.message-body[data-kind="simple"] blockquote {
+  margin: 0.9em 0;
+  padding-left: 1em;
+  border-left: 2px solid var(--border);
+  color: var(--muted-foreground);
+}
+
+/*
+ * Author colours are dropped outright here, in both themes rather than only the dark one.
+ * A note written on a white page carries `color:#222`, which disappears against a dark
+ * reader; and since this branch is only reached when the markup was judged to have no
+ * design worth keeping, there is nothing lost by letting the theme decide instead.
+ */
+.message-body[data-kind="simple"] [style*="color"] {
+  color: var(--foreground) !important;
+}
+
+.message-body[data-kind="simple"] a[style*="color"] {
+  color: var(--primary) !important;
 }
 
 .message-body[data-kind="html"] a {

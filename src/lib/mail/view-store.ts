@@ -8,7 +8,7 @@ export type MessageBody = {
   html: string;
   blockedImages: number;
   text: string;
-  kind: "plain" | "html";
+  kind: "plain" | "simple" | "html";
 };
 
 export type LoadedMessage = {
