@@ -23,16 +23,30 @@ const SPECIAL_USE_ROLES: Array<{ attribute: string; role: Folder["role"]; name: 
   { attribute: "all", role: "archive", name: "Archive" },
 ];
 
-export function roleForMailbox(entry: MailboxEntry): { role: Folder["role"]; name: string } | null {
+/**
+ * The display name for a mailbox: its last path segment, split on the hierarchy
+ * delimiter the server reported in its own LIST reply. Guessing at the delimiter is what
+ * makes this go wrong in both directions — splitting on "." as well as "/" once renamed
+ * the Gmail folder `Unroll.me` to `me`, and splitting on "/" alone left one.com's
+ * `INBOX.Spam` sitting in the sidebar under its full path.
+ */
+export function mailboxLeaf(path: string, delimiter: string | null): string {
+  const separator = delimiter || "/";
+  const parts = path.split(separator).filter(Boolean);
+  return parts[parts.length - 1] || path;
+}
+
+export function roleForMailbox(
+  entry: MailboxEntry,
+  delimiter: string | null = null,
+): { role: Folder["role"]; name: string } | null {
   if (/^inbox$/i.test(entry.path)) return { role: "inbox", name: "Inbox" };
 
   const attributes = new Set(entry.attributes);
   const special = SPECIAL_USE_ROLES.find((candidate) => attributes.has(candidate.attribute));
   if (special) return { role: special.role, name: special.name };
 
-  // Split on the hierarchy separator only. Treating "." as one too renamed the
-  // Gmail folder "Unroll.me" to "me" and hid which mailbox it really was.
-  const leaf = entry.path.split("/").pop() || entry.path;
+  const leaf = mailboxLeaf(entry.path, delimiter);
   const named = SPECIAL_FOLDERS.find(
     (candidate) => candidate.match.test(entry.path) || candidate.match.test(leaf),
   );

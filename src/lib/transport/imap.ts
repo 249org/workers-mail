@@ -8,8 +8,8 @@ import { upsertRemoteFolder, folderByRole, listFolders, type Folder, type Mailbo
 import { imapAuth, type MailAuth } from "./credentials";
 import { openImap } from "./oauth-connect";
 import { imapUidSet } from "./imap-uid-set";
-import { ImapMutator, type MailboxEntry } from "./imap-commands";
-import { roleForMailbox } from "./imap-folder-roles";
+import { ImapMutator, type MailboxListing } from "./imap-commands";
+import { mailboxLeaf, roleForMailbox } from "./imap-folder-roles";
 import { describeImapError, isImapTimeout } from "./imap-error";
 
 const INCREMENTAL_BATCH = 8;
@@ -335,21 +335,20 @@ export function isMissingMailbox(error: unknown): boolean {
 async function trackFolders(
   db: Database,
   mailboxId: string,
-  entries: MailboxEntry[],
+  listing: MailboxListing,
 ): Promise<Folder[]> {
   const tracked: Folder[] = [];
-  for (const entry of entries) {
+  for (const entry of listing.entries) {
     // `\Noselect` marks a container the server refuses to open — Gmail's bare `[Gmail]`
     // is one. Tracking it added a folder to the rail that could only ever fail to load.
     if (entry.attributes.includes("noselect") || entry.attributes.includes("nonexistent")) {
       continue;
     }
-    const special = roleForMailbox(entry);
-    const leaf = entry.path.split("/").pop() || entry.path;
+    const special = roleForMailbox(entry, listing.delimiter);
     const folder = await upsertRemoteFolder(
       db,
       mailboxId,
-      special?.name ?? leaf,
+      special?.name ?? mailboxLeaf(entry.path, listing.delimiter),
       entry.path,
       special?.role ?? "custom",
     );
@@ -370,16 +369,20 @@ async function listRemoteMailboxes(
   mailbox: Mailbox,
   env: CloudflareEnv,
   db: Database,
-): Promise<MailboxEntry[]> {
+): Promise<MailboxListing> {
   let mutator: ImapMutator | null = null;
   try {
     mutator = await ImapMutator.open(await imapAuth(mailbox, env, db));
-    return (await mutator.listMailboxListing()).entries;
+    return await mutator.listMailboxListing();
   } catch (error) {
     // Losing the attributes costs accuracy on localised folder names, not the sync.
     console.warn("special-use LIST failed", { mailboxId: mailbox.id, error: describe(error) });
     const paths = await session.listMailboxes();
-    return paths.map((path) => ({ path, attributes: [] }));
+    return {
+      entries: paths.map((path) => ({ path, attributes: [] })),
+      paths,
+      delimiter: null,
+    };
   } finally {
     await mutator?.close();
   }

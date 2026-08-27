@@ -3,7 +3,7 @@ import { ApiError, authenticate, errorResponse, readJson } from "@/lib/auth/api"
 import { env as cloudflareEnv } from "@/lib/env";
 import { mailboxes } from "@/lib/db/schema";
 import { getOwnedMailbox, listFolders, publicMailbox } from "@/lib/mail/mailboxes";
-import { unreadCounts } from "@/lib/mail/queries";
+import { folderBadge, folderCounts } from "@/lib/mail/queries";
 
 type Params = { params: Promise<{ mailboxId: string }> };
 type PatchBody = { displayName?: string | null };
@@ -15,9 +15,9 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
     const mailbox = await getOwnedMailbox(db, user.id, mailboxId);
     if (!mailbox) throw new ApiError(404, "Mailbox not found");
 
-    const [folders, unread] = await Promise.all([
+    const [folders, counts] = await Promise.all([
       listFolders(db, mailbox.id),
-      unreadCounts(db, mailbox.id),
+      folderCounts(db, mailbox.id),
     ]);
 
     return Response.json({
@@ -26,7 +26,7 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
         id: folder.id,
         name: folder.name,
         role: folder.role,
-        unread: unread.get(folder.id) ?? 0,
+        unread: folderBadge(folder.role, counts.get(folder.id)),
         icon: folder.icon,
         color: folder.color,
       })),

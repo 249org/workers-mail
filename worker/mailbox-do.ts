@@ -239,7 +239,7 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
     let change: Parameters<typeof pushImapChanges>[5];
     if (request.action === "move") {
       const destination = folders.find((folder) => folder.id === request.folderId);
-      if (!destination) return { ok: false };
+      if (!destination) return { ok: false, error: "That folder is no longer in this mailbox." };
       change = { action: "move", destination };
     } else {
       change = request;
@@ -250,7 +250,7 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
       return { ok: true, uids: [...uids.entries()] };
     } catch (error) {
       console.error("imap apply failed", { mailboxId: input.mailboxId, error: describe(error) });
-      return { ok: false };
+      return { ok: false, error: describe(error) };
     }
   }
 

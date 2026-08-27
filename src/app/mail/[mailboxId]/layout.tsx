@@ -6,7 +6,7 @@ import {
   listMailboxes,
   publicMailbox,
 } from "@/lib/mail/mailboxes";
-import { unreadCounts } from "@/lib/mail/queries";
+import { folderBadge, folderCounts } from "@/lib/mail/queries";
 import { MailWorkspace } from "@/components/mail/mail-workspace";
 
 export const dynamic = "force-dynamic";
@@ -24,10 +24,10 @@ export default async function MailboxLayout({ children, params }: LayoutProps) {
   const mailbox = await getOwnedMailbox(db, user.id, mailboxId);
   if (!mailbox) notFound();
 
-  const [all, folders, unread] = await Promise.all([
+  const [all, folders, counts] = await Promise.all([
     listMailboxes(db, user.id),
     ensureDefaultFolders(db, mailbox.id),
-    unreadCounts(db, mailbox.id),
+    folderCounts(db, mailbox.id),
   ]);
 
   return (
@@ -39,7 +39,7 @@ export default async function MailboxLayout({ children, params }: LayoutProps) {
           id: entry.id,
           name: entry.name,
           role: entry.role,
-          unread: unread.get(entry.id) ?? 0,
+          unread: folderBadge(entry.role, counts.get(entry.id)),
           icon: entry.icon,
           color: entry.color,
         }))}

@@ -131,16 +131,36 @@ export async function listThread(
   return rows.map((row) => toSummary(row, rows.length));
 }
 
-export async function unreadCounts(
+export type FolderCount = { unread: number; total: number };
+
+export async function folderCounts(
   db: Database,
   mailboxId: string,
-): Promise<Map<string, number>> {
+): Promise<Map<string, FolderCount>> {
   const rows = await db
-    .select({ folderId: messages.folderId, count: sql<number>`count(*)` })
+    .select({
+      folderId: messages.folderId,
+      total: sql<number>`count(*)`,
+      unread: sql<number>`sum(case when ${messages.seen} then 0 else 1 end)`,
+    })
     .from(messages)
-    .where(and(eq(messages.mailboxId, mailboxId), eq(messages.seen, false)))
+    .where(eq(messages.mailboxId, mailboxId))
     .groupBy(messages.folderId);
-  return new Map(rows.map((row) => [row.folderId, Number(row.count)]));
+  return new Map(
+    rows.map((row) => [row.folderId, { unread: Number(row.unread), total: Number(row.total) }]),
+  );
+}
+
+/*
+ * Unread is the wrong number for a folder nothing arrives in. Trash held fourteen
+ * messages and showed 2, because two of them happened to be unread — what anyone wants
+ * to know there is how much is in it. Drafts is the same.
+ */
+const COUNT_BY_TOTAL = new Set(["trash", "drafts"]);
+
+export function folderBadge(role: string, count: FolderCount | undefined): number {
+  if (!count) return 0;
+  return COUNT_BY_TOTAL.has(role) ? count.total : count.unread;
 }
 
 export async function mailboxUsage(

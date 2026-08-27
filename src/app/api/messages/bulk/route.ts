@@ -110,6 +110,14 @@ export async function POST(request: Request): Promise<Response> {
   }
 }
 
+function describeApplyFailure(error: unknown): string {
+  const text = error instanceof Error ? error.message : "";
+  // A folder the server has never listed cannot be moved into, and saying so beats
+  // "could not apply that change" when the fix is to let a sync find the real one.
+  if (/does not exist on the mail server/i.test(text)) return text;
+  return "The mail server could not apply that change.";
+}
+
 /** Best-effort flag mirroring: the local change stands even when the server refuses. */
 async function pushFlags(
   mailbox: Mailbox,
@@ -134,8 +142,8 @@ async function applyImap(
   if (mailbox.type !== "external_imap") return new Map();
   try {
     return await applyRemoteMail(env, mailbox.id, refs, change);
-  } catch {
-    throw new ApiError(502, "The mail server could not apply that change.");
+  } catch (error) {
+    throw new ApiError(502, describeApplyFailure(error));
   }
 }
 

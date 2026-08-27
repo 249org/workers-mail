@@ -13,8 +13,23 @@ export type ImapPush =
   | { action: "move"; destination: Folder }
   | { action: "delete" };
 
+/*
+ * A folder only has a remote path once a LIST has matched it to something on the server.
+ * Falling back to the display name addressed mailboxes that were never there — the seeded
+ * Trash sent `UID MOVE ... Trash` at a Gmail whose trash is `[Gmail]/Bin` — so a delete
+ * went nowhere while reporting success. Only INBOX is safe to name without having seen it.
+ */
 function remoteMailbox(folder: Folder): string {
-  return folder.remotePath ?? (folder.role === "inbox" ? "INBOX" : folder.name);
+  if (folder.remotePath) return folder.remotePath;
+  if (folder.role === "inbox") return "INBOX";
+  throw new UnmappedFolderError(folder.name);
+}
+
+export class UnmappedFolderError extends Error {
+  constructor(readonly folderName: string) {
+    super(`${folderName} does not exist on the mail server yet.`);
+    this.name = "UnmappedFolderError";
+  }
 }
 
 function groupedUids(refs: ImapMessageRef[]): Map<string, { ids: string[]; uids: number[] }> {

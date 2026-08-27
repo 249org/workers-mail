@@ -11,7 +11,7 @@ export type RemoteMailChange =
 
 export type RemoteMailResult =
   | { ok: true; uids: Array<[string, number | null]> }
-  | { ok: false };
+  | { ok: false; error?: string };
 
 export type CreatedFolder = {
   id: string;
@@ -32,7 +32,7 @@ export async function applyRemoteMail(
 ): Promise<Map<string, number | null>> {
   const stub = env.MAILBOX.get(env.MAILBOX.idFromName(mailboxId));
   const result = (await stub.applyRemote({ mailboxId, refs, change })) as RemoteMailResult;
-  if (!result.ok) throw new Error("imap apply failed");
+  if (!result.ok) throw new Error(result.error ?? "imap apply failed");
   return new Map(result.uids);
 }
 
