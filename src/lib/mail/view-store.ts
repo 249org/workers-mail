@@ -119,6 +119,7 @@ type Actions = {
     label: string,
     request: { action: "move" | "trash"; folderId?: string },
   ) => void;
+  focusSelected: () => void;
   star: (ids: string[], flagged: boolean) => void;
   moveTo: (ids: string[], folderId: string, label: string) => void;
   trash: (ids: string[]) => void;
@@ -200,14 +201,24 @@ export const useMailStore = create<State & Actions>((set, get) => ({
 
   select: (id) => {
     set({ selectedId: id });
-    if (!id) return;
+    get().focusSelected();
+  },
 
-    void get().load(id);
-    get().prefetchAround(id);
+  /*
+   * What landing on a message means: pull its body, warm the neighbours, and count it as
+   * read, the way a cursor-driven client is expected to. Removing a row moves the cursor
+   * as well, so it runs this too — while this lived inside `select` alone, the message a
+   * delete landed on was opened and read but stayed marked unread.
+   */
+  focusSelected: () => {
+    const { selectedId, messages } = get();
+    if (!selectedId) return;
 
-    // Landing on a message reads it, the way a cursor-driven client is expected to.
-    const message = get().messages.find((entry) => entry.id === id);
-    if (message && !message.seen) get().markRead([id], true);
+    void get().load(selectedId);
+    get().prefetchAround(selectedId);
+
+    const message = messages.find((entry) => entry.id === selectedId);
+    if (message && !message.seen) get().markRead([selectedId], true);
   },
 
   step: (direction) => {
@@ -366,6 +377,7 @@ export const useMailStore = create<State & Actions>((set, get) => ({
       checked: new Set(),
       loaded,
     });
+    get().focusSelected();
 
     void send({ ids, action: "delete" }).then((ok) => {
       if (!ok) restore();
@@ -564,6 +576,7 @@ export const useMailStore = create<State & Actions>((set, get) => ({
     const messages = state.messages.filter((message) => !ids.includes(message.id));
     set({ messages, selectedId: nextSelection, checked: new Set() });
     rememberFolder({ ...get(), messages, selectedId: nextSelection });
+    get().focusSelected();
 
     const restore = () => {
       showLocally(removed);
