@@ -87,25 +87,45 @@ async function renderBody(
   };
 }
 
-function cidMapFrom(
+/*
+ * Pairs the attachments stored for a message with the ones just parsed out of it, so an
+ * inline image can be pointed at the row that holds its bytes.
+ *
+ * Content-Id is tried across the whole list before any filename is, and nothing is
+ * matched by position. Both matter: a signature carries image001.png through every reply
+ * in a thread under a different Content-Id each time, so a filename can pair the wrong
+ * two, and handing out whatever was left over put one attachment behind several images.
+ * An image nobody can place is dropped rather than shown as the wrong picture.
+ */
+export function cidMapFrom(
   stored: Array<{ id: string; filename: string; contentId: string | null }>,
   parsed: ParsedAttachment[],
 ) {
   const unused = [...stored];
-  const files = parsed.map((att) => {
-    const cid = att.contentId ? normalizeCid(att.contentId) : "";
-    const idx = unused.findIndex((file) => {
-      if (cid && file.contentId && normalizeCid(file.contentId) === cid) return true;
-      return file.filename === att.filename;
-    });
-    const file = (idx >= 0 ? unused.splice(idx, 1)[0] : unused.shift()) ?? null;
-    if (!file) return null;
-    return {
+  const files: Array<{ id: string; filename: string; contentId: string | null }> = [];
+
+  const take = (match: (file: (typeof unused)[number]) => boolean, att: ParsedAttachment) => {
+    const idx = unused.findIndex(match);
+    if (idx < 0) return false;
+    const file = unused.splice(idx, 1)[0]!;
+    files.push({
       id: file.id,
       filename: att.filename || file.filename,
       contentId: file.contentId ?? att.contentId ?? null,
-    };
-  }).filter((file): file is NonNullable<typeof file> => Boolean(file));
+    });
+    return true;
+  };
+
+  const pending = parsed.filter((att) => {
+    const cid = att.contentId ? normalizeCid(att.contentId) : "";
+    if (!cid) return true;
+    return !take((file) => Boolean(file.contentId) && normalizeCid(file.contentId!) === cid, att);
+  });
+
+  for (const att of pending) {
+    if (!att.filename) continue;
+    take((file) => file.filename === att.filename, att);
+  }
 
   for (const leftover of unused) files.push(leftover);
   return inlineSrcMap(files);

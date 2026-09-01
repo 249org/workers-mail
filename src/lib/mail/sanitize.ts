@@ -1,3 +1,5 @@
+import { decodeEntities } from "./text";
+
 const ALLOWED_TAGS = new Set([
   "a", "b", "blockquote", "br", "caption", "center", "code", "col", "colgroup", "dd", "div",
   "dl", "dt", "em", "figcaption", "figure", "font", "h1", "h2", "h3", "h4", "h5", "h6", "hr",
@@ -155,7 +157,13 @@ function filterAttributes(
     }
 
     if (name === "style") {
-      const style = sanitizeStyle(value, allowRemoteImages, inlineImages);
+      /*
+       * Entities are decoded before the declarations are split, because `&quot;` carries
+       * a semicolon. Word writes `font-family:&quot;Calibri&quot;,sans-serif` and reading
+       * that literally cut the list into fragments, losing the font and everything after
+       * it — enough of a metrics change to wrap the fixed-width cells of a signature.
+       */
+      const style = sanitizeStyle(decodeEntities(value), allowRemoteImages, inlineImages);
       if (style) kept.push(`style="${escapeAttr(style)}"`);
       continue;
     }
