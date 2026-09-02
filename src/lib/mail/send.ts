@@ -1,5 +1,5 @@
 import { EmailMessage } from "cloudflare:email";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { Database } from "@/lib/db";
 import { deliveryLog, messages, type Addr } from "@/lib/db/schema";
 import { newId } from "@/lib/ids";
@@ -212,7 +212,20 @@ async function writeSentCopy(
   });
 
   if (draftId) {
-    await deps.db.delete(messages).where(eq(messages.id, draftId));
+    /*
+     * Scoped to the sending mailbox and to rows that are actually drafts. The id arrives
+     * in the request body, so an unscoped delete here let any signed-in account destroy
+     * a message in someone else's mailbox by naming it.
+     */
+    await deps.db
+      .delete(messages)
+      .where(
+        and(
+          eq(messages.id, draftId),
+          eq(messages.mailboxId, mailbox.id),
+          eq(messages.draft, true),
+        ),
+      );
   }
 
   return stored.id;

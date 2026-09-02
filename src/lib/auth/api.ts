@@ -78,8 +78,19 @@ export function errorResponse(error: unknown): Response {
   if (error instanceof ApiError) {
     return Response.json({ error: error.message }, { status: error.status });
   }
-  console.error("unhandled api error", error);
-  return Response.json({ error: "Internal error" }, { status: 500 });
+  /*
+   * The cause stays in the logs and a reference goes to the caller. "Internal error" on
+   * its own gave someone reporting a failure nothing to quote and left no way to tie the
+   * report to the line that logged it.
+   */
+  const ref = crypto.randomUUID().slice(0, 8);
+  console.error("unhandled api error", {
+    ref,
+    name: error instanceof Error ? error.name : typeof error,
+    message: error instanceof Error ? error.message : String(error),
+    stack: error instanceof Error ? error.stack : undefined,
+  });
+  return Response.json({ error: `Something went wrong (ref ${ref})` }, { status: 500 });
 }
 
 export async function readJson<T>(request: Request): Promise<T> {

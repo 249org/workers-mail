@@ -13,6 +13,10 @@ import { randomToken } from "@/lib/ids";
 
 type LoginBody = { email?: string; password?: string };
 
+/** A real PBKDF2 hash of a value nobody holds, so a miss costs what a hit costs. */
+const DECOY_HASH =
+  "pbkdf2$100000$AAAAAAAAAAAAAAAAAAAAAA==$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+
 export async function POST(request: Request): Promise<Response> {
   const cloudflare = env();
   const limit = await rateLimit(cloudflare.SESSION_STORE, clientKey(request, "login"), 10, 300);
@@ -32,7 +36,12 @@ export async function POST(request: Request): Promise<Response> {
 
   const db = createDb(cloudflare.DB);
   const user = await findUserByEmail(db, email);
-  const valid = user ? await verifyPassword(password, user.passwordHash) : false;
+  /*
+   * An unknown address used to skip the hash entirely and answer in a fraction of the
+   * time, which told anyone watching the clock whether an account existed. The check runs
+   * either way now, against a throwaway hash when there is nobody to check against.
+   */
+  const valid = await verifyPassword(password, user?.passwordHash ?? DECOY_HASH);
   if (!user || !valid) {
     return Response.json({ error: "Those credentials did not match." }, { status: 401 });
   }

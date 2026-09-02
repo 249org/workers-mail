@@ -6,37 +6,42 @@ import { handleIngestBatch } from "./ingest";
 import { handleSend, handleSetup, handleTestConnection, handleForgotPassword } from "./routes";
 import { handleOauthCallback, handleOauthStart, parseOauthProvider } from "./oauth";
 import { handleStream } from "./stream";
+import { withSecurityHeaders } from "./security-headers";
 import type { IngestJob } from "./types";
 
 export default {
   async fetch(request: Request, env: CloudflareEnv, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+    const secure = url.protocol === "https:";
+    const harden = (response: Response) => withSecurityHeaders(response, secure);
 
     // Handled here rather than in Next: a route handler cannot return a WebSocket
     // upgrade, and the mail transports need modules that only resolve in workerd.
     if (url.pathname === "/api/mail/stream") {
-      return handleStream(request, env);
+      return harden(await handleStream(request, env));
     }
     if (url.pathname === "/api/mail/send" && request.method === "POST") {
-      return handleSend(request, env);
+      return harden(await handleSend(request, env));
     }
     if (url.pathname === "/api/mail/test-connection" && request.method === "POST") {
-      return handleTestConnection(request, env);
+      return harden(await handleTestConnection(request, env));
     }
     if (url.pathname === "/api/mail/setup" && request.method === "POST") {
-      return handleSetup(request, env);
+      return harden(await handleSetup(request, env));
     }
     if (url.pathname === "/api/auth/password/forgot" && request.method === "POST") {
-      return handleForgotPassword(request, env);
+      return harden(await handleForgotPassword(request, env));
     }
     const oauth = parseOauthProvider(url.pathname);
     if (oauth && request.method === "GET") {
-      return oauth.callback
-        ? handleOauthCallback(request, env, oauth.provider)
-        : handleOauthStart(request, env, oauth.provider);
+      return harden(
+        oauth.callback
+          ? await handleOauthCallback(request, env, oauth.provider)
+          : await handleOauthStart(request, env, oauth.provider),
+      );
     }
 
-    return nextHandler.fetch(request, env, ctx);
+    return harden(await nextHandler.fetch(request, env, ctx));
   },
 
   /**

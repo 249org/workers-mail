@@ -5,6 +5,12 @@ import { attachments, mailboxes, messages } from "@/lib/db/schema";
 
 type Params = { params: Promise<{ attachmentId: string }> };
 
+/** Quotes and control characters are what would let a filename break out of the header. */
+function headerSafeFilename(name: string): string {
+  const cleaned = name.replace(/[\r\n"\\]/g, "").replace(/[\x00-\x1f\x7f]/g, "");
+  return cleaned.trim().slice(0, 180) || "attachment";
+}
+
 const INLINE_TYPES = /^(image\/(png|jpeg|gif|webp|avif)|application\/pdf|text\/plain)$/i;
 
 export async function GET(request: Request, { params }: Params): Promise<Response> {
@@ -35,7 +41,7 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
       headers: {
         "content-type": attachment.mimeType,
         "content-length": String(object.size),
-        "content-disposition": `${disposition}; filename="${attachment.filename.replace(/"/g, "")}"`,
+        "content-disposition": `${disposition}; filename="${headerSafeFilename(attachment.filename)}"`,
         "cache-control": "private, max-age=3600",
         "content-security-policy": "default-src 'none'; sandbox",
         "x-content-type-options": "nosniff",
