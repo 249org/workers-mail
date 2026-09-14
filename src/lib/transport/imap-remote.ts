@@ -33,7 +33,8 @@ export async function applyRemoteMail(
   const stub = env.MAILBOX.get(env.MAILBOX.idFromName(mailboxId));
   const result = (await stub.applyRemote({ mailboxId, refs, change })) as RemoteMailResult;
   if (!result.ok) throw new Error(result.error ?? "imap apply failed");
-  return new Map(result.uids);
+  // RPC may hand back an empty or odd payload after a no-op move; never let Map() throw.
+  return new Map(Array.isArray(result.uids) ? result.uids : []);
 }
 
 export async function createRemoteFolder(

@@ -1,12 +1,18 @@
 import { and, eq } from "drizzle-orm";
-import { ApiError, authenticate, errorResponse, readJson } from "@/lib/auth/api";
+import { ApiError, authenticate, errorResponse, isApiError, readJson } from "@/lib/auth/api";
 import { env as cloudflareEnv } from "@/lib/env";
 import { messages } from "@/lib/db/schema";
 import { getOwnedMailbox } from "@/lib/mail/mailboxes";
 import { parseMime, stripHtml, type ParsedAttachment } from "@/lib/mail/mime";
 import { getMessage, listThread, folderInMailbox } from "@/lib/mail/queries";
 import { applyRemoteMail } from "@/lib/transport/imap-remote";
-import { plainTextToHtml, sanitizeMessageHtml, inlineSrcMap, normalizeCid } from "@/lib/mail/sanitize";
+import {
+  plainTextToHtml,
+  sanitizeMessageHtml,
+  inlineSrcMap,
+  inlineSrcMapFromParsed,
+  normalizeCid,
+} from "@/lib/mail/sanitize";
 import { bodyKindFor } from "@/lib/mail/html-design";
 
 type Params = { params: Promise<{ messageId: string }> };
@@ -73,10 +79,15 @@ async function renderBody(
 
   const parsed = await parseMime(await object.arrayBuffer());
   const fromHtml = Boolean(parsed.html?.trim());
+  // Prefer bytes from the live MIME parse. Shared filenames used to share one R2
+  // key, so every cid: in a signature resolved to whichever image was stored last.
+  const fromParsed = inlineSrcMapFromParsed(parsed.attachments);
+  const inlineImages =
+    fromParsed.size > 0 ? fromParsed : cidMapFrom(detail.attachments, parsed.attachments);
   const sanitized = sanitizeMessageHtml(
     fromHtml ? parsed.html! : plainTextToHtml(parsed.text),
     allowRemoteImages,
-    cidMapFrom(detail.attachments, parsed.attachments),
+    inlineImages,
   );
 
   return {
@@ -173,7 +184,7 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
           });
         }
       } catch (error) {
-        if (error instanceof ApiError) throw error;
+        if (isApiError(error)) throw error;
         throw new ApiError(502, "The mail server could not apply that change.");
       }
     }

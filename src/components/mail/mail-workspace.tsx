@@ -78,7 +78,10 @@ export function MailWorkspace({
   const narrow = useMediaQuery(NARROW_MAIL);
 
   useEffect(() => {
-    onMailActionFailure((message) => toast.error(message, { id: ACTION_TOAST }));
+    onMailActionFailure((message) => {
+      toast.dismiss(ACTION_TOAST);
+      toast.error(message, { id: ACTION_TOAST });
+    });
     return () => onMailActionFailure(null);
   }, []);
 

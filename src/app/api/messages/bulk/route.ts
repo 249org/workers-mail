@@ -115,6 +115,13 @@ function describeApplyFailure(error: unknown): string {
   // A folder the server has never listed cannot be moved into, and saying so beats
   // "could not apply that change" when the fix is to let a sync find the real one.
   if (/does not exist on the mail server/i.test(text)) return text;
+  const imap = /^IMAP (?:NO|BAD):\s*(.*)$/i.exec(text);
+  if (imap?.[1]) {
+    const detail = imap[1].replace(/^\[.*?\]\s*/, "").replace(/\s+/g, " ").trim();
+    if (detail && detail.length < 120) {
+      return `The mail server rejected that change (${detail}).`;
+    }
+  }
   return "The mail server could not apply that change.";
 }
 

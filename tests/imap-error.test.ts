@@ -1,6 +1,41 @@
 import { describe, expect, it } from "vitest";
-import { describeImapError, isImapAuthFailure } from "@/lib/transport/imap-error";
+import {
+  describeImapError,
+  isImapAuthFailure,
+  isMissingUidError,
+} from "@/lib/transport/imap-error";
 import { providerAuthNote, providerAuthNoteForHost } from "@/lib/transport/presets";
+import { ApiError, isApiError } from "@/lib/auth/api";
+
+describe("isMissingUidError", () => {
+  it("recognises the wordings hosts use when a UID is already gone", () => {
+    expect(isMissingUidError(new Error("IMAP NO: No such message"))).toBe(true);
+    expect(isMissingUidError(new Error("IMAP NO: The following UIDs do not exist"))).toBe(true);
+    expect(isMissingUidError(new Error("IMAP NO: Invalid messageset"))).toBe(true);
+    expect(isMissingUidError(new Error("IMAP NO: Message has been deleted"))).toBe(true);
+    expect(isMissingUidError(new Error("IMAP NO: No messages found"))).toBe(true);
+  });
+
+  it("does not treat a missing mailbox or ordinary rejection as a missing UID", () => {
+    // Bare NONEXISTENT is also used when the destination folder is unknown.
+    expect(isMissingUidError(new Error("IMAP NO: [NONEXISTENT] Mailbox does not exist"))).toBe(
+      false,
+    );
+    expect(isMissingUidError(new Error("IMAP NO: [OVERQUOTA] Too many messages"))).toBe(false);
+    expect(isMissingUidError(new Error("IMAP NO: Permission denied"))).toBe(false);
+  });
+});
+
+describe("isApiError", () => {
+  it("recognises a real ApiError and a same-shaped object from another module copy", () => {
+    expect(isApiError(new ApiError(502, "nope"))).toBe(true);
+    expect(
+      isApiError({ name: "ApiError", status: 502, message: "The mail server could not apply that change." }),
+    ).toBe(true);
+    expect(isApiError(new Error("nope"))).toBe(false);
+    expect(isApiError({ name: "Error", status: 502, message: "x" })).toBe(false);
+  });
+});
 
 describe("isImapAuthFailure", () => {
   it("recognises the wordings servers and edgeport use", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { inlineSrcMap, plainTextToHtml, sanitizeMessageHtml } from "@/lib/mail/sanitize";
+import { inlineSrcMap, inlineSrcMapFromParsed, plainTextToHtml, sanitizeMessageHtml } from "@/lib/mail/sanitize";
 
 describe("sanitizeMessageHtml", () => {
   it("removes scripts and their contents", () => {
@@ -52,6 +52,44 @@ describe("sanitizeMessageHtml", () => {
     expect(html).toContain('src="/api/attachments/att_logo"');
     expect(html).toContain('width="200"');
     expect(html).not.toContain("cid:");
+  });
+
+  it("keeps distinct Content-Ids when every filename is image.png", () => {
+    const map = inlineSrcMapFromParsed([
+      {
+        filename: "image.png",
+        mimeType: "image/jpeg",
+        contentId: "logo-id",
+        inline: true,
+        content: new Uint8Array([1, 2, 3]),
+      },
+      {
+        filename: "image.png",
+        mimeType: "image/jpeg",
+        contentId: "youtube-id",
+        inline: true,
+        content: new Uint8Array([9, 9, 9]),
+      },
+    ]);
+    const { html } = sanitizeMessageHtml(
+      '<img src="cid:logo-id" /><img src="cid:youtube-id" />',
+      false,
+      map,
+    );
+    expect(html).toContain("data:image/jpeg;base64,AQID");
+    expect(html).toContain("data:image/jpeg;base64,CQkJ");
+    expect(html).not.toContain("cid:");
+  });
+
+  it("does not let a shared filename in the attachment map clobber an earlier image", () => {
+    const map = inlineSrcMap([
+      { id: "att_logo", filename: "image.png", contentId: "logo@x" },
+      { id: "att_yt", filename: "image.png", contentId: "yt@x" },
+    ]);
+    expect(map.get("logo@x")).toBe("/api/attachments/att_logo");
+    expect(map.get("yt@x")).toBe("/api/attachments/att_yt");
+    // Filename fallback keeps the first writer, not the last.
+    expect(map.get("image.png")).toBe("/api/attachments/att_logo");
   });
 
   it("matches cid local-part to filename when Content-ID is missing", () => {

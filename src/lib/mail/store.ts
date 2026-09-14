@@ -31,10 +31,13 @@ export function rawKeyFor(mailboxId: string, messageId: string): string {
 export function attachmentKeyFor(
   mailboxId: string,
   messageId: string,
+  attachmentId: string,
   filename: string,
 ): string {
-  const safe = filename.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120) || "attachment";
-  return `mail/${mailboxId}/att/${messageId}/${safe}`;
+  // Include the attachment id so a signature of six `image.png` parts cannot
+  // overwrite each other in R2 and all render as whichever was written last.
+  const safe = filename.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80) || "attachment";
+  return `mail/${mailboxId}/att/${messageId}/${attachmentId}-${safe}`;
 }
 
 /**
@@ -109,12 +112,13 @@ export async function storeMessage(
   });
 
   for (const attachment of parsed.attachments) {
-    const key = attachmentKeyFor(options.mailboxId, id, attachment.filename);
+    const attachmentId = newId("att");
+    const key = attachmentKeyFor(options.mailboxId, id, attachmentId, attachment.filename);
     await bucket.put(key, attachment.content, {
       httpMetadata: { contentType: attachment.mimeType },
     });
     await db.insert(attachments).values({
-      id: newId("att"),
+      id: attachmentId,
       messageId: id,
       filename: attachment.filename,
       mimeType: attachment.mimeType,

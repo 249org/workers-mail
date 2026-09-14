@@ -1,5 +1,6 @@
 import type { CoreSocket } from "edgeport/core";
 import type { MailAuth } from "./credentials";
+import { isMissingUidError } from "./imap-error";
 import { imapMailboxArg } from "./imap-mailbox-names";
 import {
   imapQuote,
@@ -153,25 +154,43 @@ export class ImapMutator {
       return parseCopyUid(await this.command(`UID MOVE ${set} ${dest}`));
     } catch (error) {
       if (!(error instanceof ImapCommandError)) throw error;
-      const copied = parseCopyUid(await this.command(`UID COPY ${set} ${dest}`));
-      await this.storeFlags(uids, ["\\Deleted"], true);
+      // Already gone on the server: the local row still needs to move, so succeed empty.
+      if (isMissingUidError(error)) return new Map();
       try {
-        await this.command(`UID EXPUNGE ${set}`);
-      } catch {
-        await this.command("EXPUNGE");
+        const copied = parseCopyUid(await this.command(`UID COPY ${set} ${dest}`));
+        await this.storeFlags(uids, ["\\Deleted"], true);
+        try {
+          await this.command(`UID EXPUNGE ${set}`);
+        } catch {
+          await this.command("EXPUNGE");
+        }
+        return copied;
+      } catch (fallback) {
+        if (isMissingUidError(fallback)) return new Map();
+        throw fallback;
       }
-      return copied;
     }
   }
 
   async expungeUids(uids: number[]): Promise<void> {
     if (uids.length === 0) return;
-    await this.storeFlags(uids, ["\\Deleted"], true);
+    try {
+      await this.storeFlags(uids, ["\\Deleted"], true);
+    } catch (error) {
+      if (isMissingUidError(error)) return;
+      throw error;
+    }
     const set = uids.join(",");
     try {
       await this.command(`UID EXPUNGE ${set}`);
-    } catch {
-      await this.command("EXPUNGE");
+    } catch (error) {
+      if (isMissingUidError(error)) return;
+      try {
+        await this.command("EXPUNGE");
+      } catch (fallback) {
+        if (isMissingUidError(fallback)) return;
+        throw fallback;
+      }
     }
   }
 

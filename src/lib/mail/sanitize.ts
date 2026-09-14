@@ -52,17 +52,57 @@ const DATA_IMAGE_MAX = 250_000;
  */
 export function inlineSrcMap(files: InlineImage[]): Map<string, string> {
   const map = new Map<string, string>();
+  const seenNames = new Set<string>();
   for (const file of files) {
     const url = `/api/attachments/${file.id}`;
     if (file.contentId) {
       const cid = normalizeCid(file.contentId);
       map.set(cid, url);
       const local = cid.split("@")[0];
-      if (local) map.set(local, url);
+      // Only alias the local-part when nothing else already claimed it — otherwise
+      // six Outlook `image.png@…` ids would all collapse onto one URL.
+      if (local && local !== cid && !map.has(local)) map.set(local, url);
     }
-    map.set(file.filename.toLowerCase(), url);
+    const name = file.filename.toLowerCase();
+    // A shared filename must not overwrite an earlier image's entry.
+    if (name && !seenNames.has(name)) {
+      seenNames.add(name);
+      map.set(name, url);
+    }
   }
   return map;
+}
+
+/**
+ * Builds `cid:` → data-URL entries from the live MIME parse. Prefer this when
+ * rendering: attachment rows can share one R2 key when every part was named
+ * `image.png`, and reading those URLs shows the wrong picture for every image.
+ */
+export function inlineSrcMapFromParsed(
+  attachments: Array<{
+    filename: string;
+    mimeType: string;
+    content: Uint8Array;
+    contentId?: string;
+    inline: boolean;
+  }>,
+): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const att of attachments) {
+    if (!att.contentId || att.content.byteLength === 0) continue;
+    if (!/^image\//i.test(att.mimeType) && !att.inline) continue;
+    const mime = /^image\/[a-z0-9.+-]+$/i.test(att.mimeType) ? att.mimeType : "application/octet-stream";
+    const url = `data:${mime};base64,${encodeBase64(att.content)}`;
+    const cid = normalizeCid(att.contentId);
+    map.set(cid, url);
+    const local = cid.split("@")[0];
+    if (local && local !== cid && !map.has(local)) map.set(local, url);
+  }
+  return map;
+}
+
+function encodeBase64(bytes: Uint8Array): string {
+  return Buffer.from(bytes).toString("base64");
 }
 
 export function normalizeCid(value: string): string {

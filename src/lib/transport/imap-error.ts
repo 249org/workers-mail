@@ -6,6 +6,21 @@ export function isImapTimeout(error: unknown): boolean {
   return /timed out|timeout/i.test(text);
 }
 
+/**
+ * The UID is already gone — moved or expunged by another client, or by an earlier attempt
+ * that copied to Trash and never finished updating the local row. Treating that as success
+ * lets trash/delete catch the local index up instead of bouncing the message back into view.
+ *
+ * Deliberately avoids a bare `NONEXISTENT` match: IMAP uses that for missing mailboxes too,
+ * and a missing Trash folder must still fail the move.
+ */
+export function isMissingUidError(error: unknown): boolean {
+  const text = (error instanceof Error ? error.message : String(error)).replace(/\s+/g, " ");
+  return /no such message|invalid messageset|the following\s*uids? do not exist|uids? (do not|don't) exist|uid (is )?invalid|message (not found|does not exist|has been deleted)|could not find.*uid|no messages? (found|expunged|to (?:copy|move|expunge))/i.test(
+    text,
+  );
+}
+
 /** A rejected LOGIN, as opposed to a network or protocol failure. */
 export function isImapAuthFailure(error: unknown): boolean {
   const text = error instanceof Error ? error.message : String(error);

@@ -74,8 +74,24 @@ export function jsonResponse(body: unknown, init?: ResponseInit): Response {
   return Response.json(body, init);
 }
 
+/**
+ * OpenNext can emit more than one copy of this module into the Worker bundle, so a thrown
+ * `ApiError` may fail `instanceof` against the copy that `errorResponse` imported. Status
+ * and name are enough to recognise it without relying on the prototype chain.
+ */
+export function isApiError(error: unknown): error is ApiError {
+  if (error instanceof ApiError) return true;
+  if (typeof error !== "object" || error === null) return false;
+  const candidate = error as { name?: unknown; status?: unknown; message?: unknown };
+  return (
+    candidate.name === "ApiError" &&
+    typeof candidate.status === "number" &&
+    typeof candidate.message === "string"
+  );
+}
+
 export function errorResponse(error: unknown): Response {
-  if (error instanceof ApiError) {
+  if (isApiError(error)) {
     return Response.json({ error: error.message }, { status: error.status });
   }
   /*
