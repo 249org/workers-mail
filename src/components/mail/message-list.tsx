@@ -8,6 +8,7 @@ import {
   SEARCH_FILTERS,
   SEARCH_PREFIXES,
   applySuggestion,
+  searchArrowIntent,
   type SearchSuggestion,
 } from "@/lib/mail/search";
 import { navigateMailFolder, useMailStore, type FolderSummary } from "@/lib/mail/view-store";
@@ -116,17 +117,23 @@ export function MessageList({
             }}
             onBlur={() => setSearchOpen(false)}
             onKeyDown={(event) => {
-              if (menuOpen && suggestions.length > 0) {
-                if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  const step = event.key === "ArrowDown" ? 1 : -1;
+              if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                event.preventDefault();
+                event.stopPropagation();
+                const step = event.key === "ArrowDown" ? 1 : -1;
+                if (menuOpen && suggestions.length > 0) {
                   setActive((index) => {
                     const next = index + step;
                     return next < 0 ? suggestions.length - 1 : next % suggestions.length;
                   });
                   return;
                 }
+                if (searchArrowIntent(search) === "list") {
+                  useMailStore.getState().step(step);
+                }
+                return;
+              }
+              if (menuOpen && suggestions.length > 0) {
                 if (event.key === "Enter" || event.key === "Tab") {
                   const picked = suggestions[active];
                   if (!picked) return;

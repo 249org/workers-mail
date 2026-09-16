@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseDate, parseSearch } from "@/lib/mail/search";
+import { parseDate, parseSearch, searchArrowIntent } from "@/lib/mail/search";
 
 describe("parseSearch", () => {
   it("treats plain words as free-text terms", () => {
@@ -105,5 +105,17 @@ describe("date operators", () => {
 
   it("keeps an unparseable date as free text rather than dropping it", () => {
     expect(parseSearch("before:someday").terms).toEqual(["before:someday"]);
+  });
+});
+
+describe("searchArrowIntent", () => {
+  it("walks the filter menu on an empty or unfinished token", () => {
+    expect(searchArrowIntent("")).toBe("suggestions");
+    expect(searchArrowIntent("from: ")).toBe("suggestions");
+  });
+
+  it("walks the result list once the query has something to match", () => {
+    expect(searchArrowIntent("adrian")).toBe("list");
+    expect(searchArrowIntent("from:sam")).toBe("list");
   });
 });

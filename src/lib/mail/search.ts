@@ -177,6 +177,15 @@ function isEmpty(query: SearchQuery): boolean {
 }
 
 /**
+ * Arrows in the search field. An empty query or a trailing space is still picking a
+ * filter, so they move that menu. Any other query already has a result list, and the
+ * caret staying in the field must not swallow j/k's arrow equivalents.
+ */
+export function searchArrowIntent(search: string): "suggestions" | "list" {
+  return search === "" || search.endsWith(" ") ? "suggestions" : "list";
+}
+
+/**
  * What the search bar offers when it opens. A `filter` is complete on its own and
  * narrows the list as soon as it is picked; a `prefix` only writes the operator and
  * leaves the caret after it, because the useful part is what gets typed next.
