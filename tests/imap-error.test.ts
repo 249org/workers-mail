@@ -5,7 +5,7 @@ import {
   isMissingUidError,
 } from "@/lib/transport/imap-error";
 import { providerAuthNote, providerAuthNoteForHost } from "@/lib/transport/presets";
-import { ApiError, isApiError } from "@/lib/auth/api";
+import { ApiError, errorResponse, isApiError } from "@/lib/auth/api";
 
 describe("isMissingUidError", () => {
   it("recognises the wordings hosts use when a UID is already gone", () => {
@@ -14,6 +14,10 @@ describe("isMissingUidError", () => {
     expect(isMissingUidError(new Error("IMAP NO: Invalid messageset"))).toBe(true);
     expect(isMissingUidError(new Error("IMAP NO: Message has been deleted"))).toBe(true);
     expect(isMissingUidError(new Error("IMAP NO: No messages found"))).toBe(true);
+    expect(
+      isMissingUidError(new Error("IMAP NO: Error in IMAP command UID MOVE: Invalid messageset")),
+    ).toBe(true);
+    expect(isMissingUidError(new Error("IMAP NO: No such UID"))).toBe(true);
   });
 
   it("does not treat a missing mailbox or ordinary rejection as a missing UID", () => {
@@ -34,6 +38,23 @@ describe("isApiError", () => {
     ).toBe(true);
     expect(isApiError(new Error("nope"))).toBe(false);
     expect(isApiError({ name: "Error", status: 502, message: "x" })).toBe(false);
+  });
+
+  it("unwraps an ApiError on cause so a wrapped throw still returns the real status", async () => {
+    const wrapped = new Error("handler");
+    wrapped.cause = new ApiError(502, "The mail server rejected that change (Invalid messageset).");
+    const response = errorResponse(wrapped);
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual({
+      error: "The mail server rejected that change (Invalid messageset).",
+    });
+  });
+
+  it("turns a bare IMAP rejection into 502 instead of an opaque ref", async () => {
+    const response = errorResponse(new Error("IMAP NO: Error in IMAP command UID MOVE: Invalid messageset"));
+    expect(response.status).toBe(502);
+    const payload = (await response.json()) as { error: string };
+    expect(payload.error).toContain("Invalid messageset");
   });
 });
 

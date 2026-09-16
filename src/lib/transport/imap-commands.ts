@@ -9,6 +9,7 @@ import {
   parseListDelimiter,
   parseListMailbox,
   parseNamespacePersonal,
+  parseSearchUids,
   type MailboxNamespace,
 } from "./imap-uid-set";
 import { connectImapSocket } from "./oauth-connect";
@@ -149,16 +150,19 @@ export class ImapMutator {
   async move(uids: number[], destination: string): Promise<Map<number, number>> {
     if (uids.length === 0) return new Map();
     const dest = imapMailboxArg(destination);
-    const set = uids.join(",");
     try {
-      return parseCopyUid(await this.command(`UID MOVE ${set} ${dest}`));
+      return parseCopyUid(await this.command(`UID MOVE ${uids.join(",")} ${dest}`));
     } catch (error) {
       if (!(error instanceof ImapCommandError)) throw error;
-      // Already gone on the server: the local row still needs to move, so succeed empty.
-      if (isMissingUidError(error)) return new Map();
+      const remaining = await this.survivingUids(uids);
+      // Already gone on the server (another client deleted it): succeed empty so the
+      // local row can catch up instead of bouncing the message back into view.
+      if (remaining && remaining.length === 0) return new Map();
+      if (isMissingUidError(error) && remaining == null) return new Map();
+      const set = (remaining ?? uids).join(",");
       try {
         const copied = parseCopyUid(await this.command(`UID COPY ${set} ${dest}`));
-        await this.storeFlags(uids, ["\\Deleted"], true);
+        await this.storeFlags(remaining ?? uids, ["\\Deleted"], true);
         try {
           await this.command(`UID EXPUNGE ${set}`);
         } catch {
@@ -167,6 +171,8 @@ export class ImapMutator {
         return copied;
       } catch (fallback) {
         if (isMissingUidError(fallback)) return new Map();
+        const still = await this.survivingUids(remaining ?? uids);
+        if (still && still.length === 0) return new Map();
         throw fallback;
       }
     }
@@ -174,13 +180,18 @@ export class ImapMutator {
 
   async expungeUids(uids: number[]): Promise<void> {
     if (uids.length === 0) return;
+    const remaining = await this.survivingUids(uids);
+    if (remaining && remaining.length === 0) return;
+    const active = remaining ?? uids;
     try {
-      await this.storeFlags(uids, ["\\Deleted"], true);
+      await this.storeFlags(active, ["\\Deleted"], true);
     } catch (error) {
       if (isMissingUidError(error)) return;
+      const still = await this.survivingUids(active);
+      if (still && still.length === 0) return;
       throw error;
     }
-    const set = uids.join(",");
+    const set = active.join(",");
     try {
       await this.command(`UID EXPUNGE ${set}`);
     } catch (error) {
@@ -189,8 +200,25 @@ export class ImapMutator {
         await this.command("EXPUNGE");
       } catch (fallback) {
         if (isMissingUidError(fallback)) return;
+        const still = await this.survivingUids(active);
+        if (still && still.length === 0) return;
         throw fallback;
       }
+    }
+  }
+
+  /**
+   * UIDs that still exist in the selected mailbox, or `null` when SEARCH itself failed
+   * so the caller must not assume they vanished.
+   */
+  async survivingUids(uids: number[]): Promise<number[] | null> {
+    if (uids.length === 0) return [];
+    try {
+      const result = await this.command(`UID SEARCH UID ${uids.join(",")}`);
+      const found = new Set(parseSearchUids(result.untagged));
+      return uids.filter((uid) => found.has(uid));
+    } catch {
+      return null;
     }
   }
 

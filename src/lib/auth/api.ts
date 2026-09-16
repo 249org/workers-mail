@@ -90,9 +90,46 @@ export function isApiError(error: unknown): error is ApiError {
   );
 }
 
+/**
+ * OpenNext and Next.js sometimes wrap a thrown `ApiError` as `Error` with `cause` set
+ * to the original. Walking a few causes is enough to recover the real status.
+ */
+function unwrapApiError(error: unknown): { status: number; message: string } | null {
+  let current: unknown = error;
+  for (let i = 0; i < 4 && current != null; i += 1) {
+    if (isApiError(current)) return current;
+    if (typeof current !== "object") break;
+    current = (current as { cause?: unknown }).cause;
+  }
+  return null;
+}
+
+function errorChainText(error: unknown): string {
+  const parts: string[] = [];
+  let current: unknown = error;
+  for (let i = 0; i < 4 && current != null; i += 1) {
+    parts.push(current instanceof Error ? current.message : String(current));
+    if (typeof current !== "object") break;
+    current = (current as { cause?: unknown }).cause;
+  }
+  return parts.join(" ");
+}
+
 export function errorResponse(error: unknown): Response {
-  if (isApiError(error)) {
-    return Response.json({ error: error.message }, { status: error.status });
+  const api = unwrapApiError(error);
+  if (api) {
+    return Response.json({ error: api.message }, { status: api.status });
+  }
+  const text = errorChainText(error);
+  // A mail-server rejection that escaped ApiError still must not become an opaque 500.
+  if (/IMAP (?:NO|BAD):/i.test(text) || /imap apply failed/i.test(text)) {
+    const imap = /IMAP (?:NO|BAD):\s*(.*)$/im.exec(text);
+    const detail = imap?.[1]?.replace(/^\[.*?\]\s*/, "").replace(/\s+/g, " ").trim();
+    const message =
+      detail && detail.length < 120
+        ? `The mail server rejected that change (${detail}).`
+        : "The mail server could not apply that change.";
+    return Response.json({ error: message }, { status: 502 });
   }
   /*
    * The cause stays in the logs and a reference goes to the caller. "Internal error" on
@@ -104,6 +141,10 @@ export function errorResponse(error: unknown): Response {
     ref,
     name: error instanceof Error ? error.name : typeof error,
     message: error instanceof Error ? error.message : String(error),
+    cause:
+      error instanceof Error && error.cause instanceof Error
+        ? { name: error.cause.name, message: error.cause.message }
+        : undefined,
     stack: error instanceof Error ? error.stack : undefined,
   });
   return Response.json({ error: `Something went wrong (ref ${ref})` }, { status: 500 });

@@ -5,6 +5,7 @@ import { env as cloudflareEnv } from "@/lib/env";
 import { attachments, messages } from "@/lib/db/schema";
 import { folderByRole, getOwnedMailbox, listFolders, type Mailbox } from "@/lib/mail/mailboxes";
 import { ownedMessageRefs } from "@/lib/mail/queries";
+import { isMissingUidError } from "@/lib/transport/imap-error";
 import { applyRemoteMail, type ImapMessageRef, type RemoteMailChange } from "@/lib/transport/imap-remote";
 
 type BulkBody = {
@@ -81,7 +82,7 @@ export async function POST(request: Request): Promise<Response> {
           action: "move",
           folderId: destination.id,
         });
-        await applyMoveLocally(db, mailbox.id, refs, destination.id, uids);
+        await applyMoveLocally(db, env.MAIL_BUCKET, mailbox.id, refs, destination.id, uids);
         break;
       }
       case "trash": {
@@ -91,7 +92,7 @@ export async function POST(request: Request): Promise<Response> {
           action: "move",
           folderId: trash.id,
         });
-        await applyMoveLocally(db, mailbox.id, refs, trash.id, uids);
+        await applyMoveLocally(db, env.MAIL_BUCKET, mailbox.id, refs, trash.id, uids);
         break;
       }
       case "delete": {
@@ -150,26 +151,77 @@ async function applyImap(
   try {
     return await applyRemoteMail(env, mailbox.id, refs, change);
   } catch (error) {
+    // The UID is already gone on the server; keep going so the local index can catch up.
+    if (isMissingUidError(error)) return new Map();
     throw new ApiError(502, describeApplyFailure(error));
   }
 }
 
 async function applyMoveLocally(
   db: Database,
+  bucket: R2Bucket,
   mailboxId: string,
   refs: ImapMessageRef[],
   folderId: string,
   uids: Map<string, number | null>,
 ): Promise<void> {
+  const ids = refs.map((ref) => ref.id);
+  const rows = await db
+    .select({ id: messages.id, messageId: messages.messageId })
+    .from(messages)
+    .where(and(eq(messages.mailboxId, mailboxId), inArray(messages.id, ids)));
+  const rfcIds = rows.map((row) => row.messageId).filter((id): id is string => Boolean(id));
+  const alreadyThere = new Map<string, string>();
+  if (rfcIds.length > 0) {
+    const dest = await db
+      .select({ id: messages.id, messageId: messages.messageId })
+      .from(messages)
+      .where(
+        and(
+          eq(messages.mailboxId, mailboxId),
+          eq(messages.folderId, folderId),
+          inArray(messages.messageId, rfcIds),
+        ),
+      );
+    for (const row of dest) {
+      if (row.messageId) alreadyThere.set(row.messageId, row.id);
+    }
+  }
+
+  const stale: string[] = [];
   for (const ref of refs) {
+    const rfcId = rows.find((row) => row.id === ref.id)?.messageId;
+    const duplicateId = rfcId ? alreadyThere.get(rfcId) : undefined;
+    if (duplicateId && duplicateId !== ref.id) {
+      stale.push(ref.id);
+      continue;
+    }
     const patch: { folderId: string; remoteUid?: number | null } = { folderId };
     if (uids.has(ref.id)) patch.remoteUid = uids.get(ref.id) ?? null;
     else if (ref.remoteUid != null) patch.remoteUid = null;
-    await db
-      .update(messages)
-      .set(patch)
-      .where(and(eq(messages.id, ref.id), eq(messages.mailboxId, mailboxId)));
+    try {
+      await db
+        .update(messages)
+        .set(patch)
+        .where(and(eq(messages.id, ref.id), eq(messages.mailboxId, mailboxId)));
+    } catch (error) {
+      // Another client already filed this Message-ID in the destination folder.
+      if (!isUniqueConstraint(error)) throw error;
+      stale.push(ref.id);
+    }
   }
+
+  if (stale.length > 0) {
+    await purgeObjects(db, bucket, stale);
+    await db
+      .delete(messages)
+      .where(and(eq(messages.mailboxId, mailboxId), inArray(messages.id, stale)));
+  }
+}
+
+function isUniqueConstraint(error: unknown): boolean {
+  const text = error instanceof Error ? error.message : String(error);
+  return /UNIQUE constraint failed|SQLITE_CONSTRAINT/i.test(text);
 }
 
 async function purgeObjects(

@@ -11,6 +11,7 @@ import {
   parseListDelimiter,
   parseListMailbox,
   parseNamespacePersonal,
+  parseSearchUids,
 } from "@/lib/transport/imap-uid-set";
 
 describe("imapUidSet", () => {
@@ -55,6 +56,14 @@ describe("parseCopyUid", () => {
     });
     expect(mapped.get(42)).toBe(1202);
     expect(mapped.get(44)).toBe(1204);
+  });
+});
+
+describe("parseSearchUids", () => {
+  it("reads UIDs from untagged SEARCH replies", () => {
+    expect(parseSearchUids(["* SEARCH 42 44 46"])).toEqual([42, 44, 46]);
+    expect(parseSearchUids(["* 1 EXISTS", "* SEARCH"])).toEqual([]);
+    expect(parseSearchUids(["* SEARCH"])).toEqual([]);
   });
 });
 

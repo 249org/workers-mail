@@ -16,7 +16,7 @@ export function isImapTimeout(error: unknown): boolean {
  */
 export function isMissingUidError(error: unknown): boolean {
   const text = (error instanceof Error ? error.message : String(error)).replace(/\s+/g, " ");
-  return /no such message|invalid messageset|the following\s*uids? do not exist|uids? (do not|don't) exist|uid (is )?invalid|message (not found|does not exist|has been deleted)|could not find.*uid|no messages? (found|expunged|to (?:copy|move|expunge))/i.test(
+  return /no such message|invalid messageset|the following\s*uids? do not exist|uids? (do not|don't) exist|uid (is )?invalid|no such uid|message (not found|does not exist|doesn't exist|has been deleted)|could not find.*uid|no messages? (found|expunged|to (?:copy|move|expunge))/i.test(
     text,
   );
 }

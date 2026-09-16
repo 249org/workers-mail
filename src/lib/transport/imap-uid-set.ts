@@ -129,6 +129,22 @@ export function matchMailboxPath(paths: string[], name: string): string | null {
   );
 }
 
+/** UIDs from untagged `* SEARCH` replies. An empty SEARCH means none of the asked UIDs exist. */
+export function parseSearchUids(untagged: string[]): number[] {
+  const uids: number[] = [];
+  for (const line of untagged) {
+    const match = /^\* SEARCH(?: (.*))?$/i.exec(line.trim());
+    if (!match) continue;
+    const rest = match[1]?.trim();
+    if (!rest) continue;
+    for (const part of rest.split(/\s+/)) {
+      const n = Number(part);
+      if (Number.isInteger(n) && n > 0) uids.push(n);
+    }
+  }
+  return uids;
+}
+
 /** Reads RFC 4315 COPYUID from a tagged or untagged OK. */
 export function parseCopyUid(response: { text: string; untagged: string[] }): Map<number, number> {
   const blob = [response.text, ...response.untagged].join(" ");
