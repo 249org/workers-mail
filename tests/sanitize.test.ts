@@ -140,6 +140,16 @@ describe("sanitizeMessageHtml", () => {
     expect(html).toContain("color: red");
     expect(html).not.toContain("javascript");
   });
+
+  it("keeps unordered lists intact", () => {
+    const { html } = sanitizeMessageHtml(
+      "<p>The guide covers:</p><ul><li>How the referral process works</li><li>Commission structure</li></ul>",
+      false,
+    );
+    expect(html).toContain("<ul>");
+    expect(html).toContain("<li>How the referral process works</li>");
+    expect(html).toContain("<li>Commission structure</li>");
+  });
 });
 
 describe("plainTextToHtml", () => {

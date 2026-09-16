@@ -1174,18 +1174,25 @@ html[data-scheme="dark"] {
   margin-top: 0;
 }
 
-.message-body[data-kind="plain"] ul,
-.message-body[data-kind="plain"] ol {
-  margin: 0 0 0.9em 1.2em;
-  padding: 0;
+/*
+ * Tailwind's reset zeros list-style and padding on every ul/ol. Markers then sit
+ * outside a body that clips overflow, so a quoted <ul> in HTML mail looked like
+ * ordinary paragraphs. Revert the list and keep indent for every body kind —
+ * inline `list-style: none` on a designed newsletter still wins.
+ */
+.message-body ul,
+.message-body ol {
+  margin: 0 0 0.9em;
+  padding: 0 0 0 1.4em;
   list-style: revert;
 }
 
-.message-body[data-kind="plain"] li {
+.message-body li {
+  display: list-item;
   margin: 0.2em 0;
 }
 
-.message-body[data-kind="plain"] li + li {
+.message-body li + li {
   margin-top: 0.15em;
 }
 
