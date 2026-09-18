@@ -16,7 +16,7 @@ import {
 type Props = {
   setupNeeded: boolean;
   encryptionReady: boolean;
-  oauth: { google: boolean; microsoft: boolean };
+  oauth: { google: boolean };
 };
 
 export function AuthScreen({ setupNeeded, encryptionReady, oauth }: Props) {
@@ -25,14 +25,14 @@ export function AuthScreen({ setupNeeded, encryptionReady, oauth }: Props) {
   return (
     <LoginShell
       heading="Sign in"
-      lede="One click for Google or Microsoft. Or use your Workers Mail password."
+      lede="One click for Google. Or use your Workers Mail password."
     >
       <SignInForm oauth={oauth} />
     </LoginShell>
   );
 }
 
-function SignInForm({ oauth }: { oauth: { google: boolean; microsoft: boolean } }) {
+function SignInForm({ oauth }: { oauth: { google: boolean } }) {
   const router = useRouter();
   const [step, setStep] = useState<"credentials" | "totp" | "forgot" | "forgot-sent">("credentials");
   const [pending, setPending] = useState(false);
@@ -227,7 +227,7 @@ function SignInForm({ oauth }: { oauth: { google: boolean; microsoft: boolean } 
   if (showPicker) {
     return (
       <div>
-        <OauthButtons intent="login" google microsoft />
+        <OauthButtons intent="login" google />
         <p className="login-or">or</p>
         {error && <ErrorNote>{error}</ErrorNote>}
         <ul className="login-profiles">
@@ -273,7 +273,7 @@ function SignInForm({ oauth }: { oauth: { google: boolean; microsoft: boolean } 
     <form onSubmit={onSubmit}>
       {!lockedEmail ? (
         <>
-          <OauthButtons intent="login" google microsoft />
+          <OauthButtons intent="login" google />
           <p className="login-or">or</p>
         </>
       ) : null}

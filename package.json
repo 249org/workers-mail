@@ -53,12 +53,6 @@
       "GOOGLE_CLIENT_SECRET": {
         "description": "Optional. Google OAuth web client secret."
       },
-      "MICROSOFT_CLIENT_ID": {
-        "description": "Optional. Microsoft identity application ID for one-click Outlook. Redirect URI: https://<host>/api/oauth/microsoft/callback"
-      },
-      "MICROSOFT_CLIENT_SECRET": {
-        "description": "Optional. Microsoft identity client secret."
-      },
       "CLOUDFLARE_API_TOKEN": {
         "description": "Optional. Auto-provisions Email Routing and DNS checks. Needs **Zone:Read**, **DNS:Read**, and **Email Routing Rules:Edit**."
       },

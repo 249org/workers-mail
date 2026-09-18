@@ -14,9 +14,6 @@ import {
   tlsForSmtpPort,
 } from "@/lib/transport/presets";
 
-/** Which one-click providers this deployment has OAuth secrets for. */
-export type OauthAvailability = { google: boolean; microsoft: boolean };
-
 export type ImapDraft = {
   address: string;
   password: string;
@@ -59,7 +56,6 @@ export function LinkInboxWizard({
   onBack,
   initialAddress = "",
   returnTo,
-  oauth,
 }: {
   submitting?: boolean;
   error?: string | null;
@@ -69,7 +65,6 @@ export function LinkInboxWizard({
   initialAddress?: string;
   /** Where one-click sign-in should land after linking. */
   returnTo?: string;
-  oauth?: OauthAvailability;
 }) {
   const [address, setAddress] = useState(initialAddress);
   const [password, setPassword] = useState("");
@@ -80,10 +75,12 @@ export function LinkInboxWizard({
   const [discovering, setDiscovering] = useState(false);
   const [discovery, setDiscovery] = useState<DiscoverResult | null>(null);
 
-  // A custom domain gives nothing away — sharjahtourism.ae is Microsoft 365, and only
-  // the host discovery resolves says so. Prefer that over the address it was typed with.
+  /*
+   * A custom domain gives nothing away — a company address can sit on Microsoft 365 and
+   * only the host discovery resolves says so. Prefer that over the address as typed.
+   */
   const auth = providerAuthNoteForHost(servers.imapHost) ?? providerAuthNote(address);
-  const oauthOnly = auth?.kind === "oauth-only";
+  const unreachable = auth?.kind === "unsupported";
 
   useEffect(() => {
     if (serversEdited || !isEmailAddress(address)) {
@@ -210,19 +207,12 @@ export function LinkInboxWizard({
           />
         </Field>
 
-        {oauthOnly ? (
-          <OauthOnlyNotice
-            label={auth.label}
-            provider={auth.provider}
-            returnTo={returnTo}
-            configured={oauth?.[auth.provider] ?? true}
-          />
-        ) : null}
+        {unreachable ? <UnsupportedNotice label={auth.label} reason={auth.reason} /> : null}
 
         <Field
           label="Password"
           htmlFor="imap-password"
-          hidden={oauthOnly}
+          hidden={unreachable}
           hint={auth ? undefined : "The password you use for webmail."}
         >
           <input
@@ -250,7 +240,7 @@ export function LinkInboxWizard({
           ) : null}
         </Field>
 
-        <Field label="Display name" htmlFor="imap-display-name" hidden={oauthOnly}>
+        <Field label="Display name" htmlFor="imap-display-name" hidden={unreachable}>
           <input
             id="imap-display-name"
             className="field"
@@ -261,7 +251,7 @@ export function LinkInboxWizard({
 
         <DiscoverStatus address={address} discovering={discovering} discovery={discovery} />
 
-        {oauthOnly ? null : advanced ? (
+        {unreachable ? null : advanced ? (
           <ServerSettingsFields
             value={servers}
             onChange={(next) => {
@@ -288,7 +278,7 @@ export function LinkInboxWizard({
             Back
           </button>
         ) : null}
-        {oauthOnly ? null : (
+        {unreachable ? null : (
           <button
             type="submit"
             className="btn btn-primary"
@@ -337,38 +327,16 @@ function DiscoverStatus({
 }
 
 /**
- * Microsoft refuses every password over IMAP, so offering a password box would only
- * lead somewhere that cannot work. Point at sign-in instead. Custom domains land here
- * too — the provider comes from the host discovery resolved, not from the address.
+ * Some accounts cannot be reached at all: the provider refuses passwords over IMAP and
+ * this app does not offer their sign-in. A form that cannot succeed is worse than being
+ * told so, and custom domains land here too — the provider comes from the host discovery
+ * resolved, not from the address as typed.
  */
-function OauthOnlyNotice({
-  label,
-  provider,
-  returnTo,
-  configured,
-}: {
-  label: string;
-  provider: "google" | "microsoft";
-  returnTo?: string;
-  configured: boolean;
-}) {
-  const extra = returnTo ? `&return=${encodeURIComponent(returnTo)}` : "";
+function UnsupportedNotice({ label, reason }: { label: string; reason: string }) {
   return (
-    <div className="panel p-3">
-      <p className="text-[13px]">
-        This address is hosted by {label}, which stopped accepting passwords over IMAP —
-        app passwords went with them. Sign in to link it instead.
-      </p>
-      {configured ? (
-        <a className="btn btn-primary mt-3" href={`/api/oauth/${provider}?intent=link${extra}`}>
-          Continue with {label}
-        </a>
-      ) : (
-        <p className="mt-2 text-[12px] text-[var(--warning)]">
-          {label} sign-in has no client credentials on this Worker yet. Register an OAuth app
-          and set its id and secret, then this becomes a button.
-        </p>
-      )}
+    <div className="panel p-3" role="note">
+      <p className="text-[13px]">This address is hosted by {label}, and cannot be connected here.</p>
+      <p className="mt-2 text-[12px] text-muted-foreground">{reason}</p>
     </div>
   );
 }

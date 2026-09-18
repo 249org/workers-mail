@@ -3,10 +3,22 @@ import { createDb, type Database } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { randomToken } from "@/lib/ids";
 import { sha256Hex } from "@/lib/crypto";
-import { parseSessionTtlDays, sessionTtlSeconds, type SessionTtlDays } from "@/lib/privacy";
+import {
+  DEFAULT_SESSION_TTL_DAYS,
+  MAX_SESSION_TTL_DAYS,
+  parseSessionTtlDays,
+  sessionTtlSeconds,
+  type SessionTtlDays,
+} from "@/lib/privacy";
 
 export const SESSION_COOKIE = "wm_session";
-const DEFAULT_TTL_SECONDS = sessionTtlSeconds(30);
+const DEFAULT_TTL_SECONDS = sessionTtlSeconds(DEFAULT_SESSION_TTL_DAYS);
+/*
+ * The index that lists a user's sessions has to outlive the longest one it can hold, so
+ * it follows the longest option rather than the default. Tying it to the default would
+ * have expired the list of a 30-day session a day after it was created.
+ */
+const INDEX_TTL_SECONDS = sessionTtlSeconds(MAX_SESSION_TTL_DAYS) + 60 * 60 * 24;
 
 export type SessionUser = {
   id: string;
@@ -209,7 +221,7 @@ async function writeIndex(store: KVNamespace, userId: string, entries: SessionIn
     return;
   }
   await store.put(indexKey(userId), JSON.stringify(entries), {
-    expirationTtl: sessionTtlSeconds(30) + 60 * 60 * 24,
+    expirationTtl: INDEX_TTL_SECONDS,
   });
 }
 
@@ -221,7 +233,7 @@ async function addToIndex(
 ): Promise<void> {
   const next = [...(await readIndex(store, userId)).filter((item) => item.hash !== entry.hash), entry];
   await store.put(indexKey(userId), JSON.stringify(next), {
-    expirationTtl: Math.max(maxAge, sessionTtlSeconds(30)) + 60 * 60 * 24,
+    expirationTtl: Math.max(maxAge + 60 * 60 * 24, INDEX_TTL_SECONDS),
   });
 }
 

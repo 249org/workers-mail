@@ -1,4 +1,4 @@
-/** Brand marks for the Google and Microsoft sign-in buttons. */
+/** Brand mark for the Google sign-in button. */
 export function GoogleMark() {
   return (
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden>
@@ -22,35 +22,6 @@ export function GoogleMark() {
         fill="currentColor"
         opacity="0.75"
       />
-    </svg>
-  );
-}
-
-export function MicrosoftMark() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor" aria-hidden>
-      <rect x="1" y="1" width="7.2" height="7.2" />
-      <rect x="9.8" y="1" width="7.2" height="7.2" />
-      <rect x="1" y="9.8" width="7.2" height="7.2" />
-      <rect x="9.8" y="9.8" width="7.2" height="7.2" />
-    </svg>
-  );
-}
-
-function DomainMark() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M3 12h18M12 3c2.5 3 3.8 6 3.8 9s-1.3 6-3.8 9c-2.5-3-3.8-6-3.8-9s1.3-6 3.8-9z" />
-    </svg>
-  );
-}
-
-function ImapMark() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden>
-      <rect x="3" y="5" width="18" height="14" rx="1" />
-      <path d="M3 7l9 6 9-6" />
     </svg>
   );
 }

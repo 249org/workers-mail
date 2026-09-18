@@ -79,12 +79,21 @@ describe("describeImapError", () => {
     expect(text).toContain("https://myaccount.google.com/apppasswords");
   });
 
-  it("sends Microsoft to one-click sign-in, since no password can work", () => {
+  it("says a Microsoft account cannot be reconnected, rather than suggesting a way", () => {
+    /*
+     * Microsoft retired app passwords along with basic auth, and this app no longer
+     * offers Microsoft sign-in — so there is no route left. Naming one would be a lie.
+     */
     const text = describeImapError(new Error("imap login rejected"), "outlook.office365.com");
     expect(text).toContain("Microsoft");
-    expect(text).toContain("one-click");
-    // Microsoft retired app passwords with basic auth; suggesting one is a dead end.
-    expect(text).not.toContain("app password");
+    expect(text).toContain("cannot be reconnected");
+    /*
+     * Saying app passwords are gone is the explanation; telling someone to make one, or
+     * linking somewhere to do it, is the dead end. Nor may it offer sign-in as a way back
+     * now that there is none — "rejected the sign-in" only names what failed.
+     */
+    expect(text).not.toMatch(/create an app password|https?:\/\//i);
+    expect(text).not.toMatch(/one-click|reconnect this mailbox with/i);
   });
 
   it("stays generic for a host with no known policy", () => {
@@ -115,12 +124,19 @@ describe("providerAuthNote", () => {
     expect(providerAuthNote("someone@icloud.com")?.kind).toBe("app-password");
   });
 
-  it("marks Microsoft accounts as sign-in only", () => {
+  it("marks Microsoft accounts as out of reach", () => {
     for (const address of ["a@outlook.com", "a@hotmail.com", "a@live.com"]) {
       expect(providerAuthNote(address)).toMatchObject({
-        kind: "oauth-only",
-        provider: "microsoft",
+        kind: "unsupported",
+        label: "Microsoft",
       });
+    }
+  });
+
+  it("never points anywhere this app cannot actually go", () => {
+    // With Microsoft sign-in removed, no note may still advertise it.
+    for (const note of ["a@outlook.com", "a@gmail.com", "a@icloud.com"].map(providerAuthNote)) {
+      expect(note?.kind).not.toBe("oauth-only");
     }
   });
 
@@ -133,7 +149,7 @@ describe("providerAuthNote", () => {
     // A custom domain on Microsoft 365 or Google Workspace names neither in the
     // address, so the host discovery resolved is the only thing that identifies it.
     expect(providerAuthNoteForHost("imap.gmail.com")?.kind).toBe("app-password");
-    expect(providerAuthNoteForHost("outlook.office365.com")?.kind).toBe("oauth-only");
+    expect(providerAuthNoteForHost("outlook.office365.com")?.kind).toBe("unsupported");
     expect(providerAuthNoteForHost("imap.one.com")).toBeNull();
     expect(providerAuthNoteForHost(null)).toBeNull();
   });
@@ -141,8 +157,8 @@ describe("providerAuthNote", () => {
   it("says nothing about a custom domain until its host is known", () => {
     expect(providerAuthNote("noreply@sharjahtourism.ae")).toBeNull();
     expect(providerAuthNoteForHost("outlook.office365.com")).toMatchObject({
-      kind: "oauth-only",
-      provider: "microsoft",
+      kind: "unsupported",
+      label: "Microsoft",
     });
   });
 });

@@ -29,7 +29,7 @@ const SETTINGS_COPY: Record<string, { title: string; lede: string }> = {
   },
   "/settings/mailboxes/new": {
     title: "Add a mailbox",
-    lede: "One-click Google or Microsoft, any other IMAP host, or an address on a domain you already run.",
+    lede: "One-click Google, any other IMAP host, or an address on a domain you already run.",
   },
   "/settings/signature": {
     title: "Signature",

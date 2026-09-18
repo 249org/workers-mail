@@ -185,21 +185,18 @@ const SELF_FILING_SMTP_HOSTS = new Set([
 export type ProviderAuthNote =
   /** Ordinary password refused; a generated app password works. */
   | { kind: "app-password"; label: string; href: string }
-  /** No password of any kind works; the account must be linked over OAuth. */
-  | { kind: "oauth-only"; label: string; provider: OauthLinkProvider };
+  /** Nothing this app offers can reach the account. */
+  | { kind: "unsupported"; label: string; reason: string };
 
-export type OauthLinkProvider = "google" | "microsoft";
-
-/**
- * Providers that reject a normal account password over IMAP. Gmail and Microsoft
- * dropped plain-password IMAP, so "wrong password" is nearly always a missing app
- * password rather than a typo — the form and the sync error both say so.
- */
 /*
- * Microsoft withdrew basic authentication from personal Outlook, Hotmail and Live
- * accounts on 16 September 2024, which retired app passwords along with it: an IMAP
- * login with one is refused outright now, so the only way in is one-click sign-in.
- * The others still issue an app password for accounts with two-factor enabled.
+ * Providers that reject a normal account password over IMAP, so "wrong password" is
+ * nearly always a missing app password rather than a typo — the form and the sync error
+ * both say so.
+ *
+ * Microsoft is not one of them, it is out of reach entirely. Basic authentication went
+ * from personal Outlook, Hotmail and Live accounts on 16 September 2024 and took app
+ * passwords with it, so a password cannot work; and with Microsoft sign-in removed there
+ * is no other way in either. Saying that plainly beats a form that cannot succeed.
  */
 const PROVIDER_AUTH: Record<string, ProviderAuthNote> = {
   gmail: {
@@ -207,7 +204,12 @@ const PROVIDER_AUTH: Record<string, ProviderAuthNote> = {
     label: "Gmail",
     href: "https://myaccount.google.com/apppasswords",
   },
-  outlook: { kind: "oauth-only", label: "Microsoft", provider: "microsoft" },
+  outlook: {
+    kind: "unsupported",
+    label: "Microsoft",
+    reason:
+      "Microsoft stopped accepting passwords over IMAP in September 2024, and app passwords went with them.",
+  },
   yahoo: {
     kind: "app-password",
     label: "Yahoo",

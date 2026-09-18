@@ -10,6 +10,13 @@ export const DEFAULT_PRIVACY: PrivacyPrefs = {
 export const SESSION_TTL_DAYS = [1, 7, 30] as const;
 export type SessionTtlDays = (typeof SESSION_TTL_DAYS)[number];
 
+/** A mailbox is worth more than the convenience of staying signed in for a month. */
+export const DEFAULT_SESSION_TTL_DAYS: SessionTtlDays = 1;
+
+/** The longest anyone can choose, which is what the session index has to outlive. */
+export const MAX_SESSION_TTL_DAYS: SessionTtlDays =
+  SESSION_TTL_DAYS[SESSION_TTL_DAYS.length - 1] ?? 30;
+
 export function parsePrivacy(value: unknown): PrivacyPrefs {
   if (!value || typeof value !== "object") return { ...DEFAULT_PRIVACY };
   const record = value as Record<string, unknown>;
@@ -20,7 +27,9 @@ export function parsePrivacy(value: unknown): PrivacyPrefs {
 }
 
 export function parseSessionTtlDays(value: unknown): SessionTtlDays {
-  return SESSION_TTL_DAYS.includes(value as SessionTtlDays) ? (value as SessionTtlDays) : 30;
+  return SESSION_TTL_DAYS.includes(value as SessionTtlDays)
+    ? (value as SessionTtlDays)
+    : DEFAULT_SESSION_TTL_DAYS;
 }
 
 export function sessionTtlSeconds(days: SessionTtlDays): number {

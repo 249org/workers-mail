@@ -32,7 +32,7 @@ export function isImapAuthFailure(error: unknown): boolean {
 /**
  * Turns a wire error into the sentence shown next to Sync.
  *
- * A rejected login on Gmail or Microsoft is almost never a mistyped password: both
+ * A rejected login on Gmail is almost never a mistyped password: it
  * stopped accepting account passwords over IMAP, so the useful thing to say is that
  * an app password is required.
  */
@@ -46,8 +46,8 @@ export function describeImapError(error: unknown, imapHost?: string | null): str
     if (note?.kind === "app-password") {
       return `${note.label} rejected the sign-in. It no longer accepts your account password over IMAP — create an app password at ${note.href} and reconnect this mailbox.`;
     }
-    if (note?.kind === "oauth-only") {
-      return `${note.label} no longer accepts any password over IMAP. Reconnect this mailbox with one-click ${note.label} sign-in.`;
+    if (note?.kind === "unsupported") {
+      return `${note.label} rejected the sign-in. ${note.reason} This mailbox cannot be reconnected here.`;
     }
     return "The mail server rejected the sign-in. Check the address and password, and whether the account needs an app password.";
   }

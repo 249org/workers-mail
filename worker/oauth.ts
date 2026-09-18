@@ -212,7 +212,7 @@ export function parseOauthProvider(pathname: string): {
   provider: OauthProviderId;
   callback: boolean;
 } | null {
-  const match = pathname.match(/^\/api\/oauth\/(google|microsoft)(\/callback)?$/);
+  const match = pathname.match(/^\/api\/oauth\/(google)(\/callback)?$/);
   if (!match) return null;
   return { provider: match[1] as OauthProviderId, callback: Boolean(match[2]) };
 }
@@ -297,8 +297,8 @@ function oauthRedirect(request: Request, message: string, returnTo?: string): Re
   return Response.redirect(url.toString(), 302);
 }
 
-function label(provider: OauthProviderId): string {
-  return provider === "google" ? "Google" : "Microsoft";
+function label(_provider: OauthProviderId): string {
+  return "Google";
 }
 
 function describe(error: unknown): string {

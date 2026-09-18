@@ -67,7 +67,7 @@ export function FirstRun({ encryptionReady }: { encryptionReady: boolean }) {
         heading="Get started"
         lede="One click connects Gmail or Outlook. Or link any other IMAP host."
       >
-        <OauthButtons intent="setup" google microsoft />
+        <OauthButtons intent="setup" google />
         <p className="login-or">or</p>
         <button type="button" className="btn btn-ghost w-full" onClick={() => setPhase("account")}>
           Use another IMAP account

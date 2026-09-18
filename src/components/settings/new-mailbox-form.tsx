@@ -2,23 +2,17 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { LinkInboxWizard, type ImapDraft, type OauthAvailability } from "@/components/mail/link-inbox-wizard";
+import { LinkInboxWizard, type ImapDraft } from "@/components/mail/link-inbox-wizard";
 import { useSettingsViewStore } from "@/components/settings/settings-view-store";
 
 type DomainOption = { id: string; name: string; status: string };
 
 /**
- * Adding a mailbox is one form: an address and a password. Gmail and Microsoft speak
- * IMAP like everyone else, so asking which provider it is only moved work onto the
- * person connecting — the hosts come from the address instead.
+ * Adding a mailbox is one form: an address and a password. Gmail speaks IMAP like
+ * everyone else, so asking which provider it is only moved work onto the person
+ * connecting — the hosts come from the address instead.
  */
-export function NewMailboxForm({
-  domains,
-  oauth,
-}: {
-  domains: DomainOption[];
-  oauth: OauthAvailability;
-}) {
+export function NewMailboxForm({ domains }: { domains: DomainOption[] }) {
   const router = useRouter();
   const [creatingAddress, setCreatingAddress] = useState(false);
   const [localPart, setLocalPart] = useState("");
@@ -135,7 +129,6 @@ export function NewMailboxForm({
         error={error}
         submitLabel="Connect mailbox"
         returnTo="/settings/mailboxes"
-        oauth={oauth}
         onSubmit={(draft: ImapDraft) =>
           void create({
             type: "external_imap",

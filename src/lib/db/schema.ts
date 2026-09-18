@@ -15,6 +15,13 @@ export const users = sqliteTable("users", {
   totpEnabledAt: integer("totp_enabled_at"),
   recoveryCodes: text("recovery_codes", { mode: "json" }).$type<string[]>(),
   privacyPrefs: text("privacy_prefs", { mode: "json" }).$type<PrivacyPrefs>(),
+  /*
+   * The column default is the one the table was built with; what a new account actually
+   * gets is DEFAULT_SESSION_TTL_DAYS, written explicitly on insert. Changing a default in
+   * SQLite means rebuilding the table, which is not worth doing to a live mailbox for a
+   * value that only registration would ever read — and registration closes after the
+   * first account.
+   */
   sessionTtlDays: integer("session_ttl_days").notNull().default(30),
   avatarKey: text("avatar_key"),
   avatarType: text("avatar_type"),
@@ -78,7 +85,7 @@ export const mailboxes = sqliteTable("mailboxes", {
   smtpTls: text("smtp_tls", { enum: ["implicit", "starttls"] }),
   smtpUser: text("smtp_user"),
   smtpPassword: text("smtp_password"),
-  oauthProvider: text("oauth_provider", { enum: ["google", "microsoft"] }),
+  oauthProvider: text("oauth_provider", { enum: ["google"] }),
   oauthTokens: text("oauth_tokens"),
 
   syncState: text("sync_state", { enum: ["idle", "syncing", "error"] })

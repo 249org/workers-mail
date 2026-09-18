@@ -8,6 +8,7 @@ import { isSecureRequest, sessionMeta } from "@/lib/auth/user-agent";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
 import { passwordIssue } from "@/lib/auth/password";
 import { isEmailAddress } from "@/lib/mail/address";
+import { DEFAULT_SESSION_TTL_DAYS } from "@/lib/privacy";
 
 type RegisterBody = { email?: string; password?: string; name?: string };
 
@@ -49,6 +50,7 @@ export async function POST(request: Request): Promise<Response> {
     name: body.name?.trim() || null,
     passwordHash: await hashPassword(password),
     role: "admin",
+    sessionTtlDays: DEFAULT_SESSION_TTL_DAYS,
   });
 
   const session = await createSession(cloudflare.SESSION_STORE, id, sessionMeta(request));

@@ -1,7 +1,7 @@
 import { randomToken } from "@/lib/ids";
 import { hostsForEasyProvider, type EasyProviderId, type TransportHosts } from "@/lib/transport/presets";
 
-export type OauthProviderId = "google" | "microsoft";
+export type OauthProviderId = "google";
 
 export type OauthProfile = {
   email: string;
@@ -45,22 +45,6 @@ const PROVIDERS: Record<OauthProviderId, ProviderConfig> = {
     clientId: (env) => env.GOOGLE_CLIENT_ID,
     clientSecret: (env) => env.GOOGLE_CLIENT_SECRET,
   },
-  microsoft: {
-    id: "microsoft",
-    easyId: "outlook",
-    authorize: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
-    token: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
-    scopes: [
-      "offline_access",
-      "openid",
-      "email",
-      "profile",
-      "https://outlook.office.com/IMAP.AccessAsUser.All",
-      "https://outlook.office.com/SMTP.Send",
-    ],
-    clientId: (env) => env.MICROSOFT_CLIENT_ID,
-    clientSecret: (env) => env.MICROSOFT_CLIENT_SECRET,
-  },
 };
 
 export function oauthProvider(id: OauthProviderId): ProviderConfig {
@@ -72,11 +56,8 @@ export function oauthReady(env: CloudflareEnv, id: OauthProviderId): boolean {
   return Boolean(provider.clientId(env)?.trim() && provider.clientSecret(env)?.trim());
 }
 
-export function oauthAvailability(env: CloudflareEnv): {
-  google: boolean;
-  microsoft: boolean;
-} {
-  return { google: oauthReady(env, "google"), microsoft: oauthReady(env, "microsoft") };
+export function oauthAvailability(env: CloudflareEnv): { google: boolean } {
+  return { google: oauthReady(env, "google") };
 }
 
 export function hostsForOauth(id: OauthProviderId): TransportHosts {
@@ -117,9 +98,6 @@ export function authorizeUrl(
     params.set("access_type", "offline");
     params.set("prompt", "consent");
     params.set("include_granted_scopes", "true");
-  }
-  if (state.provider === "microsoft") {
-    params.set("response_mode", "query");
   }
   return `${provider.authorize}?${params.toString()}`;
 }
@@ -217,19 +195,15 @@ export async function fetchProfile(
   const fromId = idToken ? profileFromIdToken(idToken) : null;
   if (fromId) return fromId;
 
-  if (providerId === "google") {
-    const response = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
-      headers: { authorization: `Bearer ${accessToken}` },
-    });
-    const payload = (await response.json().catch(() => ({}))) as {
-      email?: string;
-      name?: string;
-    };
-    if (!response.ok || !payload.email) throw new Error("Google did not return an email address.");
-    return { email: payload.email.toLowerCase(), name: payload.name?.trim() || null };
-  }
-
-  throw new Error("Microsoft did not return an email address.");
+  const response = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
+    headers: { authorization: `Bearer ${accessToken}` },
+  });
+  const payload = (await response.json().catch(() => ({}))) as {
+    email?: string;
+    name?: string;
+  };
+  if (!response.ok || !payload.email) throw new Error("Google did not return an email address.");
+  return { email: payload.email.toLowerCase(), name: payload.name?.trim() || null };
 }
 
 export function profileFromIdToken(idToken: string): OauthProfile | null {

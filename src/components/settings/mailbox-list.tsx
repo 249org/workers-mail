@@ -20,7 +20,7 @@ export function MailboxList({ mailboxes }: { mailboxes: PublicMailbox[] }) {
           <MailIcon name="mailbox" />
         </span>
         <p className="text-[13px] text-muted-foreground">
-          No mailboxes yet. Connect Google or Microsoft, or add an address on your own domain.
+          No mailboxes yet. Connect Google, another IMAP host, or an address on your own domain.
         </p>
         <Link href="/settings/mailboxes/new" className="btn btn-primary">
           Add mailbox
