@@ -9,7 +9,7 @@ import { useSettingsViewStore } from "./settings-view-store";
 const SETTINGS_COPY: Record<string, { title: string; lede: string }> = {
   "/settings": {
     title: "Overview",
-    lede: "This deployment runs on your Cloudflare account.",
+    lede: "Everything here runs on infrastructure you control.",
   },
   "/settings/appearance": {
     title: "Appearance",
@@ -21,7 +21,7 @@ const SETTINGS_COPY: Record<string, { title: string; lede: string }> = {
   },
   "/settings/domains": {
     title: "Domains",
-    lede: "Connect a domain you already run on Cloudflare. Verification enables Email Routing and points your addresses at this Worker.",
+    lede: "Connect a domain whose DNS you control. Verification sets up inbound routing and points your addresses here.",
   },
   "/settings/mailboxes": {
     title: "Mailboxes",

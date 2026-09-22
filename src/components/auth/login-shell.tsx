@@ -17,10 +17,10 @@ export function LoginShell({
           <BrandLockup />
         </div>
         <div className="login-brand-copy">
-          <h1 className="login-brand-title">Your mail. Your Cloudflare account.</h1>
+          <h1 className="login-brand-title">Your mail. Your server.</h1>
           <p className="login-brand-lede">
-            A keyboard-first mailbox on this Worker. Native inboxes on your domain, IMAP for
-            everything else. Nobody else hosts it.
+            A keyboard-first mailbox you host yourself. Native inboxes on your domain, IMAP
+            for everything else. Nobody else hosts it.
           </p>
         </div>
         <div className="login-scene" aria-hidden>

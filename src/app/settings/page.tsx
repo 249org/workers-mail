@@ -36,7 +36,7 @@ export default async function SettingsOverviewPage() {
 
   return (
     <>
-      <PageHeader title="Overview">This deployment runs on your Cloudflare account.</PageHeader>
+      <PageHeader title="Overview">Everything here runs on infrastructure you control.</PageHeader>
       <SettingsBody flush>
         <div className="stat-strip settings-flush">
           <Stat label="Domains" value={String(domainRows.length)} />
@@ -70,7 +70,7 @@ export default async function SettingsOverviewPage() {
                     <p className="truncate text-[13px] text-muted-foreground">
                       {mailbox.type === "external_imap"
                         ? `Synced ${formatRelative(mailbox.lastSyncedAt)}`
-                        : "Cloudflare domain"}
+                        : "Your own domain"}
                     </p>
                   </div>
                   <span className="text-[13px] text-muted-foreground">

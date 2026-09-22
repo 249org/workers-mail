@@ -83,8 +83,8 @@ export default function OpenGraphImage() {
               maxWidth: 820,
             }}
           >
-            IMAP on a Cloudflare Worker. Connect Gmail, Outlook, and any mailbox you already have —
-            without handing it to another host.
+            Self-hosted IMAP. Connect Gmail and any mailbox you already have — without handing
+            it to another host.
           </div>
         </div>
 
@@ -99,7 +99,7 @@ export default function OpenGraphImage() {
           }}
         >
           <div style={{ display: "flex", color: "#C45C3E" }}>IMAP is the edge</div>
-          <div style={{ display: "flex" }}>Runs on your Cloudflare account</div>
+          <div style={{ display: "flex" }}>Runs on your own server</div>
         </div>
       </div>
     </div>,

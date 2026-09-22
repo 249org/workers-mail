@@ -103,6 +103,8 @@ export type SettingsIndex = {
   twoFactor: boolean;
   remoteImages: "ask" | "allow";
   signatureOn: boolean;
+  /** How many mailboxes sign off differently from the default. */
+  signatureCustom: number;
 };
 
 export function SettingsNav({ index, view }: { index: SettingsIndex; view?: string }) {
@@ -163,13 +165,16 @@ function hintFor(href: string, index: SettingsIndex): string {
     case "/settings/mailboxes":
       return index.mailboxHint;
     case "/settings/signature":
-      return index.signatureOn ? "On" : "None";
+      if (!index.signatureOn) return "None";
+      // Saying how many differ is what tells someone a signature can vary per mailbox.
+      return index.signatureCustom > 0 ? `${index.signatureCustom} per mailbox` : "Same for all";
     case "/settings/contacts":
       return index.contactCount === 0 ? "Empty" : `${index.contactCount} people`;
     case "/settings/privacy":
       return index.remoteImages === "allow" ? "Images load" : "Images blocked";
     case "/settings/security":
-      return index.twoFactor ? "2FA on" : "Password";
+      // "Password" read like the page held nothing else, so two-factor went unnoticed.
+      return index.twoFactor ? "2FA on" : "2FA off";
     case "/settings/api-keys":
       return index.keyCount === 0 ? "None issued" : `${index.keyCount} issued`;
     default:

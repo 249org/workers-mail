@@ -244,7 +244,7 @@ export function dnsRecordsFor(domain: string, bimi?: BimiConfig): DnsRecord[] {
       name: domain,
       content: "route1.mx.cloudflare.net",
       priority: 12,
-      purpose: "Deliver inbound mail to Cloudflare Email Routing",
+      purpose: "Deliver inbound mail to this workspace",
       present: false,
     },
     {
@@ -252,7 +252,7 @@ export function dnsRecordsFor(domain: string, bimi?: BimiConfig): DnsRecord[] {
       name: domain,
       content: "route2.mx.cloudflare.net",
       priority: 51,
-      purpose: "Deliver inbound mail to Cloudflare Email Routing",
+      purpose: "Deliver inbound mail to this workspace",
       present: false,
     },
     {
@@ -260,14 +260,14 @@ export function dnsRecordsFor(domain: string, bimi?: BimiConfig): DnsRecord[] {
       name: domain,
       content: "route3.mx.cloudflare.net",
       priority: 93,
-      purpose: "Deliver inbound mail to Cloudflare Email Routing",
+      purpose: "Deliver inbound mail to this workspace",
       present: false,
     },
     {
       type: "TXT",
       name: domain,
       content: "v=spf1 include:_spf.mx.cloudflare.net ~all",
-      purpose: "Authorise Cloudflare to send on behalf of this domain",
+      purpose: "Authorise this workspace to send on behalf of the domain",
       present: false,
     },
     {

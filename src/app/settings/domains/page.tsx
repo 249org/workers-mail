@@ -30,8 +30,8 @@ export default async function DomainsPage() {
   return (
     <>
       <PageHeader title="Domains">
-        Connect a domain you already run on Cloudflare. Verification enables Email Routing and
-        points your addresses at this Worker.
+        Connect a domain whose DNS you control. Verification sets up inbound routing and
+        points your addresses here.
       </PageHeader>
       <SettingsBody flush>
         <DomainManager

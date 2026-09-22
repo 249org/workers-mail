@@ -39,7 +39,7 @@ export function validateSmtpSettings(input: Partial<TransportSettings>): Transpo
   // Workers block outbound port 25 entirely, so fail here rather than on a socket timeout.
   if (port === 25) {
     throw new TransportConfigError(
-      "Cloudflare Workers cannot open port 25. Use 465 (implicit TLS) or 587 (STARTTLS).",
+      "Port 25 cannot be opened from this server. Use 465 (implicit TLS) or 587 (STARTTLS).",
     );
   }
   requirePort(port);

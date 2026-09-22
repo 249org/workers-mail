@@ -66,7 +66,7 @@ export function PrivacyForm() {
 
       <PrefRow
         title="Where mail lives"
-        hint="Messages, attachments, and credentials stay on this Cloudflare account. Sessions are stored as hashes. Authenticator secrets are encrypted with MAIL_ENCRYPTION_KEY."
+        hint="Messages, attachments, and credentials stay on this deployment. Sessions are stored as hashes. Authenticator secrets are encrypted with MAIL_ENCRYPTION_KEY."
       >
         <p className="text-[13px] text-muted-foreground">This deployment. No third-party host.</p>
       </PrefRow>

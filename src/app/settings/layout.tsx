@@ -45,12 +45,16 @@ export default async function SettingsLayout({ children }: { children: React.Rea
 
   const privacy = parsePrivacy(accountRows[0]?.privacyPrefs);
   let signatureOn = false;
+  let signatureCustom = 0;
   if (signatureStored) {
     try {
       const signature = parseSignature(JSON.parse(signatureStored));
-      signatureOn = signature.enabled && Boolean(signature.text.trim() || Object.keys(signature.byMailbox).length);
+      const perMailbox = Object.keys(signature.byMailbox);
+      signatureOn = signature.enabled && Boolean(signature.text.trim() || perMailbox.length);
+      signatureCustom = signature.enabled ? perMailbox.length : 0;
     } catch {
       signatureOn = false;
+      signatureCustom = 0;
     }
   }
 
@@ -64,6 +68,7 @@ export default async function SettingsLayout({ children }: { children: React.Rea
     twoFactor: Boolean(accountRows[0]?.totpEnabledAt),
     remoteImages: privacy.remoteImages,
     signatureOn,
+    signatureCustom,
   };
 
   return (

@@ -2276,7 +2276,7 @@ html[data-palette="ink"] .login-scene {
   max-width: 22.5rem;
 }
 
-/* Cloudflare login rule: bound the column, then every control is 100% of it.
+/* Login column rule: bound the column, then every control is 100% of it.
    Never size fields and buttons independently, and never stretch them across the pane. */
 .login-pane-inner .field,
 .login-pane-inner .kind-choice,

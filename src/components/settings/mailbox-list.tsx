@@ -60,7 +60,7 @@ export function MailboxList({ mailboxes }: { mailboxes: PublicMailbox[] }) {
             {mailbox.type === "native" ? "Domain" : "IMAP"}
           </span>
           <span className="truncate text-[13px] text-muted-foreground max-md:hidden">
-            {mailbox.type === "native" ? "Cloudflare" : mailbox.imapHost ?? "—"}
+            {mailbox.type === "native" ? "This server" : mailbox.imapHost ?? "—"}
           </span>
           <span className="text-[13px] text-muted-foreground">
             {mailbox.type === "external_imap" ? formatRelative(mailbox.lastSyncedAt) : "Live"}

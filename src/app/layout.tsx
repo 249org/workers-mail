@@ -61,7 +61,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         {/*
           THESIS: Mail is a drawing — hairline regions vs pill controls — not a stack of floating cards.
           OWN-WORLD: Meridian. Warm off-white field #F9F9F8, cool slate-blue primary, terracotta highlight. Geist Sans 13px, Newsreader titles, Geist Mono eyebrows. Radius 4px on panels; rounded-full only on buttons.
-          STORY: The operator reads and sends mail on their own Cloudflare account; chrome recedes into paper.
+          STORY: The operator reads and sends mail on their own server; chrome recedes into paper.
           FIRST VIEWPORT: Ruled header, three hairline panes, Compose as a pill. Login is a framed sheet on the field.
           FORM: Brief-pinned Meridian, Operate mode. Seed: operator-pinned.
           FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md

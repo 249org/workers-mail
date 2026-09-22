@@ -2,26 +2,24 @@ import { headers } from "next/headers";
 import type { Metadata } from "next";
 
 export const SITE_NAME = "Workers Mail";
-export const SITE_TAGLINE = "Your mail. Your Cloudflare account. Nobody else hosts it.";
-export const SITE_TITLE = "Workers Mail — Mail on your Cloudflare account";
+export const SITE_TAGLINE = "Your mail. Your server. Nobody else hosts it.";
+export const SITE_TITLE = "Workers Mail — mail you host yourself";
 export const SITE_DESCRIPTION =
-  "Self-hosted mail on Cloudflare Workers. Connect Gmail and Outlook over IMAP, or run native inboxes on your domain. Keyboard-first. You hold the keys.";
+  "Self-hosted mail. Connect Gmail or any IMAP host, or run native inboxes on your own domain. Keyboard-first. You hold the keys.";
 export const SITE_DESCRIPTION_LONG =
-  "Keep Gmail. Keep Outlook. Keep the inbox you already have. Workers Mail is an IMAP client that runs on your Cloudflare account — plus native inboxes on domains you already operate.";
+  "Keep Gmail. Keep the inbox you already have. Workers Mail is an IMAP client you host yourself — plus native inboxes on domains you already operate.";
 export const SITE_GITHUB = "https://github.com/249org/workers-mail";
 export const SITE_LOCALE = "en_US";
 export const OG_IMAGE_PATH = "/opengraph-image";
 export const OG_IMAGE_ALT =
-  "Workers Mail — self-hosted mail on Cloudflare, with IMAP for Gmail, Outlook, and any host that speaks the protocol.";
+  "Workers Mail — self-hosted mail, with IMAP for Gmail and any host that speaks the protocol.";
 
 export const SITE_KEYWORDS = [
   "Workers Mail",
-  "Cloudflare Workers email",
   "self-hosted mail",
+  "self-hosted email server",
   "IMAP client",
   "Gmail IMAP",
-  "Outlook IMAP",
-  "Cloudflare Email Routing",
   "keyboard-first mail",
   "self-hosted Gmail alternative",
 ];
@@ -194,12 +192,12 @@ export function siteJsonLd(origin: string): JsonLdGraph {
         operatingSystem: "Web",
         browserRequirements: "Requires JavaScript. Requires HTML5.",
         featureList: [
-          "IMAP client on Cloudflare Workers",
+          "IMAP client for Gmail and any host",
           "Connect Gmail and Google Workspace",
           "Connect Outlook, Hotmail, and Microsoft 365",
-          "Native inboxes via Cloudflare Email Routing",
+          "Native inboxes on your own domains",
           "Keyboard-first mail workspace",
-          "Credentials encrypted on your Cloudflare account",
+          "Credentials encrypted on your own server",
         ],
         offers: {
           "@type": "Offer",
