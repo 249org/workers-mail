@@ -10,6 +10,7 @@ import { avatarSrc } from "@/lib/mail/profile-photo";
 import { prepareAvatarFile } from "@/lib/avatar-image";
 import { PersonAvatar } from "@/components/person-avatar";
 import { Field, FormError, PrefRow } from "./fields";
+import { TotpQr } from "./totp-qr";
 
 type Account = {
   email: string;
@@ -197,7 +198,11 @@ export function SecurityPanel() {
       </PrefRow>
 
       <PasswordSection />
-      <TotpSection enabled={account?.totpEnabled ?? false} onChanged={() => void loadAccount()} />
+      <TotpSection
+        enabled={account?.totpEnabled ?? false}
+        email={account?.email ?? ""}
+        onChanged={() => void loadAccount()}
+      />
 
       <PrefRow
         title="Stay signed in"
@@ -319,7 +324,15 @@ function PasswordSection() {
   );
 }
 
-function TotpSection({ enabled, onChanged }: { enabled: boolean; onChanged: () => void }) {
+function TotpSection({
+  enabled,
+  email,
+  onChanged,
+}: {
+  enabled: boolean;
+  email: string;
+  onChanged: () => void;
+}) {
   const [status, setStatus] = useState<TotpStatus | null>(null);
   const [stage, setStage] = useState<"idle" | "setup" | "recovery" | "disable">("idle");
   const [secret, setSecret] = useState("");
@@ -450,9 +463,17 @@ function TotpSection({ enabled, onChanged }: { enabled: boolean; onChanged: () =
         {stage === "setup" && (
           <div className="mb-4">
             <p className="text-[13px] text-muted-foreground">
-              Add this account in your authenticator, then enter the code it shows.
+              Scan this with your authenticator, then enter the code it shows.
             </p>
-            <p className="totp-secret mt-3" translate="no">
+            {otpauth ? (
+              <div className="totp-qr-frame mt-3">
+                <TotpQr otpauth={otpauth} label={email || "this account"} />
+              </div>
+            ) : null}
+            <p className="mt-3 text-[12px] text-muted-foreground">
+              Cannot scan? Type this key in by hand instead.
+            </p>
+            <p className="totp-secret mt-1.5" translate="no">
               {groupSecret(secret)}
             </p>
             <div className="mt-2 flex flex-wrap gap-2">

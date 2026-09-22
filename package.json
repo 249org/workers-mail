@@ -24,6 +24,7 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "sonner": "^2.0.8",
+    "uqr": "^0.1.3",
     "zustand": "^5.0.15"
   },
   "devDependencies": {
@@ -37,6 +38,7 @@
     "@typescript-eslint/parser": "^8.67.0",
     "drizzle-kit": "^0.31.10",
     "eslint-plugin-react-hooks": "^7.1.1",
+    "jsqr": "^1.4.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.2",
     "vitest": "^4.1.10",

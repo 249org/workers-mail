@@ -2100,6 +2100,24 @@ html[data-palette="ink"] .tour-mark-well {
   background: var(--surface);
 }
 
+/*
+ * A scanner reads the contrast between the squares, so the code keeps its own white
+ * ground in either theme and the frame sits under it rather than behind the pattern.
+ */
+.totp-qr-frame {
+  display: inline-flex;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: #fff;
+}
+
+.totp-qr {
+  display: block;
+  width: 168px;
+  height: 168px;
+}
+
 .recovery-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2136,7 +2154,25 @@ html[data-palette="ink"] .tour-mark-well {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .recovery-grid {
+  /*
+ * A scanner reads the contrast between the squares, so the code keeps its own white
+ * ground in either theme and the frame sits under it rather than behind the pattern.
+ */
+.totp-qr-frame {
+  display: inline-flex;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: #fff;
+}
+
+.totp-qr {
+  display: block;
+  width: 168px;
+  height: 168px;
+}
+
+.recovery-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 }
