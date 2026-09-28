@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { displayName, formatAddressList } from "@/lib/mail/address";
+import { listedAttachments } from "@/lib/mail/attachment-list";
 import { addressAvatarSrc } from "@/lib/mail/profile-photo";
 import { useMailStore } from "@/lib/mail/view-store";
 import { usePrivacyStore } from "@/lib/privacy-store";
@@ -66,7 +67,7 @@ export function MessageView({ messageId, onReply, listHidden, onToggleList }: Pr
   }
 
   const { detail, thread, body } = loaded;
-  const files = detail.attachments.filter((file) => !file.inline && !file.contentId);
+  const files = listedAttachments(detail.attachments, body?.html ?? "");
   const sentAt = new Date(detail.sentAt * 1000);
 
   const readerMenuItems = [
