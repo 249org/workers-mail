@@ -5,6 +5,7 @@ import { parsePrivacy } from "@/lib/privacy";
 import { newId } from "@/lib/ids";
 import type { ParsedMessage } from "./mime";
 import { resolveThreadId } from "./thread";
+import { isFilePart } from "./attachment-list";
 
 export type StoreOptions = {
   mailboxId: string;
@@ -105,7 +106,9 @@ export async function storeMessage(
     receivedAt: Math.floor(Date.now() / 1000),
     seen: options.seen ?? false,
     draft: options.draft ?? false,
-    hasAttachments: parsed.attachments.some((item) => !item.inline),
+    // The same rule the reader lists by, so the badge cannot promise a file the
+    // message does not open with.
+    hasAttachments: parsed.attachments.some((item) => !item.inline && isFilePart(item.mimeType)),
     size: options.size,
     rawKey,
     remoteUid: options.remoteUid ?? null,
