@@ -175,46 +175,62 @@ async function syncFolder(
 
   if (status.exists === 0) return { stored: 0, scanned: 0, caughtUp: true };
 
-  const plan = await discoverUids(session, {
+  const knownUids = uidValidityReset ? new Set<number>() : await remoteUidsFor(deps.db, folder.id);
+
+  /*
+   * Three jobs in priority order, one of them per pass.
+   *
+   * New mail first, whatever kind of pass this is — it must never wait behind older
+   * work. Then the holes an earlier pass skipped, because finishing what is already in
+   * range beats reaching further back. Reaching further back comes last.
+   *
+   * The order matters more than it looks: with nobody watching, every scheduled pass is
+   * a backfill turn, so anything reachable only on the other kind of turn would simply
+   * never run.
+   */
+  const forward = await discoverUids(session, {
     lastUid,
     oldestUid,
-    backfill,
-    // Only a first pass, with no cursor yet, needs the recent-mail shortcut.
-    preferRecent: !backfill,
+    backfill: false,
+    preferRecent: true,
   });
-  const knownUids = uidValidityReset ? new Set<number>() : await remoteUidsFor(deps.db, folder.id);
-  let missing = plan.uids.filter((uid) => !knownUids.has(uid)).sort((a, b) => a - b);
+  let scannedTo = forward.scannedTo;
+  let missing = forward.uids.filter((uid) => !knownUids.has(uid)).sort((a, b) => a - b);
+  let mode: "forward" | "repair" | "backfill" = "forward";
+
   if (missing.length === 0) {
-    // Nothing to fetch, but the window was still looked at, so the cursor may cross it.
-    if (!backfill && plan.scannedTo > lastUid) {
-      await deps.db
-        .update(folders)
-        .set({ lastUid: plan.scannedTo })
-        .where(eq(folders.id, folder.id));
-      lastUid = plan.scannedTo;
+    if (scannedTo > lastUid) {
+      await deps.db.update(folders).set({ lastUid: scannedTo }).where(eq(folders.id, folder.id));
+      lastUid = scannedTo;
     }
-    /*
-     * Caught up on new mail, so this is the moment to go back over the mailbox and
-     * collect whatever earlier passes stepped over. The sweep walks down a window at a
-     * time and stops at the oldest message held, which is where backfill takes over.
-     */
-    if (!backfill) {
-      const repaired = await repairWindow(deps, session, folder, lastUid, oldestUid, knownUids);
-      if (repaired.length > 0) {
-        missing = repaired;
-      } else {
-        const caughtUp = knownUids.size >= status.exists;
-        return { stored: 0, scanned: 0, caughtUp };
-      }
-    } else {
-      return { stored: 0, scanned: 0, caughtUp: true };
+
+    const repaired = await repairWindow(deps, session, folder, lastUid, oldestUid, knownUids);
+    if (repaired.length > 0) {
+      missing = repaired;
+      mode = "repair";
+    } else if (backfill) {
+      const older = await discoverUids(session, {
+        lastUid,
+        oldestUid,
+        backfill: true,
+        preferRecent: false,
+      });
+      missing = older.uids.filter((uid) => !knownUids.has(uid)).sort((a, b) => a - b);
+      scannedTo = lastUid;
+      mode = "backfill";
     }
   }
 
+  if (missing.length === 0) {
+    const caughtUp = backfill || knownUids.size >= status.exists;
+    return { stored: 0, scanned: 0, caughtUp };
+  }
+
   // Newest missing first so the open inbox is current. Backfill walks the rest later.
-  const batchSize = backfill ? BACKFILL_BATCH : INCREMENTAL_BATCH;
-  const selected = backfill ? missing.slice(0, batchSize) : missing.slice(-batchSize);
-  const chunks = bodyChunks(selected, BODY_CHUNK, !backfill);
+  const olderFirst = mode === "backfill";
+  const batchSize = olderFirst ? BACKFILL_BATCH : INCREMENTAL_BATCH;
+  const selected = olderFirst ? missing.slice(0, batchSize) : missing.slice(-batchSize);
+  const chunks = bodyChunks(selected, BODY_CHUNK, !olderFirst);
   const deadline = Date.now() + PASS_BUDGET_MS;
 
   let stored = 0;
@@ -256,8 +272,10 @@ async function syncFolder(
     }
 
     const cursor: Partial<Folder> = {};
-    const watermark = contiguousWatermark(lastUid, plan.scannedTo, missing, fetchedUids);
-    if (!backfill && watermark > lastUid) cursor.lastUid = watermark;
+    // Only the forward pass owns the cursor; the other two work below it.
+    const watermark =
+      mode === "forward" ? contiguousWatermark(lastUid, scannedTo, missing, fetchedUids) : lastUid;
+    if (watermark > lastUid) cursor.lastUid = watermark;
     if (lowest !== oldestUid) cursor.oldestUid = lowest;
     if (Object.keys(cursor).length > 0) {
       await deps.db.update(folders).set(cursor).where(eq(folders.id, folder.id));
