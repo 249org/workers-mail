@@ -79,7 +79,7 @@ export async function syncMailbox(
       const inbox = await folderByRole(deps.db, mailbox.id, "inbox");
       if (!inbox) return summary;
       try {
-        const result = await syncFolder(deps, session, mailbox, inbox, false, { repairs: 1 });
+        const result = await syncFolder(deps, session, mailbox, inbox, false);
         summary.stored = result.stored;
         summary.scanned = result.scanned;
         summary.folders = 1;
@@ -95,9 +95,7 @@ export async function syncMailbox(
       );
       if (!folder) return summary;
       try {
-        const result = await syncFolder(deps, session, mailbox, folder, options.backfill ?? true, {
-          repairs: 1,
-        });
+        const result = await syncFolder(deps, session, mailbox, folder, options.backfill ?? true);
         summary.stored = result.stored;
         summary.scanned = result.scanned;
         summary.folders = 1;
@@ -117,7 +115,6 @@ export async function syncMailbox(
     const selected = tracked.slice(0, options.maxFolders ?? tracked.length);
 
     let allCaughtUp = true;
-    const budget: PassBudget = { repairs: 1 };
     const deadline = Date.now() + PASS_BUDGET_MS;
     for (const folder of selected) {
       if (Date.now() > deadline) {
@@ -125,14 +122,7 @@ export async function syncMailbox(
         break;
       }
       try {
-        const result = await syncFolder(
-          deps,
-          session,
-          mailbox,
-          folder,
-          options.backfill ?? false,
-          budget,
-        );
+        const result = await syncFolder(deps, session, mailbox, folder, options.backfill ?? false);
         summary.stored += result.stored;
         summary.scanned += result.scanned;
         summary.folders += 1;
@@ -160,7 +150,6 @@ async function syncFolder(
   mailbox: Mailbox,
   folder: Folder,
   backfill: boolean,
-  budget: PassBudget,
 ): Promise<{ stored: number; scanned: number; caughtUp: boolean }> {
   const path = folder.remotePath ?? (folder.role === "inbox" ? "INBOX" : folder.name);
   const status = await session.select(path);
@@ -186,86 +175,30 @@ async function syncFolder(
 
   if (status.exists === 0) return { stored: 0, scanned: 0, caughtUp: true };
 
+  const uids = await discoverUids(session, {
+    lastUid,
+    oldestUid,
+    backfill,
+    // Only a first pass, with no cursor yet, needs the recent-mail shortcut.
+    preferRecent: !backfill,
+  });
   const knownUids = uidValidityReset ? new Set<number>() : await remoteUidsFor(deps.db, folder.id);
-
-  /*
-   * Three jobs in priority order, one of them per pass.
-   *
-   * New mail first, whatever kind of pass this is — it must never wait behind older
-   * work. Then the holes an earlier pass skipped, because finishing what is already in
-   * range beats reaching further back. Reaching further back comes last.
-   *
-   * The order matters more than it looks: with nobody watching, every scheduled pass is
-   * a backfill turn, so anything reachable only on the other kind of turn would simply
-   * never run.
-   */
-  /*
-   * Only worth asking once there is a cursor to ask from. Without one the forward path
-   * has nothing bounded to request and ends in a full SEARCH, which the seeding pass
-   * below is already going to do — running both is what spent a Durable Object's whole
-   * CPU budget and got the sync killed rather than advanced.
-   */
-  const forward =
-    lastUid > 0
-      ? await discoverUids(session, { lastUid, oldestUid, backfill: false, preferRecent: true })
-      : { uids: [] as number[], scannedTo: lastUid };
-  let scannedTo = forward.scannedTo;
-  let missing = forward.uids.filter((uid) => !knownUids.has(uid)).sort((a, b) => a - b);
-  let mode: "forward" | "repair" | "backfill" = "forward";
-
-  if (missing.length === 0) {
-    if (scannedTo > lastUid) {
-      await deps.db.update(folders).set({ lastUid: scannedTo }).where(eq(folders.id, folder.id));
-      lastUid = scannedTo;
-    }
-
-    const repaired = await repairWindow(
-      deps,
-      session,
-      folder,
-      lastUid,
-      oldestUid,
-      knownUids,
-      budget,
-    );
-    if (repaired.length > 0) {
-      missing = repaired;
-      mode = "repair";
-    } else if (backfill || lastUid === 0) {
-      const older = await discoverUids(session, {
-        lastUid,
-        oldestUid,
-        backfill: true,
-        preferRecent: false,
-      });
-      missing = older.uids.filter((uid) => !knownUids.has(uid)).sort((a, b) => a - b);
-      scannedTo = lastUid;
-      mode = "backfill";
-    }
-  }
-
+  const missing = uids.filter((uid) => !knownUids.has(uid)).sort((a, b) => a - b);
   if (missing.length === 0) {
     const caughtUp = backfill || knownUids.size >= status.exists;
     return { stored: 0, scanned: 0, caughtUp };
   }
 
   // Newest missing first so the open inbox is current. Backfill walks the rest later.
-  const olderFirst = mode === "backfill";
-  const batchSize = olderFirst ? BACKFILL_BATCH : INCREMENTAL_BATCH;
-  const selected = olderFirst ? missing.slice(0, batchSize) : missing.slice(-batchSize);
-  const chunks = bodyChunks(selected, BODY_CHUNK, !olderFirst);
+  const batchSize = backfill ? BACKFILL_BATCH : INCREMENTAL_BATCH;
+  const selected = backfill ? missing.slice(0, batchSize) : missing.slice(-batchSize);
+  const chunks = bodyChunks(selected, BODY_CHUNK, !backfill);
   const deadline = Date.now() + PASS_BUDGET_MS;
 
   let stored = 0;
   let scanned = 0;
+  let highest = lastUid;
   let lowest = oldestUid;
-  /*
-   * The cursor is a watermark, not a high score. It used to be the newest UID this pass
-   * happened to store, which stepped straight over everything the batch had left for
-   * later — and discovery never looks below the cursor, so those were gone for good.
-   * Only UIDs the server was actually asked about may be crossed.
-   */
-  const fetchedUids = new Set<number>();
 
   for (const chunk of chunks) {
     if (Date.now() > deadline) break;
@@ -277,7 +210,6 @@ async function syncFolder(
       throw error;
     }
     scanned += fetched.length;
-    for (const uid of chunk) fetchedUids.add(uid);
     for (const message of fetched) {
       if (!message.body) continue;
       const parsed = await parseMime(message.body);
@@ -291,18 +223,16 @@ async function syncFolder(
         remoteUid: message.uid,
       });
       if (result.created) stored += 1;
+      if (message.uid > highest) highest = message.uid;
       if (lowest === 0 || message.uid < lowest) lowest = message.uid;
     }
 
     const cursor: Partial<Folder> = {};
-    // Only the forward pass owns the cursor; the other two work below it.
-    const watermark =
-      mode === "forward" ? contiguousWatermark(lastUid, scannedTo, missing, fetchedUids) : lastUid;
-    if (watermark > lastUid) cursor.lastUid = watermark;
+    if (highest > lastUid) cursor.lastUid = highest;
     if (lowest !== oldestUid) cursor.oldestUid = lowest;
     if (Object.keys(cursor).length > 0) {
       await deps.db.update(folders).set(cursor).where(eq(folders.id, folder.id));
-      if (cursor.lastUid != null) lastUid = cursor.lastUid;
+      lastUid = highest;
       oldestUid = lowest;
     }
   }
@@ -312,79 +242,6 @@ async function syncFolder(
     scanned,
     caughtUp: scanned === missing.length || (selected.length === missing.length && scanned === selected.length),
   };
-}
-
-/*
- * Deliberately small, and one folder gets it per pass. Listing flags is cheap per UID
- * and not free: sweeping every folder on every pass, on top of looking forward and then
- * backward, spent more CPU than a Durable Object is given and got the whole sync killed
- * and restarted instead of moving it along.
- */
-const REPAIR_WINDOW = 150;
-
-/** One sweep per pass, handed to whichever folder asks first. */
-type PassBudget = { repairs: number };
-
-/**
- * One downward pass over a window below the cursor, returning the UIDs the server still
- * holds that this folder does not. Cheap because it asks for flags, not bodies.
- *
- * Needed because a cursor that has already jumped a gap cannot discover what it skipped:
- * everything it looks at is above itself. The sweep is the only way back to those.
- */
-async function repairWindow(
-  deps: SyncDeps,
-  session: ImapSession,
-  folder: Folder,
-  lastUid: number,
-  oldestUid: number,
-  knownUids: Set<number>,
-  budget: PassBudget,
-): Promise<number[]> {
-  if (budget.repairs <= 0) return [];
-  const floor = Math.max(oldestUid, 1);
-  const from = folder.repairUid ?? lastUid;
-  if (from <= floor) return [];
-
-  budget.repairs -= 1;
-  const low = Math.max(floor, from - REPAIR_WINDOW);
-  const present = await session.fetch(imapUidSet(`${low}:${from}`), { flags: true });
-  const gaps = present
-    .map((message) => message.uid)
-    .filter((uid) => uid >= low && uid <= from && !knownUids.has(uid));
-
-  /*
-   * The window is only left behind once it is empty. A pass fetches a handful at a time,
-   * so moving on while gaps remained would strand them exactly the way the forward cursor
-   * used to — the bug this sweep exists to undo.
-   */
-  if (gaps.length === 0) {
-    await deps.db
-      .update(folders)
-      .set({ repairUid: low <= floor ? floor : low })
-      .where(eq(folders.id, folder.id));
-  }
-
-  return gaps.sort((a, b) => a - b);
-}
-
-/**
- * How far the cursor may move: up to the window that was scanned, but never past a UID
- * this pass decided not to ask about. Anything left behind stays above the cursor and is
- * picked up by the next pass.
- */
-export function contiguousWatermark(
-  lastUid: number,
-  scannedTo: number,
-  missing: number[],
-  fetched: Set<number>,
-): number {
-  const skipped = missing.filter((uid) => !fetched.has(uid));
-  const ceiling = Math.max(lastUid, scannedTo);
-  if (skipped.length === 0) return ceiling;
-  // Never below where it already was: a hole under the cursor belongs to the repair
-  // sweep, and dragging the cursor back would refetch the whole mailbox instead.
-  return Math.max(lastUid, Math.min(ceiling, Math.min(...skipped) - 1));
 }
 
 async function newestUid(session: ImapSession): Promise<number> {
@@ -406,44 +263,26 @@ async function uidsBefore(
   return range.map((message) => message.uid).filter((uid) => uid < oldestUid);
 }
 
-/*
- * A window immediately above the cursor, never the whole gap: a FLAGS range across a
- * seven-thousand-message inbox is as punishing as SEARCH ALL.
- *
- * It walks the gap instead of jumping it. The previous answer to a wide gap was "recent
- * mail, unread mail, and the newest UID", which moved the cursor to the newest and left
- * everything it had not asked for stranded below — unreachable, because discovery only
- * ever looks upward. That is how five hundred messages went missing from one inbox.
- */
-const FORWARD_WINDOW = 150;
-
-async function uidsAfter(
-  session: ImapSession,
-  lastUid: number,
-): Promise<{ uids: number[]; scannedTo: number }> {
+async function uidsAfter(session: ImapSession, lastUid: number): Promise<number[]> {
   const high = await newestUid(session);
-  if (high <= lastUid) return { uids: [], scannedTo: lastUid };
+  if (high <= lastUid) return [];
 
-  const ceiling = Math.min(high, lastUid + FORWARD_WINDOW);
-  const range = await session.fetch(imapUidSet(`${lastUid + 1}:${ceiling}`), { flags: true });
-  const uids = range
-    .map((message) => message.uid)
-    .filter((uid) => uid > lastUid && uid <= ceiling);
-  // `scannedTo` is what lets the cursor cross a window the server answered as empty,
-  // which is what every UID in it having been expunged looks like.
-  return { uids, scannedTo: ceiling };
+  // A huge FLAGS range is as bad as SEARCH ALL on a 7k-message inbox; use a short SINCE window.
+  if (high - lastUid > 200) {
+    const recent = await session.search({ since: new Date(Date.now() - 2 * 86_400_000) });
+    const unseen = await session.search({ unseen: true });
+    return [...new Set([...recent, ...unseen, high])].filter((uid) => uid > lastUid);
+  }
+
+  const range = await session.fetch(imapUidSet(`${lastUid + 1}:${high}`), { flags: true });
+  const uids = range.map((message) => message.uid).filter((uid) => uid > lastUid);
+  return uids.length > 0 ? uids : [high];
 }
-
-export type UidPlan = {
-  uids: number[];
-  /** The highest UID this pass actually looked at, examined or not. */
-  scannedTo: number;
-};
 
 export async function discoverUids(
   session: ImapSession,
   options: { lastUid: number; oldestUid: number; backfill: boolean; preferRecent: boolean },
-): Promise<UidPlan> {
+): Promise<number[]> {
   const found = new Set<number>();
 
   function add(uids: number[]) {
@@ -458,11 +297,8 @@ export async function discoverUids(
    */
   if (options.backfill && options.oldestUid > 0) {
     // A cursor of 1 means the first message in the mailbox is already held.
-    if (options.oldestUid <= 1) return { uids: [], scannedTo: options.lastUid };
-    return {
-      uids: await uidsBefore(session, options.oldestUid, BACKFILL_SPAN),
-      scannedTo: options.lastUid,
-    };
+    if (options.oldestUid <= 1) return [];
+    return uidsBefore(session, options.oldestUid, BACKFILL_SPAN);
   }
 
   // Incremental: never SEARCH ALL. one.com truncates that result oldest-first, so a mailbox
@@ -473,12 +309,7 @@ export async function discoverUids(
     } catch {
       add(await session.search({ since: new Date(Date.now() - 2 * 86_400_000) }));
       add(await session.search({ unseen: true }));
-      // A fallback cannot claim to have scanned anything, or the cursor would step over
-      // whatever the failed window held.
-      return {
-        uids: [...found].filter((uid) => uid > options.lastUid),
-        scannedTo: options.lastUid,
-      };
+      return [...found].filter((uid) => uid > options.lastUid);
     }
   }
 
@@ -488,11 +319,11 @@ export async function discoverUids(
       if (found.size > 0) break;
     }
     add(await session.search({ unseen: true }));
-    if (found.size > 0) return { uids: [...found], scannedTo: options.lastUid };
+    if (found.size > 0) return [...found];
   }
 
   add(await session.search({ all: true }));
-  return { uids: [...found], scannedTo: options.lastUid };
+  return [...found];
 }
 
 /** A SELECT the server refuses because the mailbox is gone. */
