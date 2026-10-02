@@ -43,6 +43,13 @@
       "when": 1787137804876,
       "tag": "0005_folder_appearance",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1790923828827,
+      "tag": "0006_right_blue_shield",
+      "breakpoints": true
     }
   ]
 }

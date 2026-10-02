@@ -1,0 +1,1 @@
+ALTER TABLE `folders` ADD `repair_uid` integer;

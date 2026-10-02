@@ -118,6 +118,8 @@ export const folders = sqliteTable("folders", {
   uidValidity: integer("uid_validity"),
   lastUid: integer("last_uid"),
   oldestUid: integer("oldest_uid"),
+  /** Sweeps downward from the newest, refetching anything an earlier pass skipped. */
+  repairUid: integer("repair_uid"),
   position: integer("position").notNull().default(100),
 }, (t) => [
   uniqueIndex("folders_mailbox_name_idx").on(t.mailboxId, t.name),

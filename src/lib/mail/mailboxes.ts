@@ -148,6 +148,7 @@ export async function upsertRemoteFolder(
     uidValidity: null,
     lastUid: null,
     oldestUid: null,
+    repairUid: null,
     position: role === "custom" ? await nextCustomPosition(db, mailboxId) : 0,
   };
   await db.insert(folders).values(folder);
@@ -199,6 +200,7 @@ export async function insertCustomFolder(
     uidValidity: null,
     lastUid: null,
     oldestUid: null,
+    repairUid: null,
     position: await nextCustomPosition(db, mailboxId),
   };
   await db.insert(folders).values(folder);
