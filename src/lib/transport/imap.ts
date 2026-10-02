@@ -199,12 +199,16 @@ async function syncFolder(
    * a backfill turn, so anything reachable only on the other kind of turn would simply
    * never run.
    */
-  const forward = await discoverUids(session, {
-    lastUid,
-    oldestUid,
-    backfill: false,
-    preferRecent: true,
-  });
+  /*
+   * Only worth asking once there is a cursor to ask from. Without one the forward path
+   * has nothing bounded to request and ends in a full SEARCH, which the seeding pass
+   * below is already going to do — running both is what spent a Durable Object's whole
+   * CPU budget and got the sync killed rather than advanced.
+   */
+  const forward =
+    lastUid > 0
+      ? await discoverUids(session, { lastUid, oldestUid, backfill: false, preferRecent: true })
+      : { uids: [] as number[], scannedTo: lastUid };
   let scannedTo = forward.scannedTo;
   let missing = forward.uids.filter((uid) => !knownUids.has(uid)).sort((a, b) => a - b);
   let mode: "forward" | "repair" | "backfill" = "forward";
@@ -227,7 +231,7 @@ async function syncFolder(
     if (repaired.length > 0) {
       missing = repaired;
       mode = "repair";
-    } else if (backfill) {
+    } else if (backfill || lastUid === 0) {
       const older = await discoverUids(session, {
         lastUid,
         oldestUid,
