@@ -186,6 +186,20 @@ export const contacts = sqliteTable("contacts", {
   createdAt: integer("created_at").notNull().default(now),
 }, (t) => [uniqueIndex("contacts_owner_email_idx").on(t.ownerId, t.email)]);
 
+/*
+ * Senders the owner has rescued from the junk folder. The mail server keeps its own
+ * opinion and there is no way to argue with it over IMAP, so the rescue is remembered
+ * here and applied again to anything it files the same way later.
+ */
+export const trustedSenders = sqliteTable("trusted_senders", {
+  id: text("id").primaryKey(),
+  mailboxId: text("mailbox_id")
+    .notNull()
+    .references(() => mailboxes.id, { onDelete: "cascade" }),
+  address: text("address").notNull(),
+  createdAt: integer("created_at").notNull().default(now),
+}, (t) => [uniqueIndex("trusted_mailbox_address_idx").on(t.mailboxId, t.address)]);
+
 export const routingRules = sqliteTable("routing_rules", {
   id: text("id").primaryKey(),
   domainId: text("domain_id")

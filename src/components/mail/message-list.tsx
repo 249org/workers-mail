@@ -237,7 +237,9 @@ function Row({
   const store = useMailStore.getState();
   const folders = useMailStore((state) => state.folders);
   const { system, custom } = partitionFolders(folders);
-  const inTrash = folders.find((f) => f.id === message.folderId)?.role === "trash";
+  const role = folders.find((f) => f.id === message.folderId)?.role;
+  const inTrash = role === "trash";
+  const inJunk = role === "junk";
 
   const moveFolders = [...system.filter((f) => f.role !== "inbox"), ...custom].filter(
     (f) => f.id !== message.folderId,
@@ -254,6 +256,18 @@ function Row({
       label: message.flagged ? "Unstar" : "Star",
       onSelect: () => store.star([message.id], !message.flagged),
     },
+    ...(inJunk
+      ? [
+          {
+            type: "item" as const,
+            label: "Not spam",
+            onSelect: () => {
+              store.notSpam([message.id]);
+              toast("Moved to inbox. Mail from this sender will follow.");
+            },
+          },
+        ]
+      : []),
     { type: "separator" as const },
     ...(moveFolders.length > 0
       ? [

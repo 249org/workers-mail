@@ -1,7 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { createDb } from "@/lib/db";
-import { mailboxes } from "@/lib/db/schema";
+import { mailboxes, messages, trustedSenders } from "@/lib/db/schema";
 import { describe, markSyncState, syncMailbox } from "@/lib/transport/imap";
 import { describeImapError, isImapTimeout } from "@/lib/transport/imap-error";
 import {
@@ -10,7 +10,8 @@ import {
   pushImapChanges,
   renameImapMailbox,
 } from "@/lib/transport/imap-push";
-import { listFolders } from "@/lib/mail/mailboxes";
+import { listFolders, type Mailbox } from "@/lib/mail/mailboxes";
+import type { Database } from "@/lib/db";
 import type { CreateFolderResult, RemoteMailChange, RemoteMailResult } from "@/lib/transport/imap-remote";
 import type { MailboxEvent, SyncStatus } from "@/lib/mail/events";
 
@@ -254,6 +255,53 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
     }
   }
 
+  /*
+   * The mail server files the same sender as junk however many times it is rescued, so
+   * the rescue is repeated here on arrival rather than argued about. The move goes
+   * through the same path the button does, which is what keeps the server's copy and
+   * this one in step — leaving it local would have the next sync pull it back into junk.
+   */
+  private async rescueTrusted(db: Database, mailbox: Mailbox): Promise<void> {
+    const folders = await listFolders(db, mailbox.id);
+    const junk = folders.find((folder) => folder.role === "junk");
+    const inbox = folders.find((folder) => folder.role === "inbox");
+    if (!junk || !inbox) return;
+
+    const stranded = await db
+      .select({ id: messages.id, folderId: messages.folderId, remoteUid: messages.remoteUid })
+      .from(messages)
+      .innerJoin(trustedSenders, eq(trustedSenders.address, messages.fromAddress))
+      .where(
+        and(
+          eq(messages.folderId, junk.id),
+          eq(messages.mailboxId, mailbox.id),
+          eq(trustedSenders.mailboxId, mailbox.id),
+        ),
+      )
+      .limit(25);
+    if (stranded.length === 0) return;
+
+    try {
+      const uids = await pushImapChanges(mailbox, this.env, db, folders, stranded, {
+        action: "move",
+        destination: inbox,
+      });
+      for (const ref of stranded) {
+        await db
+          .update(messages)
+          .set({ folderId: inbox.id, remoteUid: uids.get(ref.id) ?? null })
+          .where(eq(messages.id, ref.id));
+      }
+      console.info("rescued trusted senders from junk", {
+        mailboxId: mailbox.id,
+        moved: stranded.length,
+      });
+    } catch (error) {
+      // Worth another pass rather than a failed sync; the mail is still in junk.
+      console.warn("junk rescue failed", { mailboxId: mailbox.id, error: describe(error) });
+    }
+  }
+
   private async runSync(options: {
     backfill: boolean;
     inboxOnly?: boolean;
@@ -303,6 +351,8 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
           maxFolders: options.inboxOnly ? 1 : 8,
         },
       );
+
+      if (summary.stored > 0) await this.rescueTrusted(db, mailbox);
 
       const timedOut = summary.errors.some((entry) => isImapTimeout(entry));
       const transient = Boolean(options.inboxOnly && timedOut);

@@ -26,7 +26,16 @@ export type FolderSummary = {
   color?: string | null;
 };
 
-export type MailAction = "read" | "unread" | "flag" | "unflag" | "move" | "trash" | "delete" | "empty-trash";
+export type MailAction =
+  | "read"
+  | "unread"
+  | "flag"
+  | "unflag"
+  | "move"
+  | "trash"
+  | "delete"
+  | "empty-trash"
+  | "not-spam";
 
 type UndoEntry = {
   label: string;
@@ -118,12 +127,13 @@ type Actions = {
   removeLocally: (
     ids: string[],
     label: string,
-    request: { action: "move" | "trash"; folderId?: string },
+    request: { action: "move" | "trash" | "not-spam"; folderId?: string },
   ) => void;
   focusSelected: () => void;
   star: (ids: string[], flagged: boolean) => void;
   moveTo: (ids: string[], folderId: string, label: string) => void;
   trash: (ids: string[]) => void;
+  notSpam: (ids: string[]) => void;
   deleteForever: (ids: string[]) => void;
   emptyTrash: () => void;
   undo: () => boolean;
@@ -358,6 +368,11 @@ export const useMailStore = create<State & Actions>((set, get) => ({
     get().removeLocally(ids, "Moved to trash", { action: "trash" });
   },
 
+  notSpam: (ids) => {
+    if (ids.length === 0) return;
+    get().removeLocally(ids, "Moved to inbox", { action: "not-spam" });
+  },
+
   deleteForever: (ids) => {
     if (ids.length === 0) return;
     const state = get();
@@ -564,7 +579,7 @@ export const useMailStore = create<State & Actions>((set, get) => ({
   removeLocally: (
     ids: string[],
     label: string,
-    request: { action: "move" | "trash"; folderId?: string },
+    request: { action: "move" | "trash" | "not-spam"; folderId?: string },
   ) => {
     const state = get();
     const removed = state.messages

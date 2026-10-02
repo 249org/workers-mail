@@ -2,7 +2,8 @@ import { and, eq, inArray } from "drizzle-orm";
 import type { Database } from "@/lib/db";
 import { ApiError, authenticate, errorResponse, readJson } from "@/lib/auth/api";
 import { env as cloudflareEnv } from "@/lib/env";
-import { attachments, messages } from "@/lib/db/schema";
+import { attachments, messages, trustedSenders } from "@/lib/db/schema";
+import { newId } from "@/lib/ids";
 import { folderByRole, getOwnedMailbox, listFolders, type Mailbox } from "@/lib/mail/mailboxes";
 import { ownedMessageRefs } from "@/lib/mail/queries";
 import { isMissingUidError } from "@/lib/transport/imap-error";
@@ -11,7 +12,16 @@ import { applyRemoteMail, type ImapMessageRef, type RemoteMailChange } from "@/l
 type BulkBody = {
   mailboxId?: string;
   ids?: string[];
-  action?: "read" | "unread" | "flag" | "unflag" | "move" | "trash" | "delete" | "empty-trash";
+  action?:
+    | "read"
+    | "unread"
+    | "flag"
+    | "unflag"
+    | "move"
+    | "trash"
+    | "delete"
+    | "empty-trash"
+    | "not-spam";
   folderId?: string;
 };
 
@@ -85,6 +95,23 @@ export async function POST(request: Request): Promise<Response> {
         await applyMoveLocally(db, env.MAIL_BUCKET, mailbox.id, refs, destination.id, uids);
         break;
       }
+      /*
+       * The mail server decided this was junk and will decide the same way again; there
+       * is no way to tell it otherwise over IMAP. So the message goes back to the inbox
+       * and the sender is written down, and anything else it files as junk from the same
+       * address gets the same treatment on arrival.
+       */
+      case "not-spam": {
+        const inbox = folders.find((folder) => folder.role === "inbox");
+        if (!inbox) throw new ApiError(409, "This mailbox has no inbox");
+        await trustSenders(db, mailbox.id, ids);
+        const uids = await applyImap(mailbox, env, refs, {
+          action: "move",
+          folderId: inbox.id,
+        });
+        await applyMoveLocally(db, env.MAIL_BUCKET, mailbox.id, refs, inbox.id, uids);
+        break;
+      }
       case "trash": {
         const trash = folders.find((folder) => folder.role === "trash");
         if (!trash) throw new ApiError(409, "This mailbox has no trash folder");
@@ -124,6 +151,22 @@ function describeApplyFailure(error: unknown): string {
     }
   }
   return "The mail server could not apply that change.";
+}
+
+/** Remembers who sent these, so the next one does not have to be rescued by hand. */
+async function trustSenders(db: Database, mailboxId: string, ids: string[]): Promise<void> {
+  const rows = await db
+    .select({ from: messages.fromAddress })
+    .from(messages)
+    .where(and(eq(messages.mailboxId, mailboxId), inArray(messages.id, ids)));
+
+  const addresses = [...new Set(rows.map((row) => row.from.trim().toLowerCase()).filter(Boolean))];
+  for (const address of addresses) {
+    await db
+      .insert(trustedSenders)
+      .values({ id: newId("trust"), mailboxId, address })
+      .onConflictDoNothing();
+  }
 }
 
 /** Best-effort flag mirroring: the local change stands even when the server refuses. */

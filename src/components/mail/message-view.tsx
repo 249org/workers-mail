@@ -25,9 +25,12 @@ export function MessageView({ messageId, onReply, listHidden, onToggleList }: Pr
   const select = useMailStore((state) => state.select);
   const trash = useMailStore((state) => state.trash);
   const deleteForever = useMailStore((state) => state.deleteForever);
+  const notSpam = useMailStore((state) => state.notSpam);
   const folders = useMailStore((state) => state.folders);
   const folderId = useMailStore((state) => state.folderId);
-  const inTrash = folders.find((folder) => folder.id === folderId)?.role === "trash";
+  const folderRole = folders.find((folder) => folder.id === folderId)?.role;
+  const inTrash = folderRole === "trash";
+  const inJunk = folderRole === "junk";
   const star = useMailStore((state) => state.star);
   const remoteImages = usePrivacyStore((state) => state.prefs.remoteImages);
   const [showImages, setShowImages] = useState(false);
@@ -87,6 +90,18 @@ export function MessageView({ messageId, onReply, listHidden, onToggleList }: Pr
       onSelect: () => onReply("forward"),
     },
     { type: "separator" as const },
+    ...(inJunk
+      ? [
+          {
+            type: "item" as const,
+            label: "Not spam",
+            onSelect: () => {
+              notSpam([detail.id]);
+              toast("Moved to inbox. Mail from this sender will follow.");
+            },
+          },
+        ]
+      : []),
     {
       type: "item" as const,
       label: detail.flagged ? "Unstar" : "Star",
