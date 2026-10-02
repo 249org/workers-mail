@@ -79,7 +79,7 @@ export async function syncMailbox(
       const inbox = await folderByRole(deps.db, mailbox.id, "inbox");
       if (!inbox) return summary;
       try {
-        const result = await syncFolder(deps, session, mailbox, inbox, false);
+        const result = await syncFolder(deps, session, mailbox, inbox, false, { repairs: 1 });
         summary.stored = result.stored;
         summary.scanned = result.scanned;
         summary.folders = 1;
@@ -95,7 +95,9 @@ export async function syncMailbox(
       );
       if (!folder) return summary;
       try {
-        const result = await syncFolder(deps, session, mailbox, folder, options.backfill ?? true);
+        const result = await syncFolder(deps, session, mailbox, folder, options.backfill ?? true, {
+          repairs: 1,
+        });
         summary.stored = result.stored;
         summary.scanned = result.scanned;
         summary.folders = 1;
@@ -115,6 +117,7 @@ export async function syncMailbox(
     const selected = tracked.slice(0, options.maxFolders ?? tracked.length);
 
     let allCaughtUp = true;
+    const budget: PassBudget = { repairs: 1 };
     const deadline = Date.now() + PASS_BUDGET_MS;
     for (const folder of selected) {
       if (Date.now() > deadline) {
@@ -122,7 +125,14 @@ export async function syncMailbox(
         break;
       }
       try {
-        const result = await syncFolder(deps, session, mailbox, folder, options.backfill ?? false);
+        const result = await syncFolder(
+          deps,
+          session,
+          mailbox,
+          folder,
+          options.backfill ?? false,
+          budget,
+        );
         summary.stored += result.stored;
         summary.scanned += result.scanned;
         summary.folders += 1;
@@ -150,6 +160,7 @@ async function syncFolder(
   mailbox: Mailbox,
   folder: Folder,
   backfill: boolean,
+  budget: PassBudget,
 ): Promise<{ stored: number; scanned: number; caughtUp: boolean }> {
   const path = folder.remotePath ?? (folder.role === "inbox" ? "INBOX" : folder.name);
   const status = await session.select(path);
@@ -204,7 +215,15 @@ async function syncFolder(
       lastUid = scannedTo;
     }
 
-    const repaired = await repairWindow(deps, session, folder, lastUid, oldestUid, knownUids);
+    const repaired = await repairWindow(
+      deps,
+      session,
+      folder,
+      lastUid,
+      oldestUid,
+      knownUids,
+      budget,
+    );
     if (repaired.length > 0) {
       missing = repaired;
       mode = "repair";
@@ -291,7 +310,16 @@ async function syncFolder(
   };
 }
 
-const REPAIR_WINDOW = 300;
+/*
+ * Deliberately small, and one folder gets it per pass. Listing flags is cheap per UID
+ * and not free: sweeping every folder on every pass, on top of looking forward and then
+ * backward, spent more CPU than a Durable Object is given and got the whole sync killed
+ * and restarted instead of moving it along.
+ */
+const REPAIR_WINDOW = 150;
+
+/** One sweep per pass, handed to whichever folder asks first. */
+type PassBudget = { repairs: number };
 
 /**
  * One downward pass over a window below the cursor, returning the UIDs the server still
@@ -307,11 +335,14 @@ async function repairWindow(
   lastUid: number,
   oldestUid: number,
   knownUids: Set<number>,
+  budget: PassBudget,
 ): Promise<number[]> {
+  if (budget.repairs <= 0) return [];
   const floor = Math.max(oldestUid, 1);
   const from = folder.repairUid ?? lastUid;
   if (from <= floor) return [];
 
+  budget.repairs -= 1;
   const low = Math.max(floor, from - REPAIR_WINDOW);
   const present = await session.fetch(imapUidSet(`${low}:${from}`), { flags: true });
   const gaps = present
@@ -380,7 +411,7 @@ async function uidsBefore(
  * everything it had not asked for stranded below — unreachable, because discovery only
  * ever looks upward. That is how five hundred messages went missing from one inbox.
  */
-const FORWARD_WINDOW = 200;
+const FORWARD_WINDOW = 150;
 
 async function uidsAfter(
   session: ImapSession,
