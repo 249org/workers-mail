@@ -28,6 +28,9 @@ const ALLOWED_STYLE = new Set([
   "width", "word-break", "word-spacing",
 ]);
 
+/** Attributes holding a URL, where an entity is part of the address rather than text. */
+const URL_ATTRS = new Set(["href", "src", "background"]);
+
 const VOID_TAGS = new Set(["br", "hr", "img", "col"]);
 const BLOCKED_CONTENT = /<(script|style|head|title|iframe|object|embed|noscript|template)\b[\s\S]*?<\/\1\s*>/gi;
 const CONTROL_CHARS = /[\u0000-\u0020\u007f]/g;
@@ -164,7 +167,17 @@ function filterAttributes(
 
   for (const match of rawAttrs.matchAll(pattern)) {
     const name = (match[1] ?? "").toLowerCase();
-    const value = match[3] ?? match[4] ?? match[5] ?? "";
+    const raw = match[3] ?? match[4] ?? match[5] ?? "";
+    /*
+     * Decoded before it is read or written again. A URL in valid HTML separates its
+     * parameters with `&amp;`, and escaping that a second time on the way out left the
+     * browser decoding `&amp;amp;` back to `&amp;` — so `?token=` arrived at the far end
+     * named `amp;token=`, and a verification link came back as malformed parameters.
+     *
+     * It also makes the safety check honest: `javascript&#58;` is a scheme the browser
+     * will happily run, and only now does the check see it as one.
+     */
+    const value = URL_ATTRS.has(name) ? decodeEntities(raw) : raw;
     if (!ALLOWED_ATTRS.has(name)) continue;
 
     if (name === "href") {
