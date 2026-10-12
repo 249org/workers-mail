@@ -48,6 +48,7 @@ const EMPTY_DRAFT: ComposeDraft = {
   text: "",
 };
 const SEARCH_DEBOUNCE_MS = 200;
+const SYNC_TOAST = "mail-sync";
 const ACTION_TOAST = "mail-action";
 
 function undoLastAction(): boolean {
@@ -316,9 +317,45 @@ export function MailWorkspace({
   const syncNow = useCallback(async () => {
     const store = useMailStore.getState();
     store.setSyncing(true);
-    await fetch(`/api/mailboxes/${mailbox.id}/sync`, { method: "POST" });
-    await store.fetchPage();
-    store.setSyncing(false);
+    toast.loading("Checking for new mail…", { id: SYNC_TOAST });
+
+    try {
+      const response = await fetch(`/api/mailboxes/${mailbox.id}/sync`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        /*
+         * Wait for the pass to finish before answering, so the list is reloaded against
+         * mail that has arrived rather than mail that might; and refresh the folder being
+         * looked at, which is not always the inbox.
+         */
+        body: JSON.stringify({ refresh: true, folderId: store.folderId || undefined }),
+      });
+      if (!response.ok) throw new Error(String(response.status));
+
+      const status = (await response.json().catch(() => ({}))) as {
+        lastError?: string | null;
+        stored?: number;
+        reflagged?: number;
+      };
+      await store.fetchPage();
+      await store.refreshFolders();
+
+      if (status.lastError) {
+        toast.error(status.lastError, { id: SYNC_TOAST });
+        return;
+      }
+      // The server's own count, rather than the length of a page that paginates.
+      const stored = status.stored ?? 0;
+      const reflagged = status.reflagged ?? 0;
+      const parts: string[] = [];
+      if (stored > 0) parts.push(`${stored} new message${stored === 1 ? "" : "s"}`);
+      if (reflagged > 0) parts.push(`${reflagged} updated`);
+      toast.success(parts.length > 0 ? parts.join(" · ") : "Up to date", { id: SYNC_TOAST });
+    } catch {
+      toast.error("Could not reach the mail server.", { id: SYNC_TOAST });
+    } finally {
+      store.setSyncing(false);
+    }
   }, [mailbox.id]);
 
   const closeFolders = useCallback(() => setFoldersOpen(false), []);

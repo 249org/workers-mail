@@ -14,4 +14,7 @@ export type SyncStatus = {
   lastSyncedAt: number | null;
   lastError: string | null;
   connections: number;
+  /** What the pass just did, when somebody waited for it. Absent otherwise. */
+  stored?: number;
+  reflagged?: number;
 };

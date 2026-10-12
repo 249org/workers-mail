@@ -130,28 +130,44 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
     this.broadcast(event);
   }
 
-  async status(): Promise<SyncStatus> {
+  async status(extra?: { stored: number; reflagged: number }): Promise<SyncStatus> {
     await this.load();
     return {
       state: this.state.lastState,
       lastSyncedAt: this.state.lastSyncedAt,
       lastError: this.state.lastError,
       connections: this.ctx.getWebSockets().length,
+      ...extra,
     };
   }
 
   /** Entry point used by the cron poke and by manual refreshes from the UI. */
   async poke(
-    options: { backfill?: boolean; mailboxId?: string; folderId?: string } = {},
+    options: {
+      backfill?: boolean;
+      mailboxId?: string;
+      folderId?: string;
+      /** Wait for the pass, so whoever asked can show the result rather than a promise. */
+      await?: boolean;
+    } = {},
   ): Promise<SyncStatus> {
     if (options.mailboxId) await this.rememberMailbox(options.mailboxId);
     else await this.load();
     if (options.folderId) {
-      await this.runSync({
+      const done = await this.runSync({
         backfill: options.backfill ?? true,
         folderId: options.folderId,
       });
-      return this.status();
+      return this.status(done);
+    }
+    /*
+     * Someone pressed the button. Kicking the work off and answering straight away left
+     * the page reloading before anything had been fetched, so new mail only appeared on
+     * the press after the one that found it.
+     */
+    if (options.await) {
+      const done = await this.runSync({ backfill: options.backfill ?? false, inboxOnly: true });
+      return this.status(done);
     }
     this.kickSync({ backfill: options.backfill ?? false });
     await this.scheduleNextPoll();
@@ -306,12 +322,13 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
     backfill: boolean;
     inboxOnly?: boolean;
     folderId?: string;
-  }): Promise<void> {
+  }): Promise<{ stored: number; reflagged: number }> {
+    let done = { stored: 0, reflagged: 0 };
     await this.load();
     const mailboxId = this.state.mailboxId;
     if (!mailboxId) {
       console.warn("mailbox sync skipped: Durable Object has no mailboxId");
-      return;
+      return done;
     }
 
     const now = Date.now();
@@ -324,13 +341,13 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
         await this.load();
       }
     } else if (this.state.syncingUntil > now) {
-      return;
+      return done;
     }
 
     const db = createDb(this.env.DB);
     const rows = await db.select().from(mailboxes).where(eq(mailboxes.id, mailboxId)).limit(1);
     const mailbox = rows[0];
-    if (!mailbox || mailbox.type !== "external_imap") return;
+    if (!mailbox || mailbox.type !== "external_imap") return done;
 
     this.state.syncingUntil = now + SYNC_LOCK_MS;
     this.state.lastState = "syncing";
@@ -352,6 +369,7 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
         },
       );
 
+      done = { stored: summary.stored, reflagged: summary.reflagged };
       if (summary.stored > 0) await this.rescueTrusted(db, mailbox);
 
       const timedOut = summary.errors.some((entry) => isImapTimeout(entry));
@@ -422,6 +440,7 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
       this.state.syncingUntil = 0;
       await this.persist();
     }
+    return done;
   }
 
   /** Fire-and-forget so RPC / WebSocket handlers are not pinned to IMAP I/O. */

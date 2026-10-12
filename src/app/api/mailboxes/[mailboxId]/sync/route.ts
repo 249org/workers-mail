@@ -19,19 +19,27 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
 
     const stub = env.MAILBOX.get(env.MAILBOX.idFromName(mailbox.id));
     let folderId: string | undefined;
+    let refresh = false;
     const contentType = request.headers.get("content-type") ?? "";
     if (contentType.includes("application/json")) {
-      const body = (await request.json().catch(() => ({}))) as { folderId?: unknown };
+      const body = (await request.json().catch(() => ({}))) as {
+        folderId?: unknown;
+        refresh?: unknown;
+      };
       if (typeof body.folderId === "string" && body.folderId) folderId = body.folderId;
+      if (body.refresh === true) refresh = true;
     }
 
     const status = await withTimeout(
       stub.poke({
-        backfill: !mailbox.backfillComplete || Boolean(folderId),
+        // A refresh looks for new mail. Backfilling instead reaches for older messages,
+        // which is the opposite of what the button is for.
+        backfill: refresh ? false : !mailbox.backfillComplete || Boolean(folderId),
         mailboxId: mailbox.id,
         folderId,
+        await: refresh,
       }),
-      folderId ? 25_000 : POKE_TIMEOUT_MS,
+      folderId || refresh ? 25_000 : POKE_TIMEOUT_MS,
     ).catch(() => ({ state: "syncing" as const, lastSyncedAt: null, lastError: null, connections: 0 }));
 
     return Response.json(status);

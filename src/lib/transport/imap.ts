@@ -1,5 +1,5 @@
 import type { ImapSession } from "edgeport/imap";
-import { and, eq, isNotNull } from "drizzle-orm";
+import { and, desc, eq, isNotNull } from "drizzle-orm";
 import type { Database } from "@/lib/db";
 import { folders, mailboxes, messages } from "@/lib/db/schema";
 import { parseMime } from "@/lib/mail/mime";
@@ -30,6 +30,8 @@ export type SyncSummary = {
   stored: number;
   scanned: number;
   folders: number;
+  /** Messages whose read or starred state had changed on the server since last time. */
+  reflagged: number;
   backfillComplete: boolean;
   errors: string[];
 };
@@ -67,6 +69,7 @@ export async function syncMailbox(
     stored: 0,
     scanned: 0,
     folders: 0,
+    reflagged: 0,
     backfillComplete: mailbox.backfillComplete,
     errors: [],
   };
@@ -83,6 +86,7 @@ export async function syncMailbox(
         summary.stored = result.stored;
         summary.scanned = result.scanned;
         summary.folders = 1;
+        summary.reflagged = await refreshFlags(deps, session, inbox);
       } catch (error) {
         summary.errors.push(`Inbox: ${describe(error)}`);
       }
@@ -99,6 +103,7 @@ export async function syncMailbox(
         summary.stored = result.stored;
         summary.scanned = result.scanned;
         summary.folders = 1;
+        summary.reflagged = await refreshFlags(deps, session, folder);
       } catch (error) {
         if (!isMissingMailbox(error)) {
           summary.errors.push(`${folder.name}: ${describe(error)}`);
@@ -386,6 +391,78 @@ async function listRemoteMailboxes(
   } finally {
     await mutator?.close();
   }
+}
+
+/*
+ * How many of the newest messages get their flags checked against the server.
+ *
+ * Reading a message in another client sets `\Seen` there, and nothing here ever looked
+ * again: a folder's flags were written once, when the message was first stored, and a
+ * pass only ever fetches UIDs it does not already hold. So mail read elsewhere stayed
+ * bold here for good.
+ *
+ * One FETCH of flags over a bounded window, on the cheap paths only — never the pass
+ * that walks every folder. Flags are small; asking for too many of them at once is how
+ * the sync got itself killed before.
+ */
+const FLAG_REFRESH_LIMIT = 120;
+
+export async function refreshFlags(
+  deps: SyncDeps,
+  session: ImapSession,
+  folder: Folder,
+): Promise<number> {
+  const held = await deps.db
+    .select({ id: messages.id, uid: messages.remoteUid, seen: messages.seen, flagged: messages.flagged })
+    .from(messages)
+    .where(and(eq(messages.folderId, folder.id), isNotNull(messages.remoteUid)))
+    .orderBy(desc(messages.remoteUid))
+    .limit(FLAG_REFRESH_LIMIT);
+  if (held.length === 0) return 0;
+
+  const uids = held.map((row) => row.uid).filter((uid): uid is number => uid != null);
+  const fetched = await session.fetch(uids, { flags: true });
+
+  const changes = flagUpdates(held, fetched);
+  for (const change of changes) {
+    await deps.db
+      .update(messages)
+      .set({ seen: change.seen, flagged: change.flagged })
+      .where(eq(messages.id, change.id));
+  }
+  return changes.length;
+}
+
+export type HeldFlags = {
+  id: string;
+  uid: number | null;
+  seen: boolean;
+  flagged: boolean;
+};
+
+/**
+ * Which rows the server disagrees with, and what it says instead.
+ *
+ * A UID the server did not answer for is left alone: silence means the message moved or
+ * was expunged, which is a different question from whether it has been read, and
+ * guessing at it here would mark mail read that nobody opened.
+ */
+export function flagUpdates(
+  held: HeldFlags[],
+  fetched: Array<{ uid: number; flags: string[] }>,
+): Array<{ id: string; seen: boolean; flagged: boolean }> {
+  const byUid = new Map(held.filter((row) => row.uid != null).map((row) => [row.uid as number, row]));
+  const changes: Array<{ id: string; seen: boolean; flagged: boolean }> = [];
+
+  for (const message of fetched) {
+    const row = byUid.get(message.uid);
+    if (!row) continue;
+    const seen = message.flags.includes("\\Seen");
+    const flagged = message.flags.includes("\\Flagged");
+    if (seen === row.seen && flagged === row.flagged) continue;
+    changes.push({ id: row.id, seen, flagged });
+  }
+  return changes;
 }
 
 async function remoteUidsFor(db: Database, folderId: string): Promise<Set<number>> {
