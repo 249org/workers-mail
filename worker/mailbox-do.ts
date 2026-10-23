@@ -7,6 +7,7 @@ import { describeImapError, isImapTimeout } from "@/lib/transport/imap-error";
 import {
   createImapMailbox,
   deleteImapMailbox,
+  purgeImapFolder,
   pushImapChanges,
   renameImapMailbox,
 } from "@/lib/transport/imap-push";
@@ -195,13 +196,13 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
     }
   }
 
-  /** RENAME or DELETE a mailbox on the IMAP server. */
+  /** RENAME, DELETE, or empty a mailbox on the IMAP server. */
   async mutateRemoteFolder(input: {
     mailboxId: string;
     folderId: string;
-    action: "rename" | "delete";
+    action: "rename" | "delete" | "purge";
     name?: string;
-  }): Promise<{ ok: true; remotePath?: string } | { ok: false; error: string }> {
+  }): Promise<{ ok: true; remotePath?: string; removed?: number } | { ok: false; error: string }> {
     await this.rememberMailbox(input.mailboxId);
     const db = createDb(this.env.DB);
     const rows = await db.select().from(mailboxes).where(eq(mailboxes.id, input.mailboxId)).limit(1);
@@ -217,6 +218,9 @@ export class MailboxDurableObject extends DurableObject<CloudflareEnv> {
       if (input.action === "delete") {
         await deleteImapMailbox(mailbox, this.env, db, folder);
         return { ok: true };
+      }
+      if (input.action === "purge") {
+        return { ok: true, removed: await purgeImapFolder(mailbox, this.env, db, folder) };
       }
       const remotePath = await renameImapMailbox(
         mailbox,

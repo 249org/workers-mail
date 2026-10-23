@@ -135,7 +135,7 @@ type Actions = {
   trash: (ids: string[]) => void;
   notSpam: (ids: string[]) => void;
   deleteForever: (ids: string[]) => void;
-  emptyTrash: () => void;
+  emptyTrash: () => Promise<boolean>;
   undo: () => boolean;
 
   setSyncing: (syncing: boolean) => void;
@@ -400,10 +400,15 @@ export const useMailStore = create<State & Actions>((set, get) => ({
     });
   },
 
-  emptyTrash: () => {
+  /*
+   * Resolves once the server has cleared the folder, which is not instant: the whole
+   * mailbox is emptied rather than the page on screen, so the caller can say so while it
+   * runs instead of claiming the trash is empty the moment the button is pressed.
+   */
+  emptyTrash: async () => {
     const state = get();
     const trash = state.folders.find((folder) => folder.role === "trash");
-    if (!trash || state.folderId !== trash.id) return;
+    if (!trash || state.folderId !== trash.id) return false;
 
     const snapshot = state.messages;
     const snapshotCursor = state.cursor;
@@ -414,18 +419,18 @@ export const useMailStore = create<State & Actions>((set, get) => ({
     folderPages.delete(folderKey(state.mailboxId, trash.id, state.search));
     set({ messages: [], selectedId: null, checked: new Set(), cursor: null, loaded });
 
-    void send({ action: "empty-trash" }).then((ok) => {
-      if (!ok) {
-        set({
-          messages: snapshot,
-          cursor: snapshotCursor,
-          selectedId: snapshotSelected,
-          loaded: snapshotLoaded,
-        });
-        return;
-      }
-      void get().refreshFolders();
-    });
+    const ok = await send({ action: "empty-trash" });
+    if (!ok) {
+      set({
+        messages: snapshot,
+        cursor: snapshotCursor,
+        selectedId: snapshotSelected,
+        loaded: snapshotLoaded,
+      });
+      return false;
+    }
+    await get().refreshFolders();
+    return true;
   },
 
   undo: () => {

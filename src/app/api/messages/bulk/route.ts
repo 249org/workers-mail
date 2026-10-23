@@ -7,7 +7,12 @@ import { newId } from "@/lib/ids";
 import { folderByRole, getOwnedMailbox, listFolders, type Mailbox } from "@/lib/mail/mailboxes";
 import { ownedMessageRefs } from "@/lib/mail/queries";
 import { isMissingUidError } from "@/lib/transport/imap-error";
-import { applyRemoteMail, type ImapMessageRef, type RemoteMailChange } from "@/lib/transport/imap-remote";
+import {
+  applyRemoteMail,
+  mutateRemoteFolder,
+  type ImapMessageRef,
+  type RemoteMailChange,
+} from "@/lib/transport/imap-remote";
 
 type BulkBody = {
   mailboxId?: string;
@@ -37,21 +42,29 @@ export async function POST(request: Request): Promise<Response> {
     if (!mailbox) throw new ApiError(404, "Mailbox not found");
     const folders = await listFolders(db, mailbox.id);
 
+    /*
+     * Emptying the trash clears the folder on the server, not the messages this app has
+     * indexed of it. Deleting the UIDs held locally took out whatever the sync had
+     * reached — a hundred or so out of a folder of many hundreds — and left the rest
+     * where it was, so the next pass pulled another batch back into the emptied list.
+     */
     if (body.action === "empty-trash") {
       const trash = await folderByRole(db, mailbox.id, "trash");
       if (!trash) throw new ApiError(409, "This mailbox has no trash folder");
-      const rows = await db
-        .select({ id: messages.id, folderId: messages.folderId, remoteUid: messages.remoteUid })
+
+      const held = await db
+        .select({ id: messages.id })
         .from(messages)
         .where(and(eq(messages.mailboxId, mailbox.id), eq(messages.folderId, trash.id)));
-      if (rows.length === 0) return Response.json({ updated: 0 });
-      await applyImap(mailbox, env, rows, { action: "delete" });
-      const trashIds = rows.map((row) => row.id);
-      await purgeObjects(db, env.MAIL_BUCKET, trashIds);
+
+      const removed = await purgeRemoteFolder(mailbox, env, trash.id);
+      await purgeFolderObjects(db, env.MAIL_BUCKET, mailbox.id, trash.id);
       await db
         .delete(messages)
         .where(and(eq(messages.mailboxId, mailbox.id), eq(messages.folderId, trash.id)));
-      return Response.json({ updated: trashIds.length });
+
+      // The server's count is the real one; the local one only covers what was indexed.
+      return Response.json({ updated: Math.max(removed, held.length) });
     }
 
     const refs = await ownedMessageRefs(db, mailbox.id, body.ids ?? []);
@@ -136,6 +149,18 @@ export async function POST(request: Request): Promise<Response> {
   } catch (error) {
     return errorResponse(error);
   }
+}
+
+/** Clears the folder on the server; a mailbox with no IMAP account behind it has none. */
+async function purgeRemoteFolder(
+  mailbox: Mailbox,
+  env: CloudflareEnv,
+  folderId: string,
+): Promise<number> {
+  if (mailbox.type !== "external_imap") return 0;
+  const result = await mutateRemoteFolder(env, mailbox.id, folderId, "purge");
+  if (!result.ok) throw new ApiError(502, result.error);
+  return result.removed ?? 0;
 }
 
 function describeApplyFailure(error: unknown): string {
@@ -265,6 +290,37 @@ async function applyMoveLocally(
 function isUniqueConstraint(error: unknown): boolean {
   const text = error instanceof Error ? error.message : String(error);
   return /UNIQUE constraint failed|SQLITE_CONSTRAINT/i.test(text);
+}
+
+/*
+ * R2 takes at most a thousand keys per delete, and a trash folder can hold more than
+ * that between the bodies and their attachments. Listing by folder rather than by id
+ * also keeps the query off D1's bound-parameter limit, which a few hundred ids exceed.
+ */
+const R2_DELETE_LIMIT = 1_000;
+
+/** Drops the stored bodies and attachments of every message in a folder. */
+async function purgeFolderObjects(
+  db: Database,
+  bucket: R2Bucket,
+  mailboxId: string,
+  folderId: string,
+): Promise<void> {
+  const scope = and(eq(messages.mailboxId, mailboxId), eq(messages.folderId, folderId));
+  const rows = await db.select({ rawKey: messages.rawKey }).from(messages).where(scope);
+  const files = await db
+    .select({ r2Key: attachments.r2Key })
+    .from(attachments)
+    .innerJoin(messages, eq(attachments.messageId, messages.id))
+    .where(scope);
+
+  const keys = [
+    ...rows.map((row) => row.rawKey).filter((key): key is string => Boolean(key)),
+    ...files.map((file) => file.r2Key),
+  ];
+  for (let at = 0; at < keys.length; at += R2_DELETE_LIMIT) {
+    await bucket.delete(keys.slice(at, at + R2_DELETE_LIMIT));
+  }
 }
 
 async function purgeObjects(

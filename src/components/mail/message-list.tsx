@@ -614,9 +614,12 @@ function SelectAllBox({ checkedCount, total }: { checkedCount: number; total: nu
   );
 }
 
+const EMPTY_TOAST = "mail-empty-trash";
+
 function EmptyTrashButton() {
   const emptyTrash = useMailStore((state) => state.emptyTrash);
   const [armed, setArmed] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!armed) return;
@@ -629,17 +632,24 @@ function EmptyTrashButton() {
       type="button"
       className={`btn shrink-0 !h-8 !px-3 text-[12px] ${armed ? "btn-danger" : "btn-ghost"}`}
       onBlur={() => setArmed(false)}
-      onClick={() => {
+      disabled={busy}
+      onClick={async () => {
         if (!armed) {
           setArmed(true);
           return;
         }
-        emptyTrash();
-        toast("Trash emptied");
         setArmed(false);
+        setBusy(true);
+        // Clearing the folder on the server takes as long as it takes; say so meanwhile.
+        toast.loading("Emptying trash…", { id: EMPTY_TOAST });
+        const ok = await emptyTrash();
+        setBusy(false);
+        // A refusal is already reported by the action listener, with the server's reason.
+        if (ok) toast.success("Trash emptied", { id: EMPTY_TOAST });
+        else toast.dismiss(EMPTY_TOAST);
       }}
     >
-      {armed ? "Confirm empty" : "Empty trash"}
+      {busy ? "Emptying…" : armed ? "Confirm empty" : "Empty trash"}
     </button>
   );
 }

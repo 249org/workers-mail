@@ -107,6 +107,26 @@ export async function pushImapChanges(
   }
 }
 
+/**
+ * Clears a whole folder on the server, whatever this app has indexed of it.
+ * Returns the number of messages the server removed.
+ */
+export async function purgeImapFolder(
+  mailbox: Mailbox,
+  env: CloudflareEnv,
+  db: Database,
+  folder: Folder,
+): Promise<number> {
+  if (mailbox.type !== "external_imap") return 0;
+  const credentials = await imapAuth(mailbox, env, db);
+  const session = await openWithRetry(credentials);
+  try {
+    return await session.purgeMailbox(remoteMailbox(folder));
+  } finally {
+    await session.close();
+  }
+}
+
 const RETRY_DELAY_MS = 700;
 
 async function openWithRetry(credentials: MailAuth): Promise<ImapMutator> {

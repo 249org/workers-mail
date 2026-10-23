@@ -161,3 +161,12 @@ export function parseCopyUid(response: { text: string; untagged: string[] }): Ma
   }
   return mapped;
 }
+
+/** The message count SELECT reports, or null when the server did not say. */
+export function parseExists(untagged: string[]): number | null {
+  for (const line of untagged) {
+    const match = /^\*\s+(\d+)\s+EXISTS\b/i.exec(line.trim());
+    if (match?.[1]) return Number(match[1]);
+  }
+  return null;
+}

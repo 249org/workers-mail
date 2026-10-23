@@ -8,6 +8,7 @@ import {
   inferHierarchyDelimiter,
   matchMailboxPath,
   parseCopyUid,
+  parseExists,
   parseListDelimiter,
   parseListMailbox,
   parseNamespacePersonal,
@@ -132,5 +133,21 @@ describe("matchMailboxPath", () => {
     expect(matchMailboxPath(["INBOX", "Projects"], "projects")).toBe("Projects");
     expect(matchMailboxPath(["INBOX", "INBOX.Receipts"], "Receipts")).toBe("INBOX.Receipts");
     expect(matchMailboxPath(["INBOX"], "Projects")).toBeNull();
+  });
+});
+
+describe("parseExists", () => {
+  it("reads the count SELECT reports", () => {
+    expect(parseExists(["* 602 EXISTS", "* 0 RECENT", "* OK [UIDNEXT 9413]"])).toBe(602);
+    expect(parseExists(["* 0 EXISTS"])).toBe(0);
+  });
+
+  it("is not fooled by a line that only mentions the word", () => {
+    expect(parseExists(["* OK [UIDVALIDITY 1] EXISTS is reported later"])).toBeNull();
+    expect(parseExists([])).toBeNull();
+  });
+
+  it("takes the first count, which is the selected mailbox's", () => {
+    expect(parseExists(["* 12 EXISTS", "* 99 EXISTS"])).toBe(12);
   });
 });

@@ -5,6 +5,7 @@ import { imapMailboxArg } from "./imap-mailbox-names";
 import {
   imapQuote,
   parseCopyUid,
+  parseExists,
   parseListAttributes,
   parseListDelimiter,
   parseListMailbox,
@@ -57,6 +58,13 @@ type ImapResponse = {
 /**
  * A tagged IMAP connection that can STORE/COPY/MOVE — edgeport's session is read-only.
  */
+/*
+ * A folder can hold more than one EXPUNGE will clear — Gmail caps what it removes per
+ * command — so the purge checks the count back and goes round again. Four rounds is a
+ * ceiling, not a target: the usual case finishes on the first.
+ */
+const PURGE_ROUNDS = 4;
+
 export class ImapMutator {
   #socket: CoreSocket;
   #timeoutMs: number;
@@ -84,6 +92,40 @@ export class ImapMutator {
     if (this.#selected === mailbox) return;
     await this.command(`SELECT ${imapMailboxArg(mailbox)}`);
     this.#selected = mailbox;
+  }
+
+  /** SELECTs a mailbox and reports how many messages it holds. */
+  async selectCount(mailbox: string): Promise<number> {
+    // Always re-issued: EXISTS is only reported by SELECT, and it is the answer wanted.
+    const result = await this.command(`SELECT ${imapMailboxArg(mailbox)}`);
+    this.#selected = mailbox;
+    return parseExists(result.untagged) ?? 0;
+  }
+
+  /**
+   * Empties a mailbox on the server and reports how many messages went.
+   *
+   * This addresses messages by sequence number rather than UID on purpose. Emptying the
+   * trash used to delete the UIDs this app happened to hold, which is whatever the sync
+   * had reached — a few dozen out of a folder of hundreds. Everything older stayed on the
+   * server and the next pass pulled another batch of it back into view. `1:n` is every
+   * message in the mailbox, indexed or not.
+   */
+  async purgeMailbox(mailbox: string): Promise<number> {
+    let removed = 0;
+    let exists = await this.selectCount(mailbox);
+
+    for (let round = 0; round < PURGE_ROUNDS && exists > 0; round += 1) {
+      await this.command(`STORE 1:${exists} +FLAGS.SILENT (\\Deleted)`);
+      await this.command("EXPUNGE");
+
+      const left = await this.selectCount(mailbox);
+      removed += Math.max(0, exists - left);
+      // A server that kept everything will keep it again; stop rather than spin.
+      if (left >= exists) break;
+      exists = left;
+    }
+    return removed;
   }
 
   async storeFlags(uids: number[], flags: string[], add: boolean): Promise<void> {
