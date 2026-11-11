@@ -21,8 +21,15 @@ export type BadgeBox = {
 /** Thickness of the gap cut around the badge so it reads against the mark beneath it. */
 export const BADGE_RING = 3;
 
-const BADGE_HEIGHT = 38;
-const BADGE_INSET = 2;
+const BADGE_HEIGHT = 44;
+const BADGE_INSET = 1;
+
+/*
+ * A tab gives the icon about sixteen pixels. A badge drawn over a full-size mark had
+ * roughly nine of them to say a number in, which is a red smudge and nothing more, so the
+ * mark gives up a little of the frame and sits down in the corner away from the count.
+ */
+const MARK_SCALE = 0.86;
 
 /**
  * Where the badge sits and how big it is, for a given label.
@@ -31,13 +38,17 @@ const BADGE_INSET = 2;
  * stands in for the rest — grows into a pill rather than shrinking the type, because at
  * the sixteen pixels a tab actually gives you, smaller type is just a smudge.
  */
+/** Roughly the advance width of bold digits, which is what every label here is made of. */
+export function labelWidth(label: string, fontPx: number): number {
+  return label.length * fontPx * 0.62;
+}
+
 export function badgeBox(label: string, size = ICON_PX): BadgeBox {
   const height = Math.round((BADGE_HEIGHT * size) / ICON_PX);
   const inset = Math.round((BADGE_INSET * size) / ICON_PX);
   const fontPx = label.length > 2 ? Math.round(height * 0.62) : Math.round(height * 0.78);
-  // Roughly the advance width of bold digits, which is what every label here is made of.
-  const text = label.length * fontPx * 0.62;
-  const width = Math.min(size - inset * 2, Math.max(height, Math.round(text + height * 0.45)));
+  const text = labelWidth(label, fontPx);
+  const width = Math.min(size - inset * 2, Math.max(height, Math.round(text + fontPx * 0.6)));
 
   return {
     x: size - inset - width,
@@ -103,7 +114,8 @@ export function drawBadgedIcon(
   if (!ctx) return null;
 
   ctx.clearRect(0, 0, size, size);
-  ctx.drawImage(base, 0, 0, size, size);
+  const mark = label ? Math.round(size * MARK_SCALE) : size;
+  ctx.drawImage(base, 0, size - mark, mark, mark);
 
   if (label) {
     const box = badgeBox(label, size);

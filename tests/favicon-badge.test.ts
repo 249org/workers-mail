@@ -1,44 +1,49 @@
 import { describe, expect, it } from "vitest";
-import { badgeBox, withExplicitSize, ICON_PX } from "@/lib/mail/favicon";
-import { badgeLabel, countsTowardsBadge, unreadBadgeTotal } from "@/lib/mail/unread";
+import { badgeBox, labelWidth, withExplicitSize, ICON_PX } from "@/lib/mail/favicon";
+import { badgeLabel, inboxUnread } from "@/lib/mail/unread";
 
 const folder = (role: string, unread: number) => ({ role, unread });
 
 describe("what the badge counts", () => {
-  it("adds up the folders where unread means unread", () => {
-    expect(
-      unreadBadgeTotal([folder("inbox", 3), folder("archive", 2), folder("custom", 1)]),
-    ).toBe(6);
+  it("reads the inbox, the same number the sidebar shows", () => {
+    expect(inboxUnread([folder("inbox", 3), folder("archive", 2)])).toBe(3);
   });
 
-  it("leaves out the folders whose number is a size, not a count", () => {
+  it("ignores the labels Gmail serves as folders", () => {
     /*
-     * The sidebar shows trash, drafts and junk as how much is sitting in them — fourteen
-     * in the trash reads as 14 there. Adding that to the tab would announce mail nobody
-     * is waiting on.
+     * All Mail and Important hold the same messages the inbox does. Totalling the folders
+     * counted one account's ninety unread three times over and put 99+ on the tab of a
+     * mailbox with nothing waiting in it at all.
      */
     expect(
-      unreadBadgeTotal([
-        folder("inbox", 2),
+      inboxUnread([
+        folder("inbox", 87),
+        folder("archive", 86),
+        folder("custom", 22),
+      ]),
+    ).toBe(87);
+  });
+
+  it("ignores the folders whose sidebar number is a size, not a count", () => {
+    // A trash holding a hundred read messages is not a hundred messages to read.
+    expect(
+      inboxUnread([
+        folder("inbox", 0),
         folder("trash", 119),
         folder("drafts", 4),
         folder("junk", 37),
         folder("sent", 9),
       ]),
-    ).toBe(2);
+    ).toBe(0);
   });
 
-  it("names the quiet roles the same way everywhere", () => {
-    expect(countsTowardsBadge("inbox")).toBe(true);
-    expect(countsTowardsBadge("archive")).toBe(true);
-    expect(countsTowardsBadge("custom")).toBe(true);
-    for (const role of ["trash", "drafts", "junk", "sent"]) {
-      expect(countsTowardsBadge(role)).toBe(false);
-    }
+  it("says nothing when there is no inbox yet", () => {
+    expect(inboxUnread([])).toBe(0);
+    expect(inboxUnread([folder("custom", 5)])).toBe(0);
   });
 
   it("ignores a negative, which no count should ever be", () => {
-    expect(unreadBadgeTotal([folder("inbox", -4), folder("archive", 1)])).toBe(1);
+    expect(inboxUnread([folder("inbox", -4)])).toBe(0);
   });
 });
 
@@ -67,13 +72,23 @@ describe("badgeBox", () => {
     expect(box.width).toBe(box.height);
   });
 
-  it("widens for a longer label instead of shrinking the digits", () => {
+  it("never lets the number spill out of its pill", () => {
+    /*
+     * The pill is sized from the label, and the label shrinks only once, for the three
+     * characters of `99+`. Getting either wrong clips a digit, which reads as a different
+     * number rather than as a mistake.
+     */
+    for (const label of ["1", "9", "12", "48", "99", "99+"]) {
+      const box = badgeBox(label);
+      expect(labelWidth(label, box.fontPx)).toBeLessThanOrEqual(box.width - 4);
+    }
+  });
+
+  it("grows wider for a second digit rather than shrinking the type", () => {
     // Sixteen pixels is all a tab gives; type that shrinks to fit stops being readable.
     const one = badgeBox("7");
-    const two = badgeBox("42");
-    const many = badgeBox("99+");
+    const two = badgeBox("48");
     expect(two.width).toBeGreaterThan(one.width);
-    expect(many.width).toBeGreaterThan(two.width);
     expect(two.fontPx).toBe(one.fontPx);
   });
 
@@ -90,6 +105,12 @@ describe("badgeBox", () => {
     const box = badgeBox("3");
     expect(box.x + box.width / 2).toBeGreaterThan(ICON_PX / 2);
     expect(box.y + box.height / 2).toBeLessThan(ICON_PX / 2);
+  });
+
+  it("is big enough to be read at the size a tab gives it", () => {
+    // Drawn smaller than this, a digit scaled down to sixteen pixels is a smudge.
+    const box = badgeBox("3");
+    expect(box.height / ICON_PX).toBeGreaterThan(0.6);
   });
 
   it("scales with the canvas it is drawn on", () => {

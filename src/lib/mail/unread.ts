@@ -1,33 +1,20 @@
 /*
- * What counts as mail waiting to be read, for the badge on the tab icon.
+ * What the badge on the tab icon counts: unread mail in the inbox of the mailbox on
+ * screen. The same number the sidebar puts next to Inbox, so the tab can always be
+ * checked against the window.
  *
- * Not every unread row is news. Drafts are unread by definition, sent mail is nobody's
- * to read, and trash and junk are where things go precisely so they stop asking for
- * attention — the sidebar already shows those as a size rather than a count of unread.
+ * Totalling every folder was wrong twice over. Gmail serves its labels as folders, and
+ * All Mail and Important hold the same messages the inbox does — one account's ninety
+ * unread were counted three times. And trash, drafts and junk show a size rather than a
+ * count of unread, so a trash holding a hundred read messages announced a hundred.
  */
-export const SILENT_ROLES = ["trash", "drafts", "junk", "sent"] as const;
-
-const silent: ReadonlySet<string> = new Set(SILENT_ROLES);
 
 /** Highest number drawn in full; past it the badge says there are more. */
 export const BADGE_CEILING = 99;
 
-export function countsTowardsBadge(role: string): boolean {
-  return !silent.has(role);
-}
-
-/**
- * Totals the folders of one mailbox as the sidebar holds them.
- *
- * The sidebar's number is a count of unread for most folders and a count of everything
- * for the few where unread means nothing, so the roles left out here are the same ones
- * whose number would otherwise be a size.
- */
-export function unreadBadgeTotal(folders: Array<{ role: string; unread: number }>): number {
-  return folders.reduce(
-    (total, folder) => (countsTowardsBadge(folder.role) ? total + Math.max(0, folder.unread) : total),
-    0,
-  );
+export function inboxUnread(folders: Array<{ role: string; unread: number }>): number {
+  const inbox = folders.find((folder) => folder.role === "inbox");
+  return Math.max(0, inbox?.unread ?? 0);
 }
 
 /** What the badge reads, or an empty string when there is nothing to show. */
