@@ -1,7 +1,21 @@
-import { and, desc, eq, gte, inArray, lt, lte, or, sql, type AnyColumn, type SQL } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  gte,
+  inArray,
+  lt,
+  lte,
+  notInArray,
+  or,
+  sql,
+  type AnyColumn,
+  type SQL,
+} from "drizzle-orm";
 import type { Database } from "@/lib/db";
-import { attachments, folders, messages, type Addr } from "@/lib/db/schema";
+import { attachments, folders, mailboxes, messages, type Addr } from "@/lib/db/schema";
 import { parseSearch } from "./search";
+import { SILENT_ROLES } from "./unread";
 import { repairOrphanedEncoding } from "./repair-encoding";
 import { decodeEntities } from "./text";
 
@@ -312,4 +326,30 @@ function toSummary(row: typeof messages.$inferSelect, threadCount: number): Mess
     folderId: row.folderId,
     threadCount,
   };
+}
+
+/**
+ * Unread waiting in each of an owner's mailboxes, keyed by mailbox id.
+ *
+ * One query rather than one per mailbox: the tab badge counts every account, and the
+ * page that asks for it has no reason to walk them.
+ */
+export async function unreadByMailbox(
+  db: Database,
+  ownerId: string,
+): Promise<Map<string, number>> {
+  const rows = await db
+    .select({ mailboxId: messages.mailboxId, unread: sql<number>`count(*)` })
+    .from(messages)
+    .innerJoin(folders, eq(folders.id, messages.folderId))
+    .innerJoin(mailboxes, eq(mailboxes.id, messages.mailboxId))
+    .where(
+      and(
+        eq(mailboxes.ownerId, ownerId),
+        eq(messages.seen, false),
+        notInArray(folders.role, [...SILENT_ROLES]),
+      ),
+    )
+    .groupBy(messages.mailboxId);
+  return new Map(rows.map((row) => [row.mailboxId, Number(row.unread)]));
 }

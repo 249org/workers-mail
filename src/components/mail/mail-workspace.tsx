@@ -24,6 +24,7 @@ import { formatComboHint } from "@/lib/keyboard/shortcuts";
 import type { PaletteCommand } from "@/components/palette/command-palette";
 import { useIsMac } from "./key-caps";
 import { ComposeDialog, type ComposeDraft } from "./compose-dialog";
+import { FaviconBadge } from "./favicon-badge";
 import { FolderSidebar } from "./folder-sidebar";
 import { MessageList } from "./message-list";
 import { MessageView } from "./message-view";
@@ -537,6 +538,8 @@ export function MailWorkspace({
       data-reading={selectedId ? "" : undefined}
       data-folders-open={foldersOpen ? "" : undefined}
     >
+      <FaviconBadge />
+
       {foldersOpen ? (
         <button
           type="button"
