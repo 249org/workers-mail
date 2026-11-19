@@ -8,7 +8,9 @@ import { useMailStore } from "@/lib/mail/view-store";
 import { usePrivacyStore } from "@/lib/privacy-store";
 import { formatBytes, formatFullDate } from "@/lib/format";
 import { toast } from "sonner";
+import { findVerificationCode } from "@/lib/mail/verification-code";
 import { ChromeButton } from "./chrome-button";
+import { CodeCard } from "./code-card";
 import { useContextMenu } from "@/components/ui/context-menu";
 import { PersonAvatar } from "../person-avatar";
 
@@ -71,6 +73,8 @@ export function MessageView({ messageId, onReply, listHidden, onToggleList }: Pr
 
   const { detail, thread, body } = loaded;
   const files = listedAttachments(detail.attachments, body?.html ?? "");
+  // Read from the text part, where a code stands on its own line rather than inside markup.
+  const oneTimeCode = body ? findVerificationCode(detail.subject ?? "", body.text) : null;
   const sentAt = new Date(detail.sentAt * 1000);
 
   const readerMenuItems = [
@@ -253,6 +257,8 @@ export function MessageView({ messageId, onReply, listHidden, onToggleList }: Pr
             </div>
           </div>
         </header>
+
+        {oneTimeCode && <CodeCard code={oneTimeCode.code} />}
 
         {body ? (
           <div

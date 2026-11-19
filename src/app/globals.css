@@ -767,6 +767,38 @@ section:has(> header .pane-toolbar[data-wide]) .message-sheet {
   padding-bottom: 4.5rem;
 }
 
+/* The one-time code, lifted out of the letter so it is never retyped. */
+.code-card {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  background: var(--card);
+  padding: 0.875rem 1rem;
+}
+
+.code-card-value {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 26px;
+  font-weight: 500;
+  /* Wide enough to read a digit at a time, which is how a code is checked. */
+  letter-spacing: 0.18em;
+  line-height: 1.1;
+  color: var(--foreground);
+  cursor: pointer;
+  text-align: left;
+  overflow-wrap: anywhere;
+  transition: color var(--dur-press) ease;
+}
+
+.code-card-value:hover {
+  color: var(--primary);
+}
+
 .message-letterhead {
   padding-bottom: 1.75rem;
   margin-bottom: 1.75rem;
