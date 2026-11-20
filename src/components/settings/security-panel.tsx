@@ -157,7 +157,7 @@ export function SecurityPanel() {
               </button>
             </div>
           </Field>
-          <Field label="Photo" htmlFor="account-photo" hint="Shown in the header and at the top of mail you send.">
+          <Field label="Photo" htmlFor="account-photo" hint="Shown at the foot of the sidebar and at the top of mail you send.">
             <div className="flex items-center gap-3">
               <PersonAvatar
                 name={name.trim() || account?.email || "You"}

@@ -20,7 +20,7 @@ type Step = {
 const STEPS: Step[] = [
   {
     title: "A keyboard-first mailbox",
-    body: "Folders, the list, and the message sit in three hairline panes. The work happens on the keys, not the chrome.",
+    body: "Your mailboxes down the rail, their folders beside it, and the mail in its own panel. The work happens on the keys, not the chrome.",
     figure: "mark",
     keys: [],
   },
@@ -94,10 +94,6 @@ export function OnboardingTour({ open, onClose }: { open: boolean; onClose: () =
         data-open={mounted}
         style={{ boxShadow: "var(--shadow-pop)" }}
       >
-        <span className="reg reg-tl" />
-        <span className="reg reg-tr" />
-        <span className="reg reg-bl" />
-        <span className="reg reg-br" />
 
         <div className="px-6 pt-6">
           <TourFigure figure={current.figure} isMac={isMac} />

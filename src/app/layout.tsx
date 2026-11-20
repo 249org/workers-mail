@@ -1,10 +1,12 @@
 import { cookies } from "next/headers";
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Newsreader } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import {
-  APPEARANCE_BOOTSTRAP,
   APPEARANCE_COOKIE,
+  THEME_STYLE_ID,
   parseAppearance,
+  schemeOf,
+  themeCss,
 } from "@/lib/appearance";
 import { JsonLd } from "@/components/json-ld";
 import { appOrigin, siteJsonLd, siteMetadata } from "@/lib/seo";
@@ -21,12 +23,6 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
 });
 
-const newsreader = Newsreader({
-  subsets: ["latin"],
-  variable: "--font-newsreader",
-  style: ["normal", "italic"],
-});
-
 export async function generateMetadata(): Promise<Metadata> {
   return siteMetadata(await appOrigin());
 }
@@ -36,36 +32,29 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#F9F9F8" },
-    { media: "(prefers-color-scheme: dark)", color: "#17171A" },
+    { media: "(prefers-color-scheme: light)", color: "#f6f8fa" },
+    { media: "(prefers-color-scheme: dark)", color: "#010409" },
   ],
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const prefs = parseAppearance((await cookies()).get(APPEARANCE_COOKIE)?.value);
+  const appearance = parseAppearance((await cookies()).get(APPEARANCE_COOKIE)?.value);
   const origin = await appOrigin();
 
   return (
     <html
       lang="en"
-      data-palette={prefs.palette}
-      data-scheme={prefs.scheme}
+      data-scheme={schemeOf(appearance.theme)}
+      data-nav={appearance.nav}
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} ${newsreader.variable}`}
+      className={`${geistSans.variable} ${geistMono.variable}`}
     >
       <head>
-        <script dangerouslySetInnerHTML={{ __html: APPEARANCE_BOOTSTRAP }} />
+        {/* Rendered from the cookie, so the first paint is already in the chosen colours. */}
+        <style id={THEME_STYLE_ID} dangerouslySetInnerHTML={{ __html: themeCss(appearance.theme) }} />
         <JsonLd data={siteJsonLd(origin)} />
       </head>
       <body className="font-sans antialiased touch-manipulation">
-        {/*
-          THESIS: Mail is a drawing — hairline regions vs pill controls — not a stack of floating cards.
-          OWN-WORLD: Meridian. Warm off-white field #F9F9F8, cool slate-blue primary, terracotta highlight. Geist Sans 13px, Newsreader titles, Geist Mono eyebrows. Radius 4px on panels; rounded-full only on buttons.
-          STORY: The operator reads and sends mail on their own server; chrome recedes into paper.
-          FIRST VIEWPORT: Ruled header, three hairline panes, Compose as a pill. Login is a framed sheet on the field.
-          FORM: Brief-pinned Meridian, Operate mode. Seed: operator-pinned.
-          FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md
-        */}
         <Providers>{children}</Providers>
       </body>
     </html>

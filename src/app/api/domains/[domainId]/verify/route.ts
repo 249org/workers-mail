@@ -43,7 +43,7 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
         .update(domains)
         .set({ status: "error", lastCheckedAt: Math.floor(Date.now() / 1000) })
         .where(eq(domains.id, domain.id));
-      throw new ApiError(404, `${domain.name} is not a zone on this Cloudflare account.`);
+      throw new ApiError(404, `${domain.name} is not a zone on the DNS account this workspace uses.`);
     }
 
     const status = await api.emailRoutingStatus(zone.id);

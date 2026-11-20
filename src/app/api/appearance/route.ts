@@ -1,12 +1,6 @@
 import { ApiError, authenticate, errorResponse, readJson } from "@/lib/auth/api";
 import { env as cloudflareEnv } from "@/lib/env";
-import {
-  appearanceCookie,
-  isPaletteId,
-  isSchemeId,
-  parseAppearance,
-  type AppearancePrefs,
-} from "@/lib/appearance";
+import { appearanceCookie, parseAppearance, serializeAppearance } from "@/lib/appearance";
 
 function appearanceKey(userId: string): string {
   return `appearance:${userId}`;
@@ -16,7 +10,8 @@ export async function GET(request: Request): Promise<Response> {
   try {
     const { user, env } = await authenticate(request, cloudflareEnv());
     const stored = await env.SESSION_STORE.get(appearanceKey(user.id));
-    return Response.json({ prefs: stored ? parseAppearance(stored) : null });
+    // Re-serialised so a value saved by an older build comes back in the current shape.
+    return Response.json({ value: stored ? serializeAppearance(parseAppearance(stored)) : null });
   } catch (error) {
     return errorResponse(error);
   }
@@ -25,21 +20,21 @@ export async function GET(request: Request): Promise<Response> {
 export async function PUT(request: Request): Promise<Response> {
   try {
     const { user, env } = await authenticate(request, cloudflareEnv());
-    const body = await readJson<Partial<AppearancePrefs>>(request);
-    if (!body.palette || !isPaletteId(body.palette)) {
-      throw new ApiError(400, "Choose a colour template.");
-    }
-    if (!body.scheme || !isSchemeId(body.scheme)) {
-      throw new ApiError(400, "Choose light, dark, or system.");
+    const body = await readJson<{ value?: string }>(request);
+    if (typeof body.value !== "string" || body.value.length > 200) {
+      throw new ApiError(400, "Choose a theme.");
     }
 
-    const prefs: AppearancePrefs = { palette: body.palette, scheme: body.scheme };
-    await env.SESSION_STORE.put(appearanceKey(user.id), JSON.stringify(prefs));
+    // Parsing is the validation: whatever comes back is a known preset or checked hex.
+    const appearance = parseAppearance(body.value);
+    const value = serializeAppearance(appearance);
+    await env.SESSION_STORE.put(appearanceKey(user.id), value);
 
     const secure = new URL(request.url).protocol === "https:";
-    return Response.json(prefs, {
-      headers: { "set-cookie": appearanceCookie(prefs, secure) },
-    });
+    return Response.json(
+      { value },
+      { headers: { "set-cookie": appearanceCookie(appearance, secure) } },
+    );
   } catch (error) {
     return errorResponse(error);
   }

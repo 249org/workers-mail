@@ -35,6 +35,7 @@ export default async function MailboxLayout({ children, params }: LayoutProps) {
       <MailWorkspace
         mailbox={publicMailbox(mailbox)}
         mailboxes={all.map(publicMailbox)}
+        user={{ email: user.email, name: user.name, avatarUpdatedAt: user.avatarUpdatedAt }}
         folders={folders.map((entry) => ({
           id: entry.id,
           name: entry.name,

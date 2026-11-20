@@ -2,6 +2,13 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import Link from "next/link";
+import type { PublicMailbox } from "@/lib/mail/mailboxes";
+import { usePaletteStore } from "@/lib/palette/store";
+import { Frame, FrameSidebar } from "@/components/shell/frame";
+import { Rail, type RailUser } from "@/components/shell/rail";
+import { CommandCenter } from "@/components/palette/command-center";
+import { MailIcon } from "@/components/mail/icons";
 import { SETTINGS_PAGES, SettingsNav, type SettingsIndex } from "./settings-nav";
 import { PageHeader, SettingsBody } from "./page-header";
 import { useSettingsViewStore } from "./settings-view-store";
@@ -13,7 +20,7 @@ const SETTINGS_COPY: Record<string, { title: string; lede: string }> = {
   },
   "/settings/appearance": {
     title: "Appearance",
-    lede: "Pick a colour template and whether the workspace follows the OS, or stays light or dark.",
+    lede: "A theme is four colours. Pick one, follow the device, or mix your own.",
   },
   "/settings/shortcuts": {
     title: "Shortcuts",
@@ -53,14 +60,28 @@ const SETTINGS_COPY: Record<string, { title: string; lede: string }> = {
   },
 };
 
+/** The page's name for the breadcrumb, whichever page is showing or on its way. */
+function titleFor(href: string): string {
+  return (
+    SETTINGS_COPY[href]?.title ??
+    SETTINGS_PAGES.find((page) => page.href !== "/settings" && href.startsWith(page.href))?.label ??
+    "Overview"
+  );
+}
+
 export function SettingsRuntime({
   index,
+  mailboxes,
+  user,
   children,
 }: {
   index: SettingsIndex;
+  mailboxes: PublicMailbox[];
+  user: RailUser;
   children: ReactNode;
 }) {
   const pathname = usePathname();
+  const [navOpen, setNavOpen] = useState(false);
   const router = useRouter();
   const prepared = useSettingsViewStore((state) => state.view);
   const view = prepared ?? pathname;
@@ -80,27 +101,77 @@ export function SettingsRuntime({
   }, [router]);
 
   const waiting = !visited.includes(view);
+  const closeNav = () => setNavOpen(false);
 
   return (
     <div
-      className="settings-shell"
+      className="h-full"
       onClickCapture={(event) => {
         const anchor = (event.target as HTMLElement).closest("a");
         if (!anchor || (anchor.target && anchor.target !== "_self")) return;
         const href = anchor.getAttribute("href");
         if (!href?.startsWith("/settings")) return;
         useSettingsViewStore.getState().prepare(href);
+        closeNav();
       }}
     >
-      <SettingsNav index={index} view={view} />
-      <main className="settings-spread">
-        {visited.map((href) => (
-          <SettingsSlot key={href} active={href === view} live={href === pathname}>
-            {href === pathname ? children : null}
-          </SettingsSlot>
-        ))}
-        {waiting ? <SettingsFallback href={view} /> : null}
-      </main>
+      <Frame
+        navOpen={navOpen}
+        onCloseNav={closeNav}
+        nav={
+          <>
+            <Rail
+              mailboxes={mailboxes}
+              activeMailboxId={null}
+              settingsActive
+              user={user}
+              onSearch={() => {
+                closeNav();
+                usePaletteStore.getState().openPalette();
+              }}
+              onNavigate={closeNav}
+            />
+            <FrameSidebar label="Settings">
+              <div className="sidebar-head">
+                <p className="sidebar-title">Settings</p>
+              </div>
+              <SettingsNav index={index} view={view} />
+            </FrameSidebar>
+          </>
+        }
+      >
+        <header className="frame-header">
+          <button
+            type="button"
+            className="btn btn-quiet btn-icon frame-menu"
+            aria-label="Open navigation"
+            onClick={() => setNavOpen(true)}
+          >
+            <MailIcon name="sidebar" />
+          </button>
+          <nav aria-label="Breadcrumb" className="frame-crumbs">
+            <Link href="/settings">Settings</Link>
+            {view !== "/settings" ? (
+              <>
+                <span aria-hidden>/</span>
+                <span className="frame-crumb-current">{titleFor(view)}</span>
+              </>
+            ) : null}
+          </nav>
+          <Link href="/mail" className="btn btn-ghost ml-auto">
+            Back to mail
+          </Link>
+        </header>
+        <main className="settings-spread">
+          {visited.map((href) => (
+            <SettingsSlot key={href} active={href === view} live={href === pathname}>
+              {href === pathname ? children : null}
+            </SettingsSlot>
+          ))}
+          {waiting ? <SettingsFallback href={view} /> : null}
+        </main>
+      </Frame>
+      <CommandCenter mailboxes={mailboxes} />
     </div>
   );
 }

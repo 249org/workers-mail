@@ -26,6 +26,9 @@ import { useIsMac } from "./key-caps";
 import { ComposeDialog, type ComposeDraft } from "./compose-dialog";
 import { FaviconBadge } from "./favicon-badge";
 import { FolderSidebar } from "./folder-sidebar";
+import { Frame } from "@/components/shell/frame";
+import { Rail, type RailUser } from "@/components/shell/rail";
+import { CommandCenter } from "@/components/palette/command-center";
 import { MessageList } from "./message-list";
 import { MessageView } from "./message-view";
 import { MailIcon } from "./icons";
@@ -35,6 +38,7 @@ import { NARROW_MAIL, useMediaQuery } from "@/lib/use-media-query";
 type Props = {
   mailbox: PublicMailbox;
   mailboxes: PublicMailbox[];
+  user: RailUser;
   folders: FolderSummary[];
   initialLastSyncedAt: number | null;
   initialSyncError: string | null;
@@ -63,6 +67,7 @@ function undoLastAction(): boolean {
 export function MailWorkspace({
   mailbox,
   mailboxes,
+  user,
   folders,
   initialLastSyncedAt,
   initialSyncError,
@@ -533,42 +538,43 @@ export function MailWorkspace({
   }, [mailbox, commands]);
 
   return (
+    <Frame
+      navOpen={foldersOpen}
+      onCloseNav={closeFolders}
+      nav={
+        <>
+          <Rail
+            mailboxes={mailboxes}
+            activeMailboxId={mailbox.id}
+            user={user}
+            onSearch={() => {
+              setFoldersOpen(false);
+              usePaletteStore.getState().openPalette();
+            }}
+            onCompose={startCompose}
+            onNavigate={closeFolders}
+          />
+          {narrow || !layout.sidebarCollapsed ? (
+            <FolderSidebar
+              mailbox={mailbox}
+              mailboxes={mailboxes}
+              streamState={streamState}
+              onSync={() => void syncNow()}
+              onNavigate={() => {
+                useMailStore.getState().select(null);
+                closeFolders();
+              }}
+            />
+          ) : null}
+        </>
+      }
+    >
     <div
       className="mail-workspace flex h-full min-w-0"
       data-reading={selectedId ? "" : undefined}
-      data-folders-open={foldersOpen ? "" : undefined}
     >
       <FaviconBadge />
-
-      {foldersOpen ? (
-        <button
-          type="button"
-          className="mail-folders-scrim"
-          aria-label="Close folders"
-          onClick={closeFolders}
-        />
-      ) : null}
-
-      <FolderSidebar
-        mailbox={mailbox}
-        mailboxes={mailboxes}
-        streamState={streamState}
-        collapsed={narrow ? false : layout.sidebarCollapsed}
-        onCompose={startCompose}
-        onSync={() => void syncNow()}
-        onOpenPalette={() => {
-          setFoldersOpen(false);
-          usePaletteStore.getState().openPalette();
-        }}
-        onNavigate={() => {
-          useMailStore.getState().select(null);
-          closeFolders();
-        }}
-        onExpand={() => {
-          if (narrow) setFoldersOpen(true);
-          else if (layout.sidebarCollapsed) toggleSidebar();
-        }}
-      />
+      <CommandCenter mailboxes={mailboxes} />
 
       <MessageList
         hidden={layout.listHidden && Boolean(selectedId)}
@@ -589,7 +595,7 @@ export function MailWorkspace({
           onToggleList={leaveReader}
         />
       ) : (
-        <section className="mail-reader hidden flex-1 flex-col items-center justify-center gap-3 bg-card px-8 text-center md:flex">
+        <section className="mail-reader hidden flex-1 flex-col items-center justify-center gap-3 px-8 text-center md:flex">
           <span className="icon-well" aria-hidden>
             <MailIcon name="inbox" />
           </span>
@@ -614,5 +620,6 @@ export function MailWorkspace({
         />
       )}
     </div>
+    </Frame>
   );
 }

@@ -11,7 +11,7 @@ export default async function AppearancePage() {
   return (
     <>
       <PageHeader title="Appearance">
-        Pick a colour template and whether the workspace follows the OS, or stays light or dark.
+        A theme is four colours. Pick one, follow the device, or mix your own.
       </PageHeader>
       <SettingsBody>
         <AppearanceForm />

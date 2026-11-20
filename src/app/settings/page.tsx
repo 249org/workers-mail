@@ -104,7 +104,7 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
   return (
     <div>
       <p className="label mb-1">{label}</p>
-      <p className="font-serif text-[30px] leading-none tracking-tight">{value}</p>
+      <p className="num text-[26px] font-semibold leading-none tracking-tight">{value}</p>
       {hint ? <p className="mt-1.5 text-[13px] text-muted-foreground">{hint}</p> : null}
     </div>
   );

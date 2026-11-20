@@ -4,24 +4,47 @@ import { appearanceCommands, settingsCommands } from "@/lib/palette/catalog";
 import { matchesCommand, type PaletteCommand } from "@/components/palette/command-palette";
 
 describe("palette catalog", () => {
-  it("exposes light, dark, system, and every colour template", () => {
+  it("exposes the mode toggle, system, every theme and both layouts", () => {
     const commands = appearanceCommands(DEFAULT_APPEARANCE, () => undefined);
     const ids = commands.map((command) => command.id);
-    expect(ids).toContain("scheme-light");
-    expect(ids).toContain("scheme-dark");
+    expect(ids).toContain("scheme-toggle");
     expect(ids).toContain("scheme-system");
-    expect(ids).toContain("palette-meridian");
-    expect(ids).toContain("palette-dusk");
+    expect(ids).toContain("theme-github-dark");
+    expect(ids).toContain("theme-coolify");
+    expect(ids).toContain("theme-paper");
+    expect(ids).toContain("nav-floating");
+    expect(ids).toContain("nav-default");
   });
 
-  it("marks the active scheme and palette", () => {
+  it("marks the active theme and layout", () => {
     const commands = appearanceCommands(
-      { palette: "ember", scheme: "dark" },
+      { theme: { kind: "preset", id: "ember" }, nav: "default" },
       () => undefined,
     );
-    expect(commands.find((command) => command.id === "scheme-dark")?.suffix).toBe("On");
-    expect(commands.find((command) => command.id === "palette-ember")?.suffix).toBe("On");
-    expect(commands.find((command) => command.id === "scheme-light")?.suffix).toBeUndefined();
+    expect(commands.find((command) => command.id === "theme-ember")?.suffix).toBe("On");
+    expect(commands.find((command) => command.id === "nav-default")?.suffix).toBe("On");
+    expect(commands.find((command) => command.id === "theme-nord")?.suffix).toBeUndefined();
+    expect(commands.find((command) => command.id === "scheme-system")?.suffix).toBeUndefined();
+  });
+
+  it("toggles a dark theme to the light one and back", () => {
+    let chosen: unknown = null;
+    const fromDark = appearanceCommands(
+      { theme: { kind: "preset", id: "dracula" }, nav: "floating" },
+      (next) => { chosen = next.theme; },
+    );
+    expect(fromDark.find((command) => command.id === "scheme-toggle")?.label).toBe(
+      "Switch to light mode",
+    );
+    fromDark.find((command) => command.id === "scheme-toggle")?.run();
+    expect(chosen).toEqual({ kind: "preset", id: "github-light" });
+
+    const fromLight = appearanceCommands(
+      { theme: { kind: "preset", id: "paper" }, nav: "floating" },
+      (next) => { chosen = next.theme; },
+    );
+    fromLight.find((command) => command.id === "scheme-toggle")?.run();
+    expect(chosen).toEqual({ kind: "preset", id: "github-dark" });
   });
 
   it("covers every settings page", () => {

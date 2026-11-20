@@ -4,50 +4,65 @@ import { create } from "zustand";
 import {
   applyAppearance,
   DEFAULT_APPEARANCE,
+  parseAppearance,
   persistAppearanceLocal,
-  readStoredAppearance,
-  type AppearancePrefs,
+  sameTheme,
+  serializeAppearance,
+  APPEARANCE_COOKIE,
+  type Appearance,
 } from "@/lib/appearance";
 
 type State = {
-  prefs: AppearancePrefs;
+  prefs: Appearance;
   ready: boolean;
   hydrate: () => Promise<void>;
-  setPrefs: (prefs: AppearancePrefs) => void;
+  setPrefs: (prefs: Appearance) => void;
 };
 
 let inflight: Promise<void> | null = null;
+
+function fromCookie(): Appearance {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${APPEARANCE_COOKIE}=([^;]*)`));
+  return parseAppearance(match?.[1]);
+}
+
+function save(prefs: Appearance): void {
+  void fetch("/api/appearance", {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ value: serializeAppearance(prefs) }),
+  });
+}
 
 export const useAppearanceStore = create<State>((set, get) => ({
   prefs: DEFAULT_APPEARANCE,
   ready: false,
 
+  /*
+   * The cookie is what this browser painted with. The account's saved choice wins over
+   * it, so picking a theme on one machine carries to the next one signed in.
+   */
   hydrate: async () => {
     if (inflight) return inflight;
     inflight = (async () => {
-      const local = readStoredAppearance();
-      applyAppearance(local);
+      const local = fromCookie();
       set({ prefs: local });
 
       try {
         const response = await fetch("/api/appearance");
         if (response.ok) {
-          const payload = (await response.json()) as { prefs?: AppearancePrefs | null };
-          if (payload.prefs) {
-            applyAppearance(payload.prefs);
-            persistAppearanceLocal(payload.prefs);
-            set({ prefs: payload.prefs, ready: true });
+          const payload = (await response.json()) as { value?: string | null };
+          if (payload.value) {
+            const saved = parseAppearance(payload.value);
+            applyAppearance(saved);
+            persistAppearanceLocal(saved);
+            set({ prefs: saved });
             return;
           }
         }
-        persistAppearanceLocal(local);
-        void fetch("/api/appearance", {
-          method: "PUT",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(local),
-        });
+        save(local);
       } catch {
-        // Offline or unauthenticated; local prefs still apply.
+        // Offline or signed out; what the cookie says still applies.
       } finally {
         set({ ready: true });
       }
@@ -56,14 +71,11 @@ export const useAppearanceStore = create<State>((set, get) => ({
   },
 
   setPrefs: (prefs) => {
-    if (get().prefs.palette === prefs.palette && get().prefs.scheme === prefs.scheme) return;
+    const current = get().prefs;
+    if (sameTheme(current.theme, prefs.theme) && current.nav === prefs.nav) return;
     applyAppearance(prefs);
     persistAppearanceLocal(prefs);
     set({ prefs });
-    void fetch("/api/appearance", {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(prefs),
-    });
+    save(prefs);
   },
 }));

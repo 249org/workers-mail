@@ -310,7 +310,7 @@ function Group({ heading, children }: { heading: string; children: React.ReactNo
   return (
     <Command.Group
       heading={heading}
-      className="mb-1 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:tracking-[0.15em] [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:uppercase"
+      className="mb-1 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[10.5px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:tracking-[0.06em] [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:uppercase"
     >
       {children}
     </Command.Group>
@@ -330,7 +330,7 @@ function Item({
     <Command.Item
       value={value}
       onSelect={onSelect}
-      className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-[13px] data-[selected=true]:bg-accent-subtle data-[selected=true]:text-primary"
+      className="flex min-h-8 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-[13.5px] data-[selected=true]:bg-accent"
     >
       {children}
     </Command.Item>

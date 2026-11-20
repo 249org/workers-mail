@@ -41,7 +41,10 @@ export type IconName =
   | "reply"
   | "replyAll"
   | "forward"
-  | "plus";
+  | "plus"
+  | "settings"
+  | "chevron"
+  | "sidebarOpen";
 
 const PATHS: Record<IconName, ReactNode> = {
   inbox: (
@@ -103,6 +106,19 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M10 5v14" />
     </>
   ),
+  sidebarOpen: (
+    <>
+      <rect x="4" y="5" width="16" height="14" rx="1" />
+      <path d="M10 5v14M14 10l2 2-2 2" />
+    </>
+  ),
+  settings: (
+    <>
+      <circle cx="12" cy="12" r="2.8" />
+      <path d="M12 3.5v2.2M12 18.3v2.2M20.5 12h-2.2M5.7 12H3.5M18 6l-1.6 1.6M7.6 16.4 6 18M18 18l-1.6-1.6M7.6 7.6 6 6" />
+    </>
+  ),
+  chevron: <path d="m7 10 5 5 5-5" />,
   expand: (
     <>
       <path d="M9 5H5v4" />
@@ -277,11 +293,13 @@ export function MailIcon({
   size = 16,
   filled = false,
   style,
+  className,
 }: {
   name: IconName;
   size?: number;
   filled?: boolean;
   style?: React.CSSProperties;
+  className?: string;
 }) {
   return (
     <svg
@@ -294,7 +312,7 @@ export function MailIcon({
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden
-      className="shrink-0"
+      className={className ? `shrink-0 ${className}` : "shrink-0"}
       style={style}
     >
       {PATHS[name]}

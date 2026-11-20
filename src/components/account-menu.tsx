@@ -1,42 +1,30 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { PublicMailbox } from "@/lib/mail/mailboxes";
 import { avatarSrc } from "@/lib/mail/profile-photo";
 import { PersonAvatar } from "./person-avatar";
+import { useDismiss } from "./ui/use-dismiss";
 
 type Props = {
   email: string;
   name: string | null;
   mailboxes: PublicMailbox[];
   avatarUpdatedAt?: number | null;
+  /** On the rail the menu opens beside the button and upwards, away from the screen edge. */
+  placement?: "header" | "rail";
 };
 
-export function AccountMenu({ email, name, mailboxes, avatarUpdatedAt }: Props) {
+export function AccountMenu({ email, name, mailboxes, avatarUpdatedAt, placement = "header" }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const menuId = useId();
 
-  useEffect(() => {
-    if (!open) return;
-
-    function onPointer(event: PointerEvent) {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
-    }
-    function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("pointerdown", onPointer);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("pointerdown", onPointer);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
+  useDismiss(open, root, useCallback(() => setOpen(false), []));
 
   async function signOut() {
     setSigningOut(true);
@@ -68,9 +56,7 @@ export function AccountMenu({ email, name, mailboxes, avatarUpdatedAt }: Props) 
           id={menuId}
           role="menu"
           className="account-menu"
-          style={{
-            boxShadow: "var(--shadow-pop)",
-          }}
+          data-placement={placement}
         >
           <div className="border-b border-border px-3 py-2.5">
             <p className="truncate text-[13px] font-medium">{name?.trim() || email}</p>

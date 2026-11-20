@@ -3,18 +3,12 @@ import { and, count, eq, isNull } from "drizzle-orm";
 import { requireUser } from "@/lib/auth/server";
 import { listMailboxes, publicMailbox } from "@/lib/mail/mailboxes";
 import { apiKeys, contacts, domains, users } from "@/lib/db/schema";
-import { AppHeader } from "@/components/app-header";
 import { type SettingsIndex } from "@/components/settings/settings-nav";
 import { SettingsRuntime } from "@/components/settings/settings-runtime";
-import {
-  APPEARANCE_COOKIE,
-  PALETTES,
-  SCHEMES,
-  parseAppearance,
-} from "@/lib/appearance";
+import { APPEARANCE_COOKIE, describeAppearance, parseAppearance } from "@/lib/appearance";
 import { parsePrivacy } from "@/lib/privacy";
 import { parseSignature } from "@/lib/signature";
-import { Toaster } from "sonner";
+import { AppToaster } from "@/components/ui/app-toaster";
 import { privateMetadata } from "@/lib/seo";
 import type { Metadata } from "next";
 
@@ -40,9 +34,6 @@ export default async function SettingsLayout({ children }: { children: React.Rea
     cloudflare.SESSION_STORE.get(`signature:${user.id}`),
   ]);
 
-  const palette = PALETTES.find((item) => item.id === appearance.palette)?.name ?? "Meridian";
-  const scheme = SCHEMES.find((item) => item.id === appearance.scheme)?.name ?? "System";
-
   const privacy = parsePrivacy(accountRows[0]?.privacyPrefs);
   let signatureOn = false;
   let signatureCustom = 0;
@@ -59,7 +50,7 @@ export default async function SettingsLayout({ children }: { children: React.Rea
   }
 
   const index: SettingsIndex = {
-    appearance: `${palette} · ${scheme}`,
+    appearance: describeAppearance(appearance),
     mailboxCount: mailboxes.length,
     mailboxHint: mailboxes[0]?.address ?? "None connected",
     domainCount: Number(domainRows[0]?.n ?? 0),
@@ -72,28 +63,15 @@ export default async function SettingsLayout({ children }: { children: React.Rea
   };
 
   return (
-    <div className="flex h-dvh flex-col bg-background">
-      <AppHeader
-        email={user.email}
-        name={user.name}
+    <div className="h-dvh bg-background">
+      <SettingsRuntime
+        index={index}
         mailboxes={mailboxes.map(publicMailbox)}
-        context="settings"
-        avatarUpdatedAt={user.avatarUpdatedAt}
-      />
-
-      <SettingsRuntime index={index}>{children}</SettingsRuntime>
-      <Toaster
-        position="bottom-right"
-        toastOptions={{
-          style: {
-            background: "var(--card)",
-            border: "1px solid var(--border)",
-            color: "var(--foreground)",
-            boxShadow: "var(--shadow-pop)",
-            borderRadius: "4px",
-          },
-        }}
-      />
+        user={{ email: user.email, name: user.name, avatarUpdatedAt: user.avatarUpdatedAt }}
+      >
+        {children}
+      </SettingsRuntime>
+      <AppToaster />
     </div>
   );
 }

@@ -1,11 +1,14 @@
 "use client";
 
 import {
-  PALETTES,
-  SCHEMES,
-  type AppearancePrefs,
-  type PaletteId,
-  type SchemeId,
+  NAV_LAYOUTS,
+  PRESET_IDS,
+  PRESET_NAMES,
+  SYSTEM_DARK,
+  SYSTEM_LIGHT,
+  isLight,
+  paletteOf,
+  type Appearance,
 } from "@/lib/appearance";
 import type { PaletteCommand } from "@/components/palette/command-palette";
 import { SETTINGS_PAGES } from "@/components/settings/settings-nav";
@@ -14,40 +17,51 @@ import { usePaletteStore } from "@/lib/palette/store";
 import { useOnboardingStore } from "@/lib/onboarding-store";
 
 export function appearanceCommands(
-  prefs: AppearancePrefs,
-  setPrefs: (prefs: AppearancePrefs) => void,
+  prefs: Appearance,
+  setPrefs: (prefs: Appearance) => void,
 ): PaletteCommand[] {
-  const resolved = resolvedScheme(prefs.scheme);
-  const toggleTo: SchemeId = resolved === "dark" ? "light" : "dark";
+  // The toggle lands on the system pair, so a dark custom theme flips to a light one.
+  const dark = resolvedDark(prefs);
+  const toggleTo = dark ? SYSTEM_LIGHT : SYSTEM_DARK;
+  const activePreset = prefs.theme.kind === "preset" ? prefs.theme.id : null;
 
-  const schemes: PaletteCommand[] = [
+  const modes: PaletteCommand[] = [
     {
       id: "scheme-toggle",
-      label: toggleTo === "dark" ? "Switch to dark mode" : "Switch to light mode",
+      label: dark ? "Switch to light mode" : "Switch to dark mode",
       group: "Appearance",
       keywords: ["theme", "night", "day", "colour", "color", "appearance", "toggle"],
-      run: () => setPrefs({ ...prefs, scheme: toggleTo }),
+      run: () => setPrefs({ ...prefs, theme: { kind: "preset", id: toggleTo } }),
     },
-    ...SCHEMES.map((scheme) => ({
-      id: `scheme-${scheme.id}`,
-      label: scheme.id === "system" ? "Use system appearance" : `Use ${scheme.name.toLowerCase()} mode`,
+    {
+      id: "scheme-system",
+      label: "Use system appearance",
       group: "Appearance",
-      keywords: ["theme", "scheme", "colour", "color", scheme.name, scheme.id],
-      suffix: prefs.scheme === scheme.id ? "On" : undefined,
-      run: () => setPrefs({ ...prefs, scheme: scheme.id as SchemeId }),
-    })),
+      keywords: ["theme", "device", "os", "automatic", "colour", "color"],
+      suffix: prefs.theme.kind === "system" ? "On" : undefined,
+      run: () => setPrefs({ ...prefs, theme: { kind: "system" } }),
+    },
   ];
 
-  const palettes: PaletteCommand[] = PALETTES.map((palette) => ({
-    id: `palette-${palette.id}`,
-    label: `${palette.name} palette`,
+  const themes: PaletteCommand[] = PRESET_IDS.map((id) => ({
+    id: `theme-${id}`,
+    label: `${PRESET_NAMES[id]} theme`,
     group: "Appearance",
-    keywords: ["theme", "template", "colour", "color", palette.note, palette.id],
-    suffix: prefs.palette === palette.id ? "On" : undefined,
-    run: () => setPrefs({ ...prefs, palette: palette.id as PaletteId }),
+    keywords: ["theme", "palette", "colour", "color", id],
+    suffix: activePreset === id ? "On" : undefined,
+    run: () => setPrefs({ ...prefs, theme: { kind: "preset", id } }),
   }));
 
-  return [...schemes, ...palettes];
+  const layouts: PaletteCommand[] = NAV_LAYOUTS.map((nav) => ({
+    id: `nav-${nav}`,
+    label: nav === "floating" ? "Floating layout" : "Default layout",
+    group: "Appearance",
+    keywords: ["layout", "sidebar", "panels", "navigation", nav],
+    suffix: prefs.nav === nav ? "On" : undefined,
+    run: () => setPrefs({ ...prefs, nav }),
+  }));
+
+  return [...modes, ...themes, ...layouts];
 }
 
 export function settingsCommands(
@@ -99,8 +113,8 @@ export function settingsCommands(
   ];
 }
 
-function resolvedScheme(scheme: SchemeId): "light" | "dark" {
-  if (scheme === "light" || scheme === "dark") return scheme;
-  if (typeof window === "undefined") return "light";
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+function resolvedDark(prefs: Appearance): boolean {
+  const prefersDark =
+    typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  return !isLight(paletteOf(prefs.theme, prefersDark).background);
 }

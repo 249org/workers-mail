@@ -15,12 +15,8 @@ export default async function MailIndexPage() {
   }
 
   return (
-    <div className="flex h-full items-center justify-center p-8">
-      <div className="panel relative max-w-md p-8 text-center">
-        <span className="reg reg-tl" aria-hidden />
-        <span className="reg reg-tr" aria-hidden />
-        <span className="reg reg-bl" aria-hidden />
-        <span className="reg reg-br" aria-hidden />
+    <div className="bg-dots flex h-full items-center justify-center p-8">
+      <div className="panel max-w-md p-8 text-center">
         <div className="icon-well mx-auto mb-4">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden>
             <rect x="3" y="5" width="18" height="14" rx="1" />
@@ -29,7 +25,7 @@ export default async function MailIndexPage() {
         </div>
         <h2 className="text-[15px] font-semibold">No mailboxes yet</h2>
         <p className="mt-2 text-[13px] text-muted-foreground">
-          Link Gmail or Outlook, or create an address on a domain you already run.
+          Link Gmail or any IMAP account, or create an address on a domain you already run.
         </p>
         <div className="mt-6 flex justify-center gap-2">
           <Link href="/settings/mailboxes/new" className="btn btn-primary">

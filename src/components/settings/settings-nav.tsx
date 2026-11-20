@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
+import { describeAppearance } from "@/lib/appearance";
+import { useAppearanceStore } from "@/lib/appearance-store";
 
 export const SETTINGS_PAGES = [
   {
@@ -110,6 +112,10 @@ export type SettingsIndex = {
 export function SettingsNav({ index, view }: { index: SettingsIndex; view?: string }) {
   const pathname = usePathname();
   const current = view ?? pathname;
+  // The server's description is from page load; a theme picked since then should show.
+  const prefs = useAppearanceStore((state) => state.prefs);
+  const ready = useAppearanceStore((state) => state.ready);
+  const live = ready ? { ...index, appearance: describeAppearance(prefs) } : index;
   const rail = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -140,7 +146,7 @@ export function SettingsNav({ index, view }: { index: SettingsIndex; view?: stri
                 data-active={active ? "true" : undefined}
               >
                 <span className="settings-index-label">{item.label}</span>
-                <span className="settings-index-hint">{hintFor(item.href, index)}</span>
+                <span className="settings-index-hint">{hintFor(item.href, live)}</span>
               </Link>
             );
           })}

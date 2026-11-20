@@ -43,7 +43,7 @@ export async function GET(request: Request): Promise<Response> {
 
     const api = cloudflareApi(env);
     checks.push({
-      name: "Cloudflare API token",
+      name: "DNS API token",
       ok: api.configured,
       detail: api.configured
         ? "Domain provisioning is available."

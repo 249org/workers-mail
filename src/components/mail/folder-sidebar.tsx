@@ -1,272 +1,216 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import type { PublicMailbox } from "@/lib/mail/mailboxes";
 import { parseFolderName, partitionFolders } from "@/lib/mail/folder-name";
 import { navigateMailFolder, useMailStore, type FolderSummary } from "@/lib/mail/view-store";
 import { formatRelative } from "@/lib/format";
 import { describeImapError } from "@/lib/transport/imap-error";
-import { primaryCombo } from "@/lib/keyboard/bindings";
-import { formatComboHint, type ShortcutAction } from "@/lib/keyboard/shortcuts";
-import { useShortcutStore } from "@/lib/keyboard/store";
 import { toast } from "sonner";
-import { ChromeButton } from "./chrome-button";
 import { folderIconName, MailIcon } from "./icons";
 import { FolderAppearancePicker } from "./folder-appearance-picker";
 import { folderColorVar, isFolderIcon } from "@/lib/mail/folder-appearance";
-import { useIsMac } from "./key-caps";
 import { useContextMenu } from "@/components/ui/context-menu";
+import { useDismiss } from "@/components/ui/use-dismiss";
+import { FrameSidebar } from "@/components/shell/frame";
 import type { StreamState } from "./use-mail-stream";
 
-const JUMP_HINT: Record<string, ShortcutAction> = {
-  inbox: "goInbox",
-  sent: "goSent",
-  drafts: "goDrafts",
-  archive: "goArchive",
-};
+const FOLDERS_GROUP_KEY = "workers-mail.sidebar.folders";
 
 type Props = {
   mailbox: PublicMailbox;
   mailboxes: PublicMailbox[];
   streamState: StreamState;
-  collapsed: boolean;
-  onCompose: () => void;
   onSync: () => void;
-  onOpenPalette: () => void;
   onNavigate?: () => void;
-  onExpand?: () => void;
 };
 
-export function FolderSidebar({
-  mailbox,
-  mailboxes,
-  streamState,
-  collapsed,
-  onCompose,
-  onSync,
-  onOpenPalette,
-  onNavigate,
-  onExpand,
-}: Props) {
+const STREAM_LABEL: Record<StreamState, string> = {
+  open: "Live",
+  polling: "Polling",
+  connecting: "Connecting",
+};
+
+/** Whether the Folders group is folded away. A per-browser preference, nothing more. */
+function useFoldedGroup(): [boolean, () => void] {
+  const [folded, setFolded] = useState(false);
+  useEffect(() => {
+    try {
+      setFolded(localStorage.getItem(FOLDERS_GROUP_KEY) === "folded");
+    } catch {
+      // Storage can be refused; the group simply starts open.
+    }
+  }, []);
+  const toggle = useCallback(() => {
+    setFolded((current) => {
+      try {
+        localStorage.setItem(FOLDERS_GROUP_KEY, current ? "open" : "folded");
+      } catch {
+        // As above.
+      }
+      return !current;
+    });
+  }, []);
+  return [folded, toggle];
+}
+
+/**
+ * The open mailbox's own sidebar: which mailbox it is, its folders, and how its sync is
+ * doing. Composing and searching live on the rail beside it, so they stay in reach when
+ * this panel is folded away.
+ */
+export function FolderSidebar({ mailbox, mailboxes, streamState, onSync, onNavigate }: Props) {
   const folders = useMailStore((state) => state.folders);
   const activeFolderId = useMailStore((state) => state.folderId);
   const syncing = useMailStore((state) => state.syncing);
   const syncError = useMailStore((state) => state.syncError);
   const lastSyncedAt = useMailStore((state) => state.lastSyncedAt);
   const creating = useMailStore((state) => state.creatingFolder);
-  const shortcuts = useShortcutStore((state) => state.shortcuts);
-  const isMac = useIsMac();
-  const hint = (action: ShortcutAction) => {
-    const combo = primaryCombo(action, shortcuts);
-    return combo ? formatComboHint(combo, isMac) : undefined;
-  };
-  const labeled = (label: string, action: ShortcutAction) => {
-    const keys = hint(action);
-    return keys ? `${label} (${keys})` : label;
-  };
   const { system, custom } = useMemo(() => partitionFolders(folders), [folders]);
-
-  function startCreate() {
-    if (collapsed) onExpand?.();
-    useMailStore.getState().setCreatingFolder(true);
-  }
+  const [folded, toggleFolded] = useFoldedGroup();
+  // A group holding the folder on screen never hides it.
+  const groupOpen = !folded || custom.some((folder) => folder.id === activeFolderId) || creating;
 
   return (
-    <aside
-      className={`mail-sidebar flex shrink-0 flex-col border-r border-border bg-card ${collapsed ? "w-14" : "w-56"}`}
-      data-collapsed={collapsed ? "true" : undefined}
-    >
-      <div className={`pane-toolbar border-b border-border ${collapsed ? "justify-center" : ""}`}>
-        {collapsed ? (
-          <button
-            type="button"
-            className="tip btn btn-primary btn-icon"
-            onClick={onCompose}
-            aria-label="Compose"
-            data-tip={labeled("Compose", "compose")}
-          >
-            <MailIcon name="compose" />
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="btn btn-primary w-full min-w-0"
-            onClick={onCompose}
-            aria-label="Compose"
-          >
-            <MailIcon name="compose" />
-            Compose
-            <span
-              className="kbd"
-              style={{
-                background: "transparent",
-                color: "inherit",
-                borderColor: "color-mix(in srgb, white 32%, transparent)",
-                opacity: 0.85,
-              }}
-            >
-              C
-            </span>
-          </button>
-        )}
-      </div>
+    <FrameSidebar label={`${mailbox.address} folders`}>
+      <MailboxSwitcher mailbox={mailbox} mailboxes={mailboxes} onNavigate={onNavigate} />
 
-      <div className={`flex flex-col gap-2 py-2 ${collapsed ? "items-center px-2" : "px-2"}`}>
-        <button
-          type="button"
-          className={
-            collapsed
-              ? "tip btn btn-ghost btn-icon"
-              : "field flex items-center justify-between"
-          }
-          onClick={onOpenPalette}
-          aria-label="Search"
-          data-tip={collapsed ? labeled("Search", "palette") : undefined}
-        >
-          {collapsed ? (
-            <MailIcon name="search" />
-          ) : (
-            <>
-              <span className="text-muted-foreground">Search</span>
-              <span className="kbd">⌘K</span>
-            </>
-          )}
-        </button>
-      </div>
-
-      <nav className={`min-h-0 flex-1 py-2 px-2 ${collapsed ? "overflow-visible" : "scroll-thin overflow-y-auto"}`}>
+      <nav className="sidebar-nav scroll-thin" aria-label="Folders">
         {system.map((folder) => (
           <FolderLink
             key={folder.id}
             mailboxId={mailbox.id}
             folder={folder}
             active={folder.id === activeFolderId}
-            collapsed={collapsed}
-            labeled={labeled}
             onNavigate={onNavigate}
           />
         ))}
 
-        <div className={collapsed ? "mt-3" : "mt-4"}>
-          {!collapsed && <p className="label px-2.5">Folders</p>}
-          {custom.map((folder) => (
-            <FolderLink
-              key={folder.id}
-              mailboxId={mailbox.id}
-              folder={folder}
-              active={folder.id === activeFolderId}
-              collapsed={collapsed}
-              labeled={labeled}
-              onNavigate={onNavigate}
-            />
-          ))}
-          {creating && !collapsed ? (
-            <CreateFolderForm mailboxId={mailbox.id} onCreated={onNavigate} />
-          ) : collapsed ? (
-            <button
-              type="button"
-              className="nav-row tip"
-              data-compact="true"
-              data-tip="New folder"
-              aria-label="New folder"
-              onClick={startCreate}
-            >
-              <MailIcon name="plus" />
-            </button>
-          ) : (
-            <button type="button" className="nav-row" onClick={startCreate}>
-              <span className="flex min-w-0 items-center gap-2">
-                <MailIcon name="plus" />
-                <span className="truncate">New folder</span>
-              </span>
-            </button>
-          )}
+        <div className="sidebar-group">
+          <button
+            type="button"
+            className="sidebar-group-toggle"
+            aria-expanded={groupOpen}
+            onClick={toggleFolded}
+          >
+            <span>Folders</span>
+            <MailIcon name="chevron" className="sidebar-group-chevron" />
+          </button>
+          {groupOpen ? (
+            <div className="sidebar-group-items">
+              {custom.map((folder) => (
+                <FolderLink
+                  key={folder.id}
+                  mailboxId={mailbox.id}
+                  folder={folder}
+                  active={folder.id === activeFolderId}
+                  onNavigate={onNavigate}
+                />
+              ))}
+              {creating ? (
+                <CreateFolderForm mailboxId={mailbox.id} onCreated={onNavigate} />
+              ) : (
+                <button
+                  type="button"
+                  className="nav-row nav-row-quiet"
+                  onClick={() => useMailStore.getState().setCreatingFolder(true)}
+                >
+                  <span className="flex min-w-0 items-center gap-2.5">
+                    <MailIcon name="plus" />
+                    <span className="truncate">New folder</span>
+                  </span>
+                </button>
+              )}
+            </div>
+          ) : null}
         </div>
-
-        {mailboxes.length > 1 && (
-          <div className={collapsed ? "mt-3" : "mt-4"}>
-            {!collapsed && <p className="label px-2.5">Mailboxes</p>}
-            {mailboxes.map((entry) => (
-              <Link
-                key={entry.id}
-                href={`/mail/${entry.id}`}
-                className={`nav-row${collapsed ? " tip" : ""}`}
-                data-active={entry.id === mailbox.id ? "true" : undefined}
-                data-compact={collapsed ? "true" : undefined}
-                data-tip={collapsed ? entry.address : undefined}
-                aria-label={entry.address}
-                onClick={() => onNavigate?.()}
-              >
-                <span className="flex min-w-0 items-center gap-2">
-                  <MailIcon name="mailbox" />
-                  {!collapsed && <span className="truncate">{entry.address}</span>}
-                </span>
-              </Link>
-            ))}
-          </div>
-        )}
       </nav>
 
-      <div className={`border-t border-border py-3 text-[13px] text-muted-foreground ${collapsed ? "px-2" : "px-3"}`}>
-        <div className={`flex items-center gap-3 ${collapsed ? "flex-col" : "justify-between"}`}>
-          <span
-            className={`flex min-w-0 items-center gap-2${collapsed ? " tip" : ""}`}
-            data-tip={
-              collapsed
-                ? streamState === "open"
-                  ? "Live"
-                  : streamState === "polling"
-                    ? "Polling"
-                    : "Connecting"
-                : undefined
-            }
-          >
-            <span
-              aria-hidden
-              className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
-              style={{
-                background: streamState === "open" ? "var(--success)" : "var(--warning)",
-              }}
-            />
-            {!collapsed && (
-              <span className="truncate">
-                {streamState === "open" ? "Live" : streamState === "polling" ? "Polling" : "Connecting"}
-              </span>
-            )}
+      <div className="sidebar-foot">
+        <div className="flex items-center justify-between gap-3">
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="status-dot" data-state={streamState} aria-hidden />
+            <span className="truncate">{STREAM_LABEL[streamState]}</span>
           </span>
           {mailbox.type === "external_imap" && (
-            collapsed ? (
-              <ChromeButton
-                icon="sync"
-                label={syncing ? "Syncing" : "Sync now"}
-                hint="⇧R"
-                disabled={syncing}
-                onClick={onSync}
-              />
-            ) : (
-              <button
-                type="button"
-                onClick={onSync}
-                disabled={syncing}
-                className="shrink-0 text-primary disabled:opacity-50"
-              >
-                {syncing ? "Syncing" : "Sync"}
-              </button>
-            )
+            <button type="button" onClick={onSync} disabled={syncing} className="sidebar-foot-action">
+              <MailIcon name="sync" />
+              {syncing ? "Syncing" : "Sync"}
+            </button>
           )}
         </div>
-
-        {!collapsed && mailbox.type === "external_imap" && (
-          <p className="mt-1.5 truncate text-muted-foreground">
-            Synced {formatRelative(lastSyncedAt)}
-          </p>
+        {mailbox.type === "external_imap" && (
+          <p className="num mt-1 truncate">Synced {formatRelative(lastSyncedAt)}</p>
         )}
-        {!collapsed && syncError && (
-          <p className="mt-1.5 text-[var(--danger)]">{describeImapError(syncError)}</p>
-        )}
+        {syncError && <p className="mt-1.5 text-[var(--danger)]">{describeImapError(syncError)}</p>}
       </div>
-    </aside>
+    </FrameSidebar>
+  );
+}
+
+/** The mailbox's name at the head of its sidebar, and a way to the others. */
+function MailboxSwitcher({
+  mailbox,
+  mailboxes,
+  onNavigate,
+}: {
+  mailbox: PublicMailbox;
+  mailboxes: PublicMailbox[];
+  onNavigate?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const menuId = useId();
+  const close = useCallback(() => setOpen(false), []);
+  useDismiss(open, root, close);
+
+  const pick = () => {
+    close();
+    onNavigate?.();
+  };
+
+  return (
+    <div ref={root} className="sidebar-head">
+      <button
+        type="button"
+        className="sidebar-switcher"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={menuId}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <MailIcon name="mailbox" className="shrink-0 text-[var(--frame-muted)]" />
+        <span className="min-w-0 flex-1 truncate text-left">{mailbox.address}</span>
+        <MailIcon name="chevron" className="shrink-0 text-[var(--frame-muted)]" />
+      </button>
+      {open ? (
+        <div id={menuId} role="menu" className="menu sidebar-switcher-menu">
+          {mailboxes.map((entry) => (
+            <Link
+              key={entry.id}
+              href={`/mail/${entry.id}`}
+              role="menuitem"
+              className="menu-item"
+              aria-current={entry.id === mailbox.id ? "true" : undefined}
+              onClick={pick}
+            >
+              <span className="min-w-0 flex-1 truncate">{entry.address}</span>
+              <span className="eyebrow shrink-0 text-muted-foreground">
+                {entry.type === "native" ? "Domain" : "IMAP"}
+              </span>
+            </Link>
+          ))}
+          <div className="menu-rule" />
+          <Link href="/settings/mailboxes/new" role="menuitem" className="menu-item" onClick={pick}>
+            Add mailbox
+          </Link>
+          <Link href="/settings/mailboxes" role="menuitem" className="menu-item" onClick={pick}>
+            Manage mailboxes
+          </Link>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -274,20 +218,14 @@ function FolderLink({
   mailboxId,
   folder,
   active,
-  collapsed,
-  labeled,
   onNavigate,
 }: {
   mailboxId: string;
   folder: FolderSummary;
   active: boolean;
-  collapsed: boolean;
-  labeled: (label: string, action: ShortcutAction) => string;
   onNavigate?: () => void;
 }) {
   const unread = folder.unread > 0 ? (folder.unread > 99 ? "99+" : String(folder.unread)) : null;
-  const jump = JUMP_HINT[folder.role];
-  const tip = collapsed ? (jump ? labeled(folder.name, jump) : folder.name) : undefined;
   const isCustom = folder.role === "custom";
   const [renaming, setRenaming] = useState(false);
   const { bind } = useContextMenu();
@@ -366,10 +304,8 @@ function FolderLink({
   return (
     <Link
       href={`/mail/${mailboxId}/${folder.id}`}
-      className={`nav-row${collapsed ? " tip" : ""}`}
-      data-active={active ? "true" : undefined}
-      data-compact={collapsed ? "true" : undefined}
-      data-tip={tip}
+      className="nav-row pressable"
+      aria-current={active ? "page" : undefined}
       aria-label={unread ? `${folder.name}, ${folder.unread} unread` : folder.name}
       {...bind(menuItems)}
       onClick={(event) => {
@@ -379,14 +315,14 @@ function FolderLink({
         onNavigate?.();
       }}
     >
-      <span className="flex min-w-0 items-center gap-2">
+      <span className="flex min-w-0 items-center gap-2.5">
         <MailIcon
           name={isFolderIcon(folder.icon) ? folder.icon : folderIconName(folder)}
           style={{ color: folderColorVar(folder.color) ?? undefined }}
         />
-        {!collapsed && <span className="truncate">{folder.name}</span>}
+        <span className="truncate">{folder.name}</span>
       </span>
-      {unread && <span className="folder-count">{unread}</span>}
+      {unread && <span className="folder-count num">{unread}</span>}
     </Link>
   );
 }
