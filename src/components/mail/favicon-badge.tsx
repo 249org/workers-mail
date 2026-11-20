@@ -4,10 +4,11 @@ import { useEffect, useRef } from "react";
 import { useMailStore } from "@/lib/mail/view-store";
 import { badgeLabel, inboxUnread } from "@/lib/mail/unread";
 import {
+  clearBadgedIcon,
   currentIconHref,
   drawBadgedIcon,
   loadSvgImage,
-  setIconHref,
+  showBadgedIcon,
   ICON_PX,
 } from "@/lib/mail/favicon";
 
@@ -28,28 +29,24 @@ function badgeColor(): string {
  */
 export function FaviconBadge() {
   const unread = useMailStore((state) => inboxUnread(state.folders));
-  const original = useRef<string | null>(null);
   const base = useRef<Promise<HTMLImageElement | null> | null>(null);
 
   useEffect(() => {
-    // Read before anything replaces it, or the mark is lost for the rest of the session.
-    original.current ??= currentIconHref();
-    const source = original.current;
-    if (!source) return;
-
     let cancelled = false;
     const label = badgeLabel(unread);
 
     if (!label) {
-      setIconHref(source, "image/svg+xml");
+      clearBadgedIcon();
       return;
     }
 
+    const source = currentIconHref();
+    if (!source) return;
     base.current ??= loadSvgImage(source, ICON_PX);
     void base.current.then((image) => {
       if (cancelled || !image) return;
       const url = drawBadgedIcon(image, label, { badge: badgeColor(), text: "#ffffff" });
-      if (url) setIconHref(url, "image/png");
+      if (url) showBadgedIcon(url);
     });
 
     return () => {
@@ -58,12 +55,7 @@ export function FaviconBadge() {
   }, [unread]);
 
   // Leaving mail behind takes the count with it rather than leaving a stale one up.
-  useEffect(
-    () => () => {
-      if (original.current) setIconHref(original.current, "image/svg+xml");
-    },
-    [],
-  );
+  useEffect(() => () => clearBadgedIcon(), []);
 
   return null;
 }

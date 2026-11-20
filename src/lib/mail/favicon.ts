@@ -157,25 +157,42 @@ export async function loadSvgImage(href: string, px: number): Promise<HTMLImageE
   });
 }
 
-const ICON_SELECTOR = 'link[rel="icon"], link[rel="shortcut icon"]';
+const ICON_SELECTOR = 'link[rel="icon"]:not([data-badge]), link[rel="shortcut icon"]';
 
-/** The icon the page was served with, read before anything replaces it. */
+/** The icon the page was served with. */
 export function currentIconHref(): string | null {
   return document.querySelector<HTMLLinkElement>(ICON_SELECTOR)?.href ?? null;
 }
 
-/**
- * Swaps the tab icon.
- *
- * The link element is replaced rather than retargeted: Chrome holds on to the icon it
- * first fetched for an element, so changing `href` in place is sometimes ignored and the
- * count stops moving.
+/*
+ * The badged icon goes in a link of its own, after the page's, and the page's is never
+ * touched. Removing it was what this used to do, and React owns that element: the next
+ * time a navigation re-rendered the head, React reached for the link it had put there,
+ * found it detached, and the page crashed. A browser takes the last icon declared, so a
+ * link added after the page's wins without anything else having to move.
  */
-export function setIconHref(href: string, type: string): void {
-  for (const link of document.querySelectorAll(ICON_SELECTOR)) link.remove();
+function badgeLinks(): NodeListOf<HTMLLinkElement> {
+  return document.querySelectorAll<HTMLLinkElement>("link[data-badge]");
+}
+
+/**
+ * Shows a badged icon.
+ *
+ * The link is replaced rather than retargeted: Chrome holds on to the icon it first
+ * fetched for an element, so changing `href` in place is sometimes ignored and the count
+ * stops moving.
+ */
+export function showBadgedIcon(href: string): void {
+  for (const link of badgeLinks()) link.remove();
   const link = document.createElement("link");
   link.rel = "icon";
-  link.type = type;
+  link.type = "image/png";
   link.href = href;
+  link.dataset.badge = "";
   document.head.appendChild(link);
+}
+
+/** Back to the page's own icon. */
+export function clearBadgedIcon(): void {
+  for (const link of badgeLinks()) link.remove();
 }
