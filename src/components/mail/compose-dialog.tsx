@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import type { PublicMailbox } from "@/lib/mail/mailboxes";
 import { avatarSrc } from "@/lib/mail/profile-photo";
 import { useHotkeys } from "@/lib/keyboard/use-hotkeys";
@@ -18,11 +19,21 @@ import { useSignatureStore } from "@/lib/signature-store";
 import {
   asHtmlDocument,
   htmlToText,
-  previewDocument,
   switchFormat,
+  textToHtml,
   type BodyFormat,
   type FormatMemo,
 } from "@/lib/mail/compose-html";
+import { toEmailHtml } from "@/lib/mail/email-html";
+import { base64Bytes, extractInlineImages, type InlineImage } from "@/lib/mail/inline-images";
+import { EditorIcon } from "./editor-icons";
+import { PreviewFrame } from "./preview-frame";
+
+// The editor is most of what compose weighs, so it loads the first time it is asked for.
+const RichEditor = dynamic(() => import("./rich-editor").then((module) => module.RichEditor), {
+  ssr: false,
+  loading: () => <div className="rich-editor rich-loading" aria-busy="true" />,
+});
 
 export type ComposeDraft = {
   draftId?: string;
@@ -57,6 +68,28 @@ const MODE_LABEL: Record<NonNullable<ComposeDraft["mode"]>, string> = {
 const MAX_TOTAL_BYTES = 15 * 1024 * 1024;
 /** A common phone width, so a newsletter's narrow layout can be checked before it goes. */
 const PHONE_PREVIEW_PX = 375;
+
+/* Per-browser preferences: how the last message was written, and at what size. */
+const FORMAT_KEY = "workers-mail.compose.format";
+const EXPANDED_KEY = "workers-mail.compose.expanded";
+
+const FORMAT_LABEL: Record<BodyFormat, string> = { text: "Plain text", rich: "Rich text", html: "HTML" };
+
+function readPreference(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writePreference(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Storage can be refused; the choice simply is not remembered.
+  }
+}
 const AUTOSAVE_MS = 4_000;
 
 export function ComposeDialog({
@@ -72,7 +105,9 @@ export function ComposeDialog({
   const html = form.html ?? "";
   const [view, setView] = useState<"write" | "preview">("write");
   const [previewWidth, setPreviewWidth] = useState<"desktop" | "phone">("desktop");
+  const [expanded, setExpanded] = useState(false);
   const formatMemo = useRef<FormatMemo>(null);
+  const preferenceApplied = useRef(false);
   const [files, setFiles] = useState<File[]>([]);
   const [showCc, setShowCc] = useState(Boolean(draft.cc || draft.bcc));
   const [status, setStatus] = useState<string | null>(null);
@@ -139,8 +174,45 @@ export function ComposeDialog({
 
   useHotkeys("modal", {
     send: () => void send(),
-    back: onClose,
+    // Full page, Escape steps back to the dialog rather than throwing the message away.
+    back: () => (expanded ? toggleExpanded() : onClose()),
   });
+
+  useEffect(() => {
+    setExpanded(readPreference(EXPANDED_KEY) === "1");
+  }, []);
+
+  /*
+   * A new message opens in the format the last one was written in, the rich editor if
+   * there was none. It waits for the signature, which is added to the typed text, so the
+   * converted body carries it.
+   */
+  useEffect(() => {
+    if (preferenceApplied.current || !signatureReady) return;
+    preferenceApplied.current = true;
+    const remembered = readPreference(FORMAT_KEY);
+    const preferred: BodyFormat = remembered === "text" || remembered === "html" ? remembered : "rich";
+    if (preferred !== "text") chooseFormat(preferred);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signatureReady]);
+
+  // Text changing underneath an untouched converted body — the signature, a new draft —
+  // is carried into it. Once the body has been edited it is left alone.
+  useEffect(() => {
+    const memo = formatMemo.current;
+    if (format === "text" || !memo || memo.html !== html || memo.text === form.text) return;
+    const next = textToHtml(form.text);
+    formatMemo.current = { text: form.text, html: next };
+    setForm((current) => ({ ...current, html: next }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.text]);
+
+  function toggleExpanded() {
+    setExpanded((current) => {
+      writePreference(EXPANDED_KEY, current ? "0" : "1");
+      return !current;
+    });
+  }
 
   useEffect(() => {
     if (!form.to && !form.subject && !form.text && !form.html) return;
@@ -151,19 +223,32 @@ export function ComposeDialog({
 
   function chooseFormat(next: BodyFormat) {
     if (next === format) return;
+    writePreference(FORMAT_KEY, next);
+    setView("write");
+
+    // The editor and the code are the same HTML. The code is shown with the inline
+    // styles a mail client needs written in, because that is what will be sent.
+    if (format !== "text" && next !== "text") {
+      const nextHtml = next === "html" && html ? toEmailHtml(html) : html;
+      if (formatMemo.current?.html === html) formatMemo.current = { ...formatMemo.current, html: nextHtml };
+      setForm((current) => ({ ...current, html: nextHtml, format: next }));
+      return;
+    }
+
     const moved = switchFormat({ text: form.text, html }, next, formatMemo.current);
     formatMemo.current = moved.memo;
-    setForm({ ...form, text: moved.text, html: moved.html, format: next });
-    setView("write");
+    setForm((current) => ({ ...current, text: moved.text, html: moved.html, format: next }));
   }
 
   /*
-   * What goes out. In HTML the typed source is the message and the plain-text copy is
-   * read off it, so the two can never say different things.
+   * What goes out. The plain-text copy is read off the same HTML, so the two never say
+   * different things, and pictures in the document travel as attachments it points at.
    */
-  function outgoingBody(): { text: string; html?: string } {
-    if (format !== "html") return { text: form.text };
-    return { text: htmlToText(html), html: asHtmlDocument(html) };
+  function outgoingBody(): { text: string; html?: string; images: InlineImage[] } {
+    if (format === "text") return { text: form.text, images: [] };
+    const source = format === "rich" ? toEmailHtml(html) : html;
+    const { html: withImages, images } = extractInlineImages(source);
+    return { text: htmlToText(source), html: asHtmlDocument(withImages), images };
   }
 
   async function saveDraft() {
@@ -192,20 +277,32 @@ export function ComposeDialog({
     setSending(true);
     setStatus(null);
 
-    const total = files.reduce((sum, file) => sum + file.size, 0);
+    const { images, ...body } = outgoingBody();
+    const total =
+      files.reduce((sum, file) => sum + file.size, 0) +
+      images.reduce((sum, image) => sum + base64Bytes(image.contentBase64), 0);
     if (total > MAX_TOTAL_BYTES) {
-      setStatus(`Attachments total ${formatBytes(total)}; the limit is 15 MB.`);
+      setStatus(`Attachments and pictures total ${formatBytes(total)}; the limit is 15 MB.`);
       setSending(false);
       return;
     }
 
-    const attachments = await Promise.all(
-      files.map(async (file) => ({
-        filename: file.name,
-        mimeType: file.type || "application/octet-stream",
-        contentBase64: await toBase64(file),
+    const attachments = [
+      ...(await Promise.all(
+        files.map(async (file) => ({
+          filename: file.name,
+          mimeType: file.type || "application/octet-stream",
+          contentBase64: await toBase64(file),
+        })),
+      )),
+      ...images.map((image) => ({
+        filename: image.filename,
+        mimeType: image.mimeType,
+        contentBase64: image.contentBase64,
+        inline: true,
+        contentId: image.contentId,
       })),
-    );
+    ];
 
     const response = await fetch("/api/mail/send", {
       method: "POST",
@@ -216,7 +313,7 @@ export function ComposeDialog({
         cc: form.cc,
         bcc: form.bcc,
         subject: form.subject,
-        ...outgoingBody(),
+        ...body,
         inReplyTo: form.inReplyTo,
         references: form.references,
         draftId: draftId.current,
@@ -234,37 +331,58 @@ export function ComposeDialog({
     onSent();
   }
 
+  // What the rich editor's preview shows is exactly what will be sent: the inline styles
+  // included, which is where most of the difference from the editor would show.
+  const previewHtml = useMemo(
+    () => (format === "rich" && view === "preview" ? toEmailHtml(html) : ""),
+    [format, view, html],
+  );
+
   const taken = parseAddressList([form.to, form.cc, form.bcc].filter(Boolean).join(", ")).map(
     (addr) => addr.address,
   );
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-6"
+      className="compose-shell fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-6"
+      data-expanded={expanded ? "" : undefined}
       role="dialog"
       aria-modal="true"
       aria-label={title}
     >
       <div className="overlay-backdrop absolute inset-0" data-open={mounted} />
       <div
-        className="overlay-panel panel relative flex max-h-full w-full max-w-2xl flex-col overflow-hidden max-md:h-full max-md:max-h-none max-md:rounded-none"
+        className="compose-sheet overlay-panel panel relative flex max-h-full w-full max-w-2xl flex-col overflow-hidden max-md:h-full max-md:max-h-none max-md:rounded-none"
         data-open={mounted}
+        data-expanded={expanded ? "" : undefined}
         style={{ boxShadow: "var(--shadow-pop)" }}
       >
-        <header className="flex items-center justify-between border-b border-[var(--border)] px-4 py-2.5">
+        <header className="flex items-center justify-between gap-2 border-b border-[var(--border)] px-4 py-2.5">
           <h2 className="text-sm font-semibold">{title}</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-sm text-[var(--ink-muted)] hover:text-[var(--ink)]"
-            aria-label="Close compose"
-          >
-            Close
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={toggleExpanded}
+              className="btn btn-quiet btn-icon !h-7 !w-7 tip max-md:hidden"
+              data-tip={expanded ? "Back to a window  Esc" : "Full page"}
+              aria-label={expanded ? "Exit full page" : "Full page"}
+              aria-pressed={expanded}
+            >
+              <EditorIcon name={expanded ? "collapse" : "expand"} size={15} />
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="btn btn-quiet !h-7 !px-2 text-[13px]"
+              aria-label="Close compose"
+            >
+              Close
+            </button>
+          </div>
         </header>
 
-        <div className="scroll-thin min-h-0 flex-1 overflow-y-auto px-4 py-3">
-          <form autoComplete="off" onSubmit={(event) => event.preventDefault()}>
+        <div className="compose-body scroll-thin min-h-0 flex-1 overflow-y-auto px-4 py-3">
+          <form className="compose-form" autoComplete="off" onSubmit={(event) => event.preventDefault()}>
           <Row label="From">
             <div className="flex items-center gap-2">
               <PersonAvatar
@@ -341,7 +459,7 @@ export function ComposeDialog({
 
           <div className="compose-body-bar">
             <div className="scheme-toggle" role="radiogroup" aria-label="Message format">
-              {(["text", "html"] as const).map((option) => (
+              {(["rich", "text", "html"] as const).map((option) => (
                 <button
                   key={option}
                   type="button"
@@ -350,11 +468,11 @@ export function ComposeDialog({
                   className="scheme-toggle-btn"
                   onClick={() => chooseFormat(option)}
                 >
-                  {option === "text" ? "Plain text" : "HTML"}
+                  {FORMAT_LABEL[option]}
                 </button>
               ))}
             </div>
-            {format === "html" ? (
+            {format !== "text" ? (
               <div className="ml-auto flex items-center gap-2">
                 {view === "preview" ? (
                   <div className="scheme-toggle" role="radiogroup" aria-label="Preview width">
@@ -372,7 +490,7 @@ export function ComposeDialog({
                     ))}
                   </div>
                 ) : null}
-                <div className="scheme-toggle" role="tablist" aria-label="HTML body">
+                <div className="scheme-toggle" role="tablist" aria-label="Message body">
                   {(["write", "preview"] as const).map((option) => (
                     <button
                       key={option}
@@ -382,7 +500,7 @@ export function ComposeDialog({
                       className="scheme-toggle-btn"
                       onClick={() => setView(option)}
                     >
-                      {option === "write" ? "Write" : "Preview"}
+                      {option === "preview" ? "Preview" : format === "html" ? "Code" : "Write"}
                     </button>
                   ))}
                 </div>
@@ -390,37 +508,44 @@ export function ComposeDialog({
             ) : null}
           </div>
 
+          {format === "html" && view === "preview" ? (
+            <p className="mt-2 text-[12px] text-muted-foreground">
+              Click into the preview to change the words. The layout stays exactly as written.
+            </p>
+          ) : null}
+
           {format === "text" ? (
             <textarea
-              className="field mt-2 min-h-64 resize-y font-[inherit] leading-relaxed"
+              className="compose-grow field mt-2 min-h-64 resize-y font-[inherit] leading-relaxed"
               value={form.text}
               onChange={(event) => setForm({ ...form, text: event.target.value })}
               placeholder="Write your message…"
               aria-label="Message"
             />
-          ) : view === "write" ? (
+          ) : view === "preview" ? (
+            <PreviewFrame
+              html={format === "rich" ? previewHtml : html}
+              editable={format === "html"}
+              width={previewWidth === "phone" ? PHONE_PREVIEW_PX : "100%"}
+              onEdit={(next) => setForm((current) => ({ ...current, html: next }))}
+              onSend={() => void send()}
+            />
+          ) : format === "rich" ? (
+            <RichEditor
+              html={html}
+              expanded={expanded}
+              onChange={(next) => setForm((current) => ({ ...current, html: next }))}
+              onError={setStatus}
+            />
+          ) : (
             <textarea
-              className="field mt-2 min-h-64 resize-y font-mono text-[12.5px] leading-relaxed"
+              className="compose-grow field mt-2 min-h-64 resize-y font-mono text-[12.5px] leading-relaxed"
               value={html}
               onChange={(event) => setForm({ ...form, html: event.target.value })}
               placeholder="<p>Hello,</p>"
               aria-label="HTML source"
               spellCheck={false}
             />
-          ) : (
-            <div className="compose-preview">
-              {/*
-                Sandboxed with no scripts and no origin of its own: whatever the HTML holds, it
-                runs nowhere and reaches nothing in the app. Popups are allowed only so a link
-                can be followed into a new tab.
-              */}
-              <iframe
-                title="Preview of the message"
-                sandbox="allow-popups allow-popups-to-escape-sandbox"
-                srcDoc={previewDocument(html)}
-                style={{ width: previewWidth === "phone" ? PHONE_PREVIEW_PX : "100%" }}
-              />
-            </div>
           )}
           </form>
 

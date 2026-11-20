@@ -42,8 +42,22 @@ type SendBody = {
   inReplyTo?: string;
   references?: string[];
   draftId?: string;
-  attachments?: Array<{ filename: string; mimeType: string; contentBase64: string }>;
+  attachments?: Array<{
+    filename: string;
+    mimeType: string;
+    contentBase64: string;
+    /** A picture the HTML shows in place, referenced from it as `cid:<contentId>`. */
+    inline?: boolean;
+    contentId?: string;
+  }>;
 };
+
+/*
+ * A Content-ID ends up inside a MIME header, so it is held to characters that cannot
+ * break out of one. Only pictures are shown in place; anything else is a file.
+ */
+const CONTENT_ID = /^[A-Za-z0-9._@-]{1,120}$/;
+const INLINE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 
 type TestBody = { address?: string; imap?: TransportInput; smtp?: TransportInput };
 type Check = { ok: boolean; detail: string; folders?: string[] };
@@ -68,11 +82,20 @@ export async function handleSend(request: Request, env: CloudflareEnv): Promise<
     const to = parseAddressList(body.to ?? "");
     if (to.length === 0) throw new ApiError(400, "Add at least one valid recipient.");
 
-    const attachments = (body.attachments ?? []).map((attachment) => ({
-      filename: attachment.filename,
-      mimeType: attachment.mimeType || "application/octet-stream",
-      content: decodeBase64(attachment.contentBase64),
-    }));
+    const attachments = (body.attachments ?? []).map((attachment) => {
+      const mimeType = attachment.mimeType || "application/octet-stream";
+      const inline =
+        attachment.inline === true &&
+        typeof attachment.contentId === "string" &&
+        CONTENT_ID.test(attachment.contentId) &&
+        INLINE_TYPES.has(mimeType);
+      return {
+        filename: attachment.filename,
+        mimeType,
+        content: decodeBase64(attachment.contentBase64),
+        ...(inline ? { inline: true, contentId: attachment.contentId } : {}),
+      };
+    });
     const total = attachments.reduce((sum, file) => sum + file.content.byteLength, 0);
     if (total > MAX_ATTACHMENT_BYTES) {
       throw new ApiError(413, "Attachments exceed the 15 MB limit.");

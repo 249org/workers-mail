@@ -91,7 +91,7 @@ describe("what goes out", () => {
 
   it("previews on a white page with links opening outside the frame", () => {
     const doc = previewDocument("<p>Hello</p>");
-    expect(doc).toContain('<base target="_blank">');
+    expect(doc).toContain('<base target="_blank"');
     expect(doc).toContain("background:#fff");
     expect(doc).toContain("<p>Hello</p>");
   });
