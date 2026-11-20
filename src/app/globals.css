@@ -579,6 +579,46 @@ html[data-nav="floating"] .frame-main {
   font-weight: 600;
 }
 
+/* Compose: the format switch over the body, and the preview of an HTML message. */
+.compose-body-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.compose-body-bar .scheme-toggle-btn {
+  height: 1.625rem;
+  padding: 0 0.7rem;
+  font-size: 12.5px;
+}
+
+.compose-preview {
+  display: flex;
+  justify-content: center;
+  margin-top: 0.5rem;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--muted);
+}
+
+.compose-preview iframe {
+  display: block;
+  max-width: 100%;
+  height: min(26rem, 55vh);
+  border: 0;
+  background: #fff;
+  transition: width 200ms var(--ease-out-strong);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .compose-preview iframe {
+    transition: none;
+  }
+}
+
 /* ─── Sign-in: one card on the dotted canvas ─── */
 
 .auth-canvas {
@@ -2130,14 +2170,15 @@ html[data-scheme="dark"] .message-body[data-kind="plain"] {
 }
 
 .scheme-toggle-btn[data-active="true"],
-.scheme-toggle-btn[aria-checked="true"] {
+.scheme-toggle-btn[aria-checked="true"],
+.scheme-toggle-btn[aria-selected="true"] {
   background: var(--card);
   color: var(--foreground);
   box-shadow: var(--shadow-card), 0 1px 2px rgb(0 0 0 / 0.06);
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .scheme-toggle-btn:hover:not([data-active="true"]):not([aria-checked="true"]) {
+  .scheme-toggle-btn:hover:not([data-active="true"]):not([aria-checked="true"]):not([aria-selected="true"]) {
     color: var(--foreground);
   }
 }

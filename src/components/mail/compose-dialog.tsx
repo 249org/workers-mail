@@ -15,6 +15,14 @@ import {
   signatureText,
 } from "@/lib/signature";
 import { useSignatureStore } from "@/lib/signature-store";
+import {
+  asHtmlDocument,
+  htmlToText,
+  previewDocument,
+  switchFormat,
+  type BodyFormat,
+  type FormatMemo,
+} from "@/lib/mail/compose-html";
 
 export type ComposeDraft = {
   draftId?: string;
@@ -24,6 +32,8 @@ export type ComposeDraft = {
   bcc: string;
   subject: string;
   text: string;
+  html?: string;
+  format?: BodyFormat;
   inReplyTo?: string;
   references?: string[];
   threadId?: string;
@@ -45,6 +55,8 @@ const MODE_LABEL: Record<NonNullable<ComposeDraft["mode"]>, string> = {
   forward: "Forward",
 };
 const MAX_TOTAL_BYTES = 15 * 1024 * 1024;
+/** A common phone width, so a newsletter's narrow layout can be checked before it goes. */
+const PHONE_PREVIEW_PX = 375;
 const AUTOSAVE_MS = 4_000;
 
 export function ComposeDialog({
@@ -56,6 +68,11 @@ export function ComposeDialog({
   onSent,
 }: Props) {
   const [form, setForm] = useState(draft);
+  const format: BodyFormat = form.format ?? "text";
+  const html = form.html ?? "";
+  const [view, setView] = useState<"write" | "preview">("write");
+  const [previewWidth, setPreviewWidth] = useState<"desktop" | "phone">("desktop");
+  const formatMemo = useRef<FormatMemo>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [showCc, setShowCc] = useState(Boolean(draft.cc || draft.bcc));
   const [status, setStatus] = useState<string | null>(null);
@@ -126,11 +143,28 @@ export function ComposeDialog({
   });
 
   useEffect(() => {
-    if (!form.to && !form.subject && !form.text) return;
+    if (!form.to && !form.subject && !form.text && !form.html) return;
     const timer = setTimeout(() => void saveDraft(), AUTOSAVE_MS);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.to, form.cc, form.subject, form.text]);
+  }, [form.to, form.cc, form.subject, form.text, form.html, form.format]);
+
+  function chooseFormat(next: BodyFormat) {
+    if (next === format) return;
+    const moved = switchFormat({ text: form.text, html }, next, formatMemo.current);
+    formatMemo.current = moved.memo;
+    setForm({ ...form, text: moved.text, html: moved.html, format: next });
+    setView("write");
+  }
+
+  /*
+   * What goes out. In HTML the typed source is the message and the plain-text copy is
+   * read off it, so the two can never say different things.
+   */
+  function outgoingBody(): { text: string; html?: string } {
+    if (format !== "html") return { text: form.text };
+    return { text: htmlToText(html), html: asHtmlDocument(html) };
+  }
 
   async function saveDraft() {
     const response = await fetch("/api/drafts", {
@@ -142,7 +176,8 @@ export function ComposeDialog({
         to: form.to,
         cc: form.cc,
         subject: form.subject,
-        text: form.text,
+        // The Drafts list shows a snippet, which should read as words rather than tags.
+        text: outgoingBody().text,
         inReplyTo: form.inReplyTo,
         threadId: form.threadId,
       }),
@@ -181,7 +216,7 @@ export function ComposeDialog({
         cc: form.cc,
         bcc: form.bcc,
         subject: form.subject,
-        text: form.text,
+        ...outgoingBody(),
         inReplyTo: form.inReplyTo,
         references: form.references,
         draftId: draftId.current,
@@ -304,12 +339,89 @@ export function ComposeDialog({
             />
           </Row>
 
-          <textarea
-            className="field mt-2 min-h-64 resize-y font-[inherit] leading-relaxed"
-            value={form.text}
-            onChange={(event) => setForm({ ...form, text: event.target.value })}
-            placeholder="Write your message…"
-          />
+          <div className="compose-body-bar">
+            <div className="scheme-toggle" role="radiogroup" aria-label="Message format">
+              {(["text", "html"] as const).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  role="radio"
+                  aria-checked={format === option}
+                  className="scheme-toggle-btn"
+                  onClick={() => chooseFormat(option)}
+                >
+                  {option === "text" ? "Plain text" : "HTML"}
+                </button>
+              ))}
+            </div>
+            {format === "html" ? (
+              <div className="ml-auto flex items-center gap-2">
+                {view === "preview" ? (
+                  <div className="scheme-toggle" role="radiogroup" aria-label="Preview width">
+                    {(["desktop", "phone"] as const).map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        role="radio"
+                        aria-checked={previewWidth === option}
+                        className="scheme-toggle-btn"
+                        onClick={() => setPreviewWidth(option)}
+                      >
+                        {option === "desktop" ? "Desktop" : "Phone"}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                <div className="scheme-toggle" role="tablist" aria-label="HTML body">
+                  {(["write", "preview"] as const).map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      role="tab"
+                      aria-selected={view === option}
+                      className="scheme-toggle-btn"
+                      onClick={() => setView(option)}
+                    >
+                      {option === "write" ? "Write" : "Preview"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          {format === "text" ? (
+            <textarea
+              className="field mt-2 min-h-64 resize-y font-[inherit] leading-relaxed"
+              value={form.text}
+              onChange={(event) => setForm({ ...form, text: event.target.value })}
+              placeholder="Write your message…"
+              aria-label="Message"
+            />
+          ) : view === "write" ? (
+            <textarea
+              className="field mt-2 min-h-64 resize-y font-mono text-[12.5px] leading-relaxed"
+              value={html}
+              onChange={(event) => setForm({ ...form, html: event.target.value })}
+              placeholder="<p>Hello,</p>"
+              aria-label="HTML source"
+              spellCheck={false}
+            />
+          ) : (
+            <div className="compose-preview">
+              {/*
+                Sandboxed with no scripts and no origin of its own: whatever the HTML holds, it
+                runs nowhere and reaches nothing in the app. Popups are allowed only so a link
+                can be followed into a new tab.
+              */}
+              <iframe
+                title="Preview of the message"
+                sandbox="allow-popups allow-popups-to-escape-sandbox"
+                srcDoc={previewDocument(html)}
+                style={{ width: previewWidth === "phone" ? PHONE_PREVIEW_PX : "100%" }}
+              />
+            </div>
+          )}
           </form>
 
           {files.length > 0 && (
