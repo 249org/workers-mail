@@ -20,7 +20,7 @@ const SETTINGS_COPY: Record<string, { title: string; lede: string }> = {
   },
   "/settings/appearance": {
     title: "Appearance",
-    lede: "A theme is four colours. Pick one, follow the device, or mix your own.",
+    lede: "Every theme comes in light and dark. Pick one, set the mode, or mix your own.",
   },
   "/settings/shortcuts": {
     title: "Shortcuts",

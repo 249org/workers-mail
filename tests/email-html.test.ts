@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from "vitest";
 import { BODY_STYLE, toEmailHtml } from "@/lib/mail/email-html";
-import { previewDocument, readPreviewDocument } from "@/lib/mail/compose-html";
+import { formatHtml, htmlToText, previewDocument, readPreviewDocument } from "@/lib/mail/compose-html";
 
 function parse(html: string): Document {
   return new DOMParser().parseFromString(html, "text/html");
@@ -69,6 +69,21 @@ describe("making the editor's markup survive a mail client", () => {
     expect(toEmailHtml(once)).toBe(once);
   });
 
+  it("keeps blank lines and empty table rows their height", () => {
+    // An empty <p> has no height in a mail client; blank rows used to shrink to nothing.
+    const out = toEmailHtml("<p>One</p><p></p><p>Two</p><table><tbody><tr><td><p></p></td></tr></tbody></table>");
+    const empty = parse(out).querySelectorAll("p");
+    expect(empty[1]?.innerHTML).toBe("<br>");
+    expect(parse(out).querySelector("td p")?.innerHTML).toBe("<br>");
+    expect(empty[0]?.innerHTML).toBe("One");
+  });
+
+  it("keeps the table's columns as even as they were in the editor", () => {
+    expect(styleOf(toEmailHtml("<table><tbody><tr><td>a</td></tr></tbody></table>"), "table")).toContain(
+      "table-layout:fixed",
+    );
+  });
+
   it("leaves list items one line each", () => {
     const out = toEmailHtml("<ul><li><p>One</p></li><li><p>Two</p></li></ul>");
     expect(styleOf(out, "li p")).toContain("margin-bottom:0");
@@ -110,5 +125,37 @@ describe("reading an edited preview back", () => {
     // The message's own styles come after the defaults, so they win.
     const page = previewDocument("<html><head><style>p{color:red}</style></head><body><p>x</p></body></html>");
     expect(page.indexOf("data-wm-preview")).toBeLessThan(page.indexOf("p{color:red}"));
+  });
+});
+
+describe("laying the HTML out to be read", () => {
+  const editorOutput = toEmailHtml(
+    "<p>Hello <strong>team</strong>,</p><table><tbody><tr><th><p>Speaker</p></th><th><p>City</p></th></tr>" +
+      "<tr><td><p>Ali</p></td><td><p></p></td></tr></tbody></table><ul><li><p>One</p></li></ul><pre><code>a\n  b</code></pre>",
+  );
+
+  it("puts one element on a line, with what it holds indented", () => {
+    const lines = formatHtml(editorOutput).split("\n");
+    expect(lines.length).toBeGreaterThan(15);
+    expect(lines.find((line) => line.trim().startsWith("<td"))).toMatch(/^ {8}<td/);
+    // A paragraph's words stay together, tags and all.
+    expect(lines.some((line) => /<p [^>]*>Hello <strong>team<\/strong>,<\/p>$/.test(line.trim()))).toBe(true);
+  });
+
+  it("changes nothing a reader would see", () => {
+    /*
+     * Only whitespace between blocks is added. The text and every element survive, so
+     * the message drawn from the laid-out code is the one drawn from the original.
+     */
+    const formatted = formatHtml(editorOutput);
+    expect(htmlToText(formatted)).toBe(htmlToText(editorOutput));
+    const before = parse(editorOutput).body;
+    const after = parse(formatted).body;
+    expect(after.querySelectorAll("*").length).toBe(before.querySelectorAll("*").length);
+    expect(after.querySelector("td")?.getAttribute("style")).toBe(before.querySelector("td")?.getAttribute("style"));
+  });
+
+  it("leaves a code block's lines exactly as written", () => {
+    expect(formatHtml(editorOutput)).toContain("a\n  b</code></pre>");
   });
 });

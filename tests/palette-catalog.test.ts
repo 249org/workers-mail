@@ -9,7 +9,7 @@ describe("palette catalog", () => {
     const ids = commands.map((command) => command.id);
     expect(ids).toContain("scheme-toggle");
     expect(ids).toContain("scheme-system");
-    expect(ids).toContain("theme-github-dark");
+    expect(ids).toContain("theme-github");
     expect(ids).toContain("theme-coolify");
     expect(ids).toContain("theme-paper");
     expect(ids).toContain("nav-floating");
@@ -18,33 +18,34 @@ describe("palette catalog", () => {
 
   it("marks the active theme and layout", () => {
     const commands = appearanceCommands(
-      { theme: { kind: "preset", id: "ember" }, nav: "default" },
+      { theme: { kind: "preset", id: "ember" }, mode: "system", nav: "default" },
       () => undefined,
     );
     expect(commands.find((command) => command.id === "theme-ember")?.suffix).toBe("On");
     expect(commands.find((command) => command.id === "nav-default")?.suffix).toBe("On");
     expect(commands.find((command) => command.id === "theme-nord")?.suffix).toBeUndefined();
-    expect(commands.find((command) => command.id === "scheme-system")?.suffix).toBeUndefined();
+    expect(commands.find((command) => command.id === "scheme-system")?.suffix).toBe("On");
   });
 
-  it("toggles a dark theme to the light one and back", () => {
+  it("flips the mode and keeps the theme", () => {
+    // Dark Dracula toggles to light Dracula, not to some other theme's light version.
     let chosen: unknown = null;
     const fromDark = appearanceCommands(
-      { theme: { kind: "preset", id: "dracula" }, nav: "floating" },
-      (next) => { chosen = next.theme; },
+      { theme: { kind: "preset", id: "dracula" }, mode: "dark", nav: "floating" },
+      (next) => { chosen = next; },
     );
     expect(fromDark.find((command) => command.id === "scheme-toggle")?.label).toBe(
       "Switch to light mode",
     );
     fromDark.find((command) => command.id === "scheme-toggle")?.run();
-    expect(chosen).toEqual({ kind: "preset", id: "github-light" });
+    expect(chosen).toEqual({ theme: { kind: "preset", id: "dracula" }, mode: "light", nav: "floating" });
 
     const fromLight = appearanceCommands(
-      { theme: { kind: "preset", id: "paper" }, nav: "floating" },
-      (next) => { chosen = next.theme; },
+      { theme: { kind: "preset", id: "paper" }, mode: "light", nav: "floating" },
+      (next) => { chosen = next; },
     );
     fromLight.find((command) => command.id === "scheme-toggle")?.run();
-    expect(chosen).toEqual({ kind: "preset", id: "github-dark" });
+    expect(chosen).toMatchObject({ theme: { kind: "preset", id: "paper" }, mode: "dark" });
   });
 
   it("covers every settings page", () => {

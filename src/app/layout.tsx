@@ -44,14 +44,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html
       lang="en"
-      data-scheme={schemeOf(appearance.theme)}
+      data-scheme={schemeOf(appearance)}
       data-nav={appearance.nav}
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable}`}
     >
       <head>
         {/* Rendered from the cookie, so the first paint is already in the chosen colours. */}
-        <style id={THEME_STYLE_ID} dangerouslySetInnerHTML={{ __html: themeCss(appearance.theme) }} />
+        <style id={THEME_STYLE_ID} dangerouslySetInnerHTML={{ __html: themeCss(appearance) }} />
         <JsonLd data={siteJsonLd(origin)} />
       </head>
       <body className="font-sans antialiased touch-manipulation">

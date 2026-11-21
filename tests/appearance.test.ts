@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_APPEARANCE,
-  PRESETS,
-  PRESET_IDS,
+  accentText,
+  THEMES,
+  THEME_IDS,
   contrast,
   describeAppearance,
+  isLight,
   normalizeHex,
-  paletteToShareCode,
+  pairToShareCode,
+  paletteFor,
   paletteVars,
   parseAppearance,
   parseShareCode,
@@ -18,16 +21,71 @@ import {
   type Appearance,
 } from "@/lib/appearance";
 
+describe("every theme comes in light and dark", () => {
+  it("has a light version that is light and a dark version that is dark", () => {
+    for (const id of THEME_IDS) {
+      expect(isLight(THEMES[id].light.background), `${id} light`).toBe(true);
+      expect(isLight(THEMES[id].dark.background), `${id} dark`).toBe(false);
+    }
+  });
+
+  it("keeps text readable on every surface of every version", () => {
+    for (const id of THEME_IDS) {
+      for (const palette of [THEMES[id].light, THEMES[id].dark]) {
+        for (const surface of [palette.sidebar, palette.selected, palette.background]) {
+          // WCAG AA for body text.
+          expect(contrast(readableOn(surface), surface), `${id} ${surface}`).toBeGreaterThanOrEqual(4.5);
+        }
+      }
+    }
+  });
+
+  it("keeps a button's label readable on the accent", () => {
+    /*
+     * Accents sit mid-range, where the softened body inks fell short: GitHub's blue
+     * carried its label at 4.39, Coolify's violet at 3.73.
+     */
+    for (const id of THEME_IDS) {
+      for (const palette of [THEMES[id].light, THEMES[id].dark]) {
+        const label = accentText(palette.accent);
+        expect(contrast(label, palette.accent), `${id} ${palette.accent}`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+
+  it("gives a link in the accent enough contrast to read on the page", () => {
+    // Links and focus rings are drawn in the accent on the background itself.
+    for (const id of THEME_IDS) {
+      for (const palette of [THEMES[id].light, THEMES[id].dark]) {
+        expect(contrast(palette.accent, palette.background), `${id} accent`).toBeGreaterThanOrEqual(3);
+      }
+    }
+  });
+
+  it("picks the version by mode, and by the device for System", () => {
+    const nord: Appearance = { theme: { kind: "preset", id: "nord" }, mode: "light", nav: "floating" };
+    expect(paletteFor(nord)).toEqual(THEMES.nord.light);
+    expect(paletteFor({ ...nord, mode: "dark" })).toEqual(THEMES.nord.dark);
+    expect(paletteFor({ ...nord, mode: "system" }, true)).toEqual(THEMES.nord.dark);
+    expect(paletteFor({ ...nord, mode: "system" }, false)).toEqual(THEMES.nord.light);
+  });
+});
+
 describe("reading a saved appearance", () => {
   it("round-trips every kind of choice", () => {
     const choices: Appearance[] = [
-      { theme: { kind: "system" }, nav: "floating" },
-      { theme: { kind: "preset", id: "dracula" }, nav: "default" },
+      DEFAULT_APPEARANCE,
+      { theme: { kind: "preset", id: "dracula" }, mode: "dark", nav: "default" },
+      { theme: { kind: "preset", id: "paper" }, mode: "light", nav: "floating" },
       {
         theme: {
           kind: "custom",
-          palette: { sidebar: "#101010", selected: "#202020", accent: "#ff6600", background: "#fafafa" },
+          pair: {
+            light: { sidebar: "#f0f0f0", selected: "#e0e0e0", accent: "#0050aa", background: "#ffffff" },
+            dark: { sidebar: "#101010", selected: "#202020", accent: "#ff6600", background: "#161616" },
+          },
         },
+        mode: "system",
         nav: "floating",
       },
     ];
@@ -36,31 +94,46 @@ describe("reading a saved appearance", () => {
     }
   });
 
-  it("reads a cookie the browser has percent-encoded", () => {
-    const encoded = encodeURIComponent("theme=nord;nav=default");
-    expect(parseAppearance(encoded)).toEqual({ theme: { kind: "preset", id: "nord" }, nav: "default" });
+  it("reads what the previous build saved as the same look", () => {
+    /*
+     * The last build stored one palette per theme, with GitHub's dark and light as two
+     * themes. Coming back must land on the same colours, in the same mode.
+     */
+    expect(parseAppearance("theme=system;nav=floating")).toEqual(DEFAULT_APPEARANCE);
+    expect(parseAppearance("theme=github-dark;nav=default")).toEqual({
+      theme: { kind: "preset", id: "github" },
+      mode: "dark",
+      nav: "default",
+    });
+    expect(parseAppearance("theme=paper;nav=floating")).toMatchObject({
+      theme: { kind: "preset", id: "paper" },
+      mode: "light",
+    });
+    expect(parseAppearance("theme=coolify;nav=floating")).toMatchObject({ mode: "dark" });
+
+    const custom = parseAppearance("theme=101010-202020-ff6600-161616;nav=floating");
+    expect(custom.mode).toBe("dark");
+    expect(paletteFor(custom).accent).toBe("#ff6600");
   });
 
   it("falls back to the defaults on anything it does not recognise", () => {
-    /*
-     * The previous build stored `meridian:system`. Nobody should be left on a broken
-     * page because a theme they picked before this one no longer exists.
-     */
     for (const raw of [null, undefined, "", "meridian:system", '{"palette":"ink"}', "%E0%A4%A", "theme=nope"]) {
       expect(parseAppearance(raw)).toEqual(DEFAULT_APPEARANCE);
     }
   });
 
   it("keeps a good field when its neighbour is bad", () => {
-    expect(parseAppearance("theme=ember;nav=sideways")).toEqual({
+    expect(parseAppearance("theme=ember;mode=sideways;nav=default")).toEqual({
       theme: { kind: "preset", id: "ember" },
-      nav: "floating",
+      mode: "system",
+      nav: "default",
     });
   });
 
-  it("will not take a custom theme that is not four colours", () => {
-    expect(parseAppearance("theme=101010-202020-ff6600;nav=floating").theme).toEqual({ kind: "system" });
-    expect(parseAppearance("theme=101010-202020-zzzzzz-fafafa").theme).toEqual({ kind: "system" });
+  it("will not take a custom theme missing a half", () => {
+    expect(parseAppearance("theme=custom;light=ffffff-eeeeee-0000ff-ffffff;mode=light").theme).toEqual(
+      DEFAULT_APPEARANCE.theme,
+    );
   });
 });
 
@@ -70,43 +143,33 @@ describe("what reaches the stylesheet", () => {
      * The theme is written straight into a <style> tag. A value that slipped through
      * unchecked could close the rule and start one of its own.
      */
-    const hostile = parseAppearance("theme=000000-000000-000000-000000;}body{display:none");
-    const css = themeCss(hostile.theme);
-    expect(css).not.toContain("display");
-    expect(css).not.toContain("body");
-    expect(parseAppearance("theme=</style><script>").theme).toEqual({ kind: "system" });
+    const hostile = parseAppearance(
+      "theme=custom;light=000000-000000-000000-000000;dark=000000-000000-000000-000000}body{display:none;mode=dark",
+    );
+    expect(themeCss(hostile)).not.toContain("display");
+    expect(themeCss(parseAppearance("theme=</style><script>;mode=dark"))).not.toContain("script");
   });
 
-  it("follows the device when the choice is System", () => {
-    const css = themeCss({ kind: "system" });
-    expect(css).toContain(PRESETS["github-dark"].background);
+  it("switches between a theme's two versions with the device when the mode is System", () => {
+    const css = themeCss({ theme: { kind: "preset", id: "forest" }, mode: "system", nav: "floating" });
+    expect(css).toContain(THEMES.forest.dark.background);
     expect(css).toContain("@media (prefers-color-scheme: light)");
-    expect(css).toContain(PRESETS["github-light"].background);
+    expect(css).toContain(THEMES.forest.light.background);
   });
 
-  it("names the colour scheme from the background, so light themes read as light", () => {
-    expect(paletteVars(PRESETS.paper)["color-scheme"]).toBe("light");
-    expect(paletteVars(PRESETS.coolify)["color-scheme"]).toBe("dark");
-    expect(schemeOf({ kind: "preset", id: "blossom" })).toBe("light");
-    expect(schemeOf({ kind: "preset", id: "midnight" })).toBe("dark");
-    expect(schemeOf({ kind: "system" })).toBe("system");
-  });
-});
-
-describe("text on a chosen colour", () => {
-  it("stays readable on every preset surface", () => {
-    for (const id of PRESET_IDS) {
-      const palette = PRESETS[id];
-      for (const surface of [palette.sidebar, palette.selected, palette.background]) {
-        // WCAG AA for body text.
-        expect(contrast(readableOn(surface), surface)).toBeGreaterThanOrEqual(4.5);
-      }
-    }
+  it("writes only the chosen version when the mode is fixed", () => {
+    const css = themeCss({ theme: { kind: "preset", id: "forest" }, mode: "light", nav: "floating" });
+    expect(css).toContain(THEMES.forest.light.background);
+    expect(css).not.toContain(THEMES.forest.dark.background);
+    expect(css).not.toContain("@media");
   });
 
-  it("picks dark ink on a pale colour and pale ink on a dark one", () => {
-    expect(readableOn("#ffffff")).toBe("#1f2328");
-    expect(readableOn("#000000")).toBe("#e6edf3");
+  it("names the scheme from the colours, so the rest of the page follows", () => {
+    expect(paletteVars(THEMES.paper.light)["color-scheme"]).toBe("light");
+    expect(paletteVars(THEMES.paper.dark)["color-scheme"]).toBe("dark");
+    expect(schemeOf({ theme: { kind: "preset", id: "blossom" }, mode: "dark", nav: "floating" })).toBe("dark");
+    expect(schemeOf({ theme: { kind: "preset", id: "blossom" }, mode: "light", nav: "floating" })).toBe("light");
+    expect(schemeOf(DEFAULT_APPEARANCE)).toBe("system");
   });
 });
 
@@ -124,11 +187,17 @@ describe("colour input", () => {
     }
   });
 
-  it("shares a palette as a code and reads it back", () => {
-    const code = paletteToShareCode(PRESETS.nord);
-    expect(code).toBe("#2e3440,#434c5e,#88c0d0,#3b4252");
-    expect(parseShareCode(code)).toEqual(PRESETS.nord);
-    expect(parseShareCode("#2e3440 #434c5e #88c0d0 #3b4252")).toEqual(PRESETS.nord);
+  it("shares a theme as eight colours and reads it back", () => {
+    const code = pairToShareCode(THEMES.nord);
+    expect(code.split(",")).toHaveLength(8);
+    expect(parseShareCode(code)).toEqual(THEMES.nord);
+  });
+
+  it("reads four colours as one palette for both versions", () => {
+    expect(parseShareCode("#2e3440,#434c5e,#88c0d0,#3b4252")).toEqual({
+      light: THEMES.nord.dark,
+      dark: THEMES.nord.dark,
+    });
     expect(parseShareCode("#2e3440,#434c5e")).toBeNull();
   });
 });
@@ -137,16 +206,15 @@ describe("comparing and naming", () => {
   it("treats the same colours as the same theme however they were reached", () => {
     expect(sameTheme({ kind: "preset", id: "nord" }, { kind: "preset", id: "nord" })).toBe(true);
     expect(sameTheme({ kind: "preset", id: "nord" }, { kind: "preset", id: "slate" })).toBe(false);
-    expect(sameTheme({ kind: "system" }, { kind: "system" })).toBe(true);
     expect(
-      sameTheme({ kind: "custom", palette: PRESETS.nord }, { kind: "custom", palette: { ...PRESETS.nord } }),
+      sameTheme({ kind: "custom", pair: THEMES.nord }, { kind: "custom", pair: { ...THEMES.nord } }),
     ).toBe(true);
   });
 
   it("describes the choice for the settings overview", () => {
-    expect(describeAppearance(DEFAULT_APPEARANCE)).toBe("System · Floating");
-    expect(describeAppearance({ theme: { kind: "preset", id: "github-dark" }, nav: "default" })).toBe(
-      "GitHub Dark · Default",
+    expect(describeAppearance(DEFAULT_APPEARANCE)).toBe("GitHub · System");
+    expect(describeAppearance({ theme: { kind: "preset", id: "nord" }, mode: "dark", nav: "default" })).toBe(
+      "Nord · Dark",
     );
   });
 });

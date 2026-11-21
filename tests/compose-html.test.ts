@@ -29,8 +29,17 @@ describe("typed text into HTML", () => {
   });
 
   it("ignores blank space rather than making empty paragraphs", () => {
-    expect(textToHtml("\n\n\nHello\n\n\n\n")).toBe("<p>Hello</p>");
+    expect(textToHtml("Hello\n\n\n\n")).toBe("<p>Hello</p>");
     expect(textToHtml("")).toBe("");
+  });
+});
+
+describe("a reply in the editor", () => {
+  it("leaves a line above the quote to write the answer in", () => {
+    // The blank lines above "On … wrote:" were dropped, leaving nowhere to type.
+    expect(textToHtml("\n\nOn Tue, Ali wrote:\n> Hi")).toBe(
+      "<p></p>\n<p>On Tue, Ali wrote:</p>\n<blockquote><p>Hi</p></blockquote>",
+    );
   });
 });
 
@@ -69,6 +78,21 @@ describe("the plain-text copy of an HTML message", () => {
 
   it("turns list items into bullets and decodes entities", () => {
     expect(htmlToText("<ul><li>Fish &amp; chips</li><li>Tea</li></ul>")).toBe("• Fish & chips\n• Tea");
+  });
+
+  it("reads indented source as the flowing text it draws", () => {
+    // An indented newsletter's plain copy used to break wherever its source did.
+    const html = `<table>
+      <tr>
+        <td>
+          <p>Three keynotes
+             confirmed.</p>
+        </td>
+      </tr>
+    </table>
+    <pre>line one
+  line two</pre>`;
+    expect(htmlToText(html)).toBe("Three keynotes confirmed.\n\nline one\n  line two");
   });
 
   it("turns line breaks into line breaks", () => {

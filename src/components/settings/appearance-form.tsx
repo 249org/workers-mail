@@ -2,23 +2,25 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  MODES,
+  MODE_NAMES,
   NAV_LAYOUTS,
   PALETTE_KEYS,
-  PRESET_IDS,
-  PRESET_NAMES,
-  PRESETS,
-  SYSTEM_DARK,
-  SYSTEM_LIGHT,
+  THEMES,
+  THEME_IDS,
+  THEME_NAMES,
   applyAppearance,
   normalizeHex,
-  paletteOf,
-  paletteToShareCode,
+  pairOf,
+  pairToShareCode,
   parseShareCode,
+  accentText,
   readableOn,
+  resolveDark,
   sameTheme,
   type Appearance,
   type Palette,
-  type ThemeChoice,
+  type ThemePair,
 } from "@/lib/appearance";
 import { useAppearanceStore } from "@/lib/appearance-store";
 
@@ -46,19 +48,25 @@ export function AppearanceForm() {
   const hydrate = useAppearanceStore((state) => state.hydrate);
   const [draft, setDraft] = useState<Appearance>(prefs);
   const pending = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dark = resolveDark(draft.mode, prefersDark());
+  // The half of the theme the colour fields change: whichever is on screen, unless the
+  // other one is picked to be edited without switching the whole app over.
+  const [editing, setEditing] = useState<"light" | "dark" | null>(null);
+  const half = editing ?? (dark ? "dark" : "light");
 
   useEffect(() => {
     void hydrate();
   }, [hydrate]);
 
-  // A choice made elsewhere — the palette, another tab — replaces whatever is drafted here.
+  // A choice made elsewhere — the palette, the rail, another tab — replaces the draft.
   useEffect(() => setDraft(prefs), [prefs]);
 
   useEffect(() => () => {
     if (pending.current) clearTimeout(pending.current);
   }, []);
 
-  const palette = paletteOf(draft.theme, prefersDark());
+  const pair = pairOf(draft.theme);
+  const palette = pair[half];
 
   function choose(next: Appearance) {
     if (pending.current) clearTimeout(pending.current);
@@ -66,8 +74,8 @@ export function AppearanceForm() {
     setPrefs(next);
   }
 
-  function preview(theme: ThemeChoice) {
-    const next = { ...draft, theme };
+  function preview(nextPair: ThemePair) {
+    const next: Appearance = { ...draft, theme: { kind: "custom", pair: nextPair } };
     setDraft(next);
     applyAppearance(next);
     if (pending.current) clearTimeout(pending.current);
@@ -76,54 +84,97 @@ export function AppearanceForm() {
 
   function setColor(key: keyof Palette, value: string) {
     const hex = normalizeHex(value);
-    if (hex) preview({ kind: "custom", palette: { ...palette, [key]: hex } });
+    if (hex) preview({ ...pair, [half]: { ...palette, [key]: hex } });
   }
 
   return (
     <div className="appearance-grid">
-      <section className="grid content-start gap-3">
-        <h2 className="section-title">Theme</h2>
-        <div className="grid grid-cols-3 gap-3">
-          <PresetTile
-            label="System"
-            palette={PRESETS[SYSTEM_DARK]}
-            split={PRESETS[SYSTEM_LIGHT]}
-            active={draft.theme.kind === "system"}
-            onSelect={() => choose({ ...draft, theme: { kind: "system" } })}
-          />
-          {PRESET_IDS.map((id) => (
-            <PresetTile
-              key={id}
-              label={PRESET_NAMES[id]}
-              palette={PRESETS[id]}
-              active={sameTheme(draft.theme, { kind: "preset", id })}
-              onSelect={() => choose({ ...draft, theme: { kind: "preset", id } })}
-            />
-          ))}
+      <section className="grid content-start gap-5">
+        <fieldset className="grid gap-2">
+          <legend className="section-title mb-2">Mode</legend>
+          <div className="scheme-toggle w-fit" role="radiogroup" aria-label="Mode">
+            {MODES.map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                role="radio"
+                aria-checked={draft.mode === mode}
+                className="scheme-toggle-btn"
+                onClick={() => {
+                  setEditing(null);
+                  choose({ ...draft, mode });
+                }}
+              >
+                {MODE_NAMES[mode]}
+              </button>
+            ))}
+          </div>
+          <p className="text-[12.5px] text-muted-foreground">
+            Every theme has a light and a dark version. System follows the device; the sun
+            and moon on the rail flip it from anywhere.
+          </p>
+        </fieldset>
+
+        <div className="grid gap-3">
+          <h2 className="section-title">Theme</h2>
+          <div className="grid grid-cols-3 gap-3">
+            {THEME_IDS.map((id) => (
+              <PresetTile
+                key={id}
+                label={THEME_NAMES[id]}
+                palette={THEMES[id].light}
+                split={THEMES[id].dark}
+                active={sameTheme(draft.theme, { kind: "preset", id })}
+                onSelect={() => {
+                  setEditing(null);
+                  choose({ ...draft, theme: { kind: "preset", id } });
+                }}
+              />
+            ))}
+            {draft.theme.kind === "custom" ? (
+              <PresetTile label="Custom" palette={pair.light} split={pair.dark} active onSelect={() => undefined} />
+            ) : null}
+          </div>
+          <p className="text-[12.5px] text-muted-foreground">
+            Each tile shows the light version on the left and the dark on the right. The same
+            choices are in <span className="kbd">⌘K</span>.
+          </p>
         </div>
-        <p className="text-[12.5px] text-muted-foreground">
-          System follows the device: GitHub Dark at night, GitHub Light by day. The same
-          choices are in <span className="kbd">⌘K</span>.
-        </p>
       </section>
 
       <section className="grid content-start gap-6">
         <Preview palette={palette} />
 
         <div className="grid gap-2.5">
-          <h2 className="section-title">
-            Colours
-            {draft.theme.kind === "custom" ? (
-              <span className="eyebrow ml-2 text-muted-foreground">Custom</span>
-            ) : null}
-          </h2>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="section-title">
+              Colours
+              {draft.theme.kind === "custom" ? (
+                <span className="eyebrow ml-2 text-muted-foreground">Custom</span>
+              ) : null}
+            </h2>
+            <div className="scheme-toggle" role="radiogroup" aria-label="Version to edit">
+              {(["light", "dark"] as const).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  role="radio"
+                  aria-checked={half === option}
+                  className="scheme-toggle-btn"
+                  onClick={() => setEditing(option)}
+                >
+                  {option === "light" ? "Light" : "Dark"}
+                </button>
+              ))}
+            </div>
+          </div>
           {PALETTE_KEYS.map((key) => (
             <div key={key} className="flex items-center gap-3">
               <input
                 type="color"
                 value={palette[key]}
                 onChange={(event) => setColor(key, event.target.value)}
-                aria-label={COLOR_NAMES[key].name}
+                aria-label={`${COLOR_NAMES[key].name}, ${half} version`}
                 className="color-well"
               />
               <div className="min-w-0 flex-1">
@@ -132,7 +183,7 @@ export function AppearanceForm() {
               </div>
               <HexField
                 value={palette[key]}
-                label={`${COLOR_NAMES[key].name} hex`}
+                label={`${COLOR_NAMES[key].name} hex, ${half} version`}
                 onCommit={(value) => setColor(key, value)}
               />
             </div>
@@ -140,8 +191,8 @@ export function AppearanceForm() {
         </div>
 
         <ShareCode
-          palette={palette}
-          onPalette={(next) => choose({ ...draft, theme: { kind: "custom", palette: next } })}
+          pair={pair}
+          onPair={(next) => choose({ ...draft, theme: { kind: "custom", pair: next } })}
         />
 
         <fieldset className="grid gap-2">
@@ -161,8 +212,8 @@ export function AppearanceForm() {
             ))}
           </div>
           <p className="text-[12.5px] text-muted-foreground">
-            Floating sets the navigation and the mail apart on a dotted canvas. Default joins
-            them edge to edge.
+            Floating sets the navigation, the list and the message apart on a dotted canvas.
+            Default joins them edge to edge.
           </p>
         </fieldset>
       </section>
@@ -228,7 +279,7 @@ function Preview({ palette }: { palette: Palette }) {
   const onSidebar = readableOn(palette.sidebar);
   const onSelected = readableOn(palette.selected);
   const onBackground = readableOn(palette.background);
-  const onAccent = readableOn(palette.accent);
+  const onAccent = accentText(palette.accent);
   const line = `color-mix(in oklab, ${onBackground} 18%, transparent)`;
   const rows = [
     { from: "Ali Jallous", subject: "Deal confirmed — next steps", unread: true },
@@ -299,9 +350,9 @@ function HexField({
   );
 }
 
-/** Four colours as one line of text, to pass a theme to someone or keep it. */
-function ShareCode({ palette, onPalette }: { palette: Palette; onPalette: (palette: Palette) => void }) {
-  const shareCode = paletteToShareCode(palette);
+/** A theme as one line of text — light then dark — to pass to someone or keep. */
+function ShareCode({ pair, onPair }: { pair: ThemePair; onPair: (pair: ThemePair) => void }) {
+  const shareCode = pairToShareCode(pair);
   const [code, setCode] = useState(shareCode);
   const [copied, setCopied] = useState(false);
   useEffect(() => setCode(shareCode), [shareCode]);
@@ -325,19 +376,19 @@ function ShareCode({ palette, onPalette }: { palette: Palette; onPalette: (palet
           onChange={(event) => {
             setCode(event.target.value);
             const parsed = parseShareCode(event.target.value);
-            if (parsed) onPalette(parsed);
+            if (parsed) onPair(parsed);
           }}
           spellCheck={false}
           aria-label="Share code"
           aria-invalid={parseShareCode(code) ? undefined : true}
-          className="field font-mono text-[12.5px]"
+          className="field font-mono text-[12px]"
         />
         <button type="button" className="btn btn-ghost !h-9 shrink-0" onClick={() => void copy()}>
           {copied ? "Copied" : "Copy"}
         </button>
       </div>
       <p className="text-[12.5px] text-muted-foreground">
-        Paste a code someone sent you to use their colours.
+        Eight colours, light then dark. Paste a code someone sent you to use their theme.
       </p>
     </div>
   );

@@ -48,6 +48,8 @@ export function textToHtml(text: string): string {
   }
   endParagraph();
   endQuote();
+  // A reply starts with blank lines above the quote: the place to write the answer.
+  if (out.length && /^\s*\n/.test(text)) out.unshift("<p></p>");
   return out.join("\n");
 }
 
@@ -59,7 +61,14 @@ export function textToHtml(text: string): string {
  * not said twice.
  */
 export function htmlToText(html: string): string {
-  const text = html
+  // Code blocks are set aside so the tidying below cannot flatten their indentation.
+  const blocks: string[] = [];
+  const held = collapseWhitespace(html).replace(/<pre\b[^>]*>([\s\S]*?)<\/pre>/gi, (_, inner: string) => {
+    blocks.push(decodeEntities(inner.replace(/<[^>]+>/g, "")));
+    return `\n\n\u0000${blocks.length - 1}\u0000\n\n`;
+  });
+
+  const text = held
     .replace(/<!--[\s\S]*?-->/g, "")
     .replace(/<(head|script|style|title)\b[^>]*>[\s\S]*?<\/\1>/gi, "")
     .replace(/<a\b[^>]*?\bhref\s*=\s*(["'])(.*?)\1[^>]*>([\s\S]*?)<\/a>/gi, (_, _q, href: string, label: string) => {
@@ -79,10 +88,24 @@ export function htmlToText(html: string): string {
     .replace(/<[^>]+>/g, "");
 
   return decodeEntities(text)
-    .replace(/[ \t ]+/g, " ")
+    .replace(/[ \t\u00a0]+/g, " ")
     .replace(/ *\n */g, "\n")
     .replace(/\n{3,}/g, "\n\n")
-    .trim();
+    .trim()
+    .replace(/\u0000(\d+)\u0000/g, (_, index: string) => blocks[Number(index)] ?? "");
+}
+
+/*
+ * Line breaks and indentation in the source are layout for whoever reads the code, not
+ * the message: HTML draws them as a single space. Left in, an indented newsletter's
+ * plain-text copy broke mid-sentence wherever its source did. A code block is the
+ * exception — its lines are the content.
+ */
+function collapseWhitespace(html: string): string {
+  return html
+    .split(/(<pre\b[\s\S]*?<\/pre>)/i)
+    .map((part, index) => (index % 2 === 1 ? part : part.replace(/\s+/g, " ")))
+    .join("");
 }
 
 /** A fragment gets the document around it a mail client expects; a whole document is left as written. */
@@ -169,4 +192,76 @@ export function normalizeLink(value: string): string | null {
   if (/^[^\s@/]+@[^\s@/]+\.[^\s@/]+$/.test(text)) return `mailto:${text}`;
   if (/^[^\s/]+\.[a-z]{2,}(\/\S*)?$/i.test(text)) return `https://${text}`;
   return null;
+}
+
+/* Elements that hold other blocks, set out one per line with what they hold indented. */
+const CONTAINERS = new Set([
+  "html", "head", "body", "div", "table", "colgroup", "thead", "tbody", "tfoot", "tr", "td", "th",
+  "ul", "ol", "li", "blockquote",
+]);
+/* Blocks of words, each kept whole on its own line. */
+const LINES = new Set(["p", "h1", "h2", "h3", "h4", "h5", "h6", "pre", "title", "style"]);
+/* Blocks with nothing inside. */
+const STANDALONE = new Set(["col", "hr", "meta", "link", "base"]);
+
+/**
+ * HTML laid out to be read: an element per line, nesting indented, the words of a
+ * paragraph left together. Only whitespace between blocks is added, so what a client
+ * draws is unchanged — the rich editor's output arrived as one unbroken line, which
+ * nobody could edit.
+ */
+export function formatHtml(html: string): string {
+  const out: string[] = [];
+  let depth = 0;
+  let line = "";
+  let verbatim = false;
+
+  const indent = () => "  ".repeat(depth);
+  const flush = () => {
+    const text = verbatim ? line : line.trim();
+    if (text) out.push(indent() + text);
+    line = "";
+  };
+
+  for (const token of html.split(/(<[^>]+>)/)) {
+    if (!token) continue;
+    const tag = /^<(\/?)([a-zA-Z][a-zA-Z0-9]*)/.exec(token);
+    const name = tag?.[2]?.toLowerCase() ?? "";
+    const closing = tag?.[1] === "/";
+
+    if (verbatim) {
+      line += token;
+      if (closing && name === "pre") {
+        flush();
+        verbatim = false;
+      }
+      continue;
+    }
+    if (!tag) {
+      line += token.replace(/\s*\n\s*/g, " ");
+      continue;
+    }
+    if (CONTAINERS.has(name)) {
+      flush();
+      if (closing) depth = Math.max(0, depth - 1);
+      out.push(indent() + token);
+      if (!closing) depth += 1;
+    } else if (LINES.has(name)) {
+      if (closing) {
+        line += token;
+        flush();
+      } else {
+        flush();
+        line = token;
+        verbatim = name === "pre";
+      }
+    } else if (STANDALONE.has(name) || /^<!doctype/i.test(token)) {
+      flush();
+      out.push(indent() + token);
+    } else {
+      line += token;
+    }
+  }
+  flush();
+  return out.join("\n");
 }

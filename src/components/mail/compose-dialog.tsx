@@ -18,6 +18,7 @@ import {
 import { useSignatureStore } from "@/lib/signature-store";
 import {
   asHtmlDocument,
+  formatHtml,
   htmlToText,
   switchFormat,
   textToHtml,
@@ -191,7 +192,7 @@ export function ComposeDialog({
     if (preferenceApplied.current || !signatureReady) return;
     preferenceApplied.current = true;
     const remembered = readPreference(FORMAT_KEY);
-    const preferred: BodyFormat = remembered === "text" || remembered === "html" ? remembered : "rich";
+    const preferred: BodyFormat = remembered === "text" ? "text" : "rich";
     if (preferred !== "text") chooseFormat(preferred);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signatureReady]);
@@ -223,13 +224,15 @@ export function ComposeDialog({
 
   function chooseFormat(next: BodyFormat) {
     if (next === format) return;
-    writePreference(FORMAT_KEY, next);
+    // Rich or plain is a way of writing; hand-written HTML is a choice for one message,
+    // and opening every later reply as code because one newsletter was pasted is not.
+    if (next !== "html") writePreference(FORMAT_KEY, next);
     setView("write");
 
     // The editor and the code are the same HTML. The code is shown with the inline
     // styles a mail client needs written in, because that is what will be sent.
     if (format !== "text" && next !== "text") {
-      const nextHtml = next === "html" && html ? toEmailHtml(html) : html;
+      const nextHtml = next === "html" && html ? formatHtml(toEmailHtml(html)) : html;
       if (formatMemo.current?.html === html) formatMemo.current = { ...formatMemo.current, html: nextHtml };
       setForm((current) => ({ ...current, html: nextHtml, format: next }));
       return;
@@ -352,7 +355,7 @@ export function ComposeDialog({
     >
       <div className="overlay-backdrop absolute inset-0" data-open={mounted} />
       <div
-        className="compose-sheet overlay-panel panel relative flex max-h-full w-full max-w-2xl flex-col overflow-hidden max-md:h-full max-md:max-h-none max-md:rounded-none"
+        className="compose-sheet overlay-panel panel relative flex max-h-full w-full max-w-3xl flex-col overflow-hidden max-md:h-full max-md:max-h-none max-md:rounded-none"
         data-open={mounted}
         data-expanded={expanded ? "" : undefined}
         style={{ boxShadow: "var(--shadow-pop)" }}

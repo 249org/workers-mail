@@ -1,13 +1,12 @@
 "use client";
 
 import {
+  MODES,
+  MODE_NAMES,
   NAV_LAYOUTS,
-  PRESET_IDS,
-  PRESET_NAMES,
-  SYSTEM_DARK,
-  SYSTEM_LIGHT,
-  isLight,
-  paletteOf,
+  THEME_IDS,
+  THEME_NAMES,
+  resolveDark,
   type Appearance,
 } from "@/lib/appearance";
 import type { PaletteCommand } from "@/components/palette/command-palette";
@@ -20,10 +19,8 @@ export function appearanceCommands(
   prefs: Appearance,
   setPrefs: (prefs: Appearance) => void,
 ): PaletteCommand[] {
-  // The toggle lands on the system pair, so a dark custom theme flips to a light one.
-  const dark = resolvedDark(prefs);
-  const toggleTo = dark ? SYSTEM_LIGHT : SYSTEM_DARK;
-  const activePreset = prefs.theme.kind === "preset" ? prefs.theme.id : null;
+  const dark = resolveDark(prefs.mode, prefersDark());
+  const activeTheme = prefs.theme.kind === "preset" ? prefs.theme.id : null;
 
   const modes: PaletteCommand[] = [
     {
@@ -31,24 +28,25 @@ export function appearanceCommands(
       label: dark ? "Switch to light mode" : "Switch to dark mode",
       group: "Appearance",
       keywords: ["theme", "night", "day", "colour", "color", "appearance", "toggle"],
-      run: () => setPrefs({ ...prefs, theme: { kind: "preset", id: toggleTo } }),
+      run: () => setPrefs({ ...prefs, mode: dark ? "light" : "dark" }),
     },
-    {
-      id: "scheme-system",
-      label: "Use system appearance",
+    ...MODES.map((mode) => ({
+      id: `scheme-${mode}`,
+      label: mode === "system" ? "Use system appearance" : `Always ${MODE_NAMES[mode].toLowerCase()} mode`,
       group: "Appearance",
-      keywords: ["theme", "device", "os", "automatic", "colour", "color"],
-      suffix: prefs.theme.kind === "system" ? "On" : undefined,
-      run: () => setPrefs({ ...prefs, theme: { kind: "system" } }),
-    },
+      keywords: ["theme", "mode", "device", "colour", "color", mode],
+      suffix: prefs.mode === mode ? "On" : undefined,
+      run: () => setPrefs({ ...prefs, mode }),
+    })),
   ];
 
-  const themes: PaletteCommand[] = PRESET_IDS.map((id) => ({
+  // A theme keeps the mode already chosen: picking Nord at night gives dark Nord.
+  const themes: PaletteCommand[] = THEME_IDS.map((id) => ({
     id: `theme-${id}`,
-    label: `${PRESET_NAMES[id]} theme`,
+    label: `${THEME_NAMES[id]} theme`,
     group: "Appearance",
     keywords: ["theme", "palette", "colour", "color", id],
-    suffix: activePreset === id ? "On" : undefined,
+    suffix: activeTheme === id ? "On" : undefined,
     run: () => setPrefs({ ...prefs, theme: { kind: "preset", id } }),
   }));
 
@@ -113,8 +111,6 @@ export function settingsCommands(
   ];
 }
 
-function resolvedDark(prefs: Appearance): boolean {
-  const prefersDark =
-    typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
-  return !isLight(paletteOf(prefs.theme, prefersDark).background);
+function prefersDark(): boolean {
+  return typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
 }

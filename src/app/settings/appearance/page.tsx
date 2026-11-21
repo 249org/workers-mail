@@ -11,7 +11,7 @@ export default async function AppearancePage() {
   return (
     <>
       <PageHeader title="Appearance">
-        A theme is four colours. Pick one, follow the device, or mix your own.
+        Every theme comes in light and dark. Pick one, set the mode, or mix your own.
       </PageHeader>
       <SettingsBody>
         <AppearanceForm />

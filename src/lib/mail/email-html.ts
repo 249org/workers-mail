@@ -30,7 +30,8 @@ const STYLES: Record<string, string> = {
   code: `padding:1px 4px;background:${WASH};border-radius:4px;font-family:${MONO};font-size:90%`,
   hr: `border:0;border-top:1px solid ${LINE};margin:16px 0`,
   img: "max-width:100%;height:auto",
-  table: "border-collapse:collapse;width:100%;margin:0 0 12px",
+  // Fixed layout, so the columns keep the widths they had in the editor.
+  table: "border-collapse:collapse;width:100%;table-layout:fixed;margin:0 0 12px",
   th: `border:1px solid ${LINE};padding:6px 10px;vertical-align:top;text-align:left;background:${WASH};font-weight:600`,
   td: `border:1px solid ${LINE};padding:6px 10px;vertical-align:top`,
   a: "color:#0969da",
@@ -103,6 +104,17 @@ export function toEmailHtml(fragment: string, parser: DOMParser = new DOMParser(
     if (parent.lastElementChild === element) setProperty(element, "margin-bottom", "0");
     // A list item is one paragraph in the editor; it should read as one line in the mail.
     if (parent.tagName === "LI" && element.tagName === "P") setProperty(element, "margin-top", "0");
+  }
+
+  /*
+   * An empty paragraph — a blank line typed between two others, or a table cell nobody
+   * has filled yet — has no height in a mail client, so blank lines closed up and empty
+   * table rows shrank to nothing. A line break gives it the line it had in the editor.
+   */
+  for (const paragraph of Array.from(body.querySelectorAll("p"))) {
+    if (!paragraph.textContent?.trim() && !paragraph.querySelector("img, br")) {
+      paragraph.appendChild(doc.createElement("br"));
+    }
   }
 
   if (alreadyWrapped(body)) return body.innerHTML;

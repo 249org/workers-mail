@@ -1,6 +1,9 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { resolveDark } from "@/lib/appearance";
+import { useAppearanceStore } from "@/lib/appearance-store";
 import type { PublicMailbox } from "@/lib/mail/mailboxes";
 import { AccountMenu } from "@/components/account-menu";
 import { BrandMark } from "@/components/brand/wordmark";
@@ -81,6 +84,7 @@ export function Rail({
       </Link>
 
       <div className="rail-foot">
+        <ModeToggle />
         <Link
           href="/settings"
           className="rail-btn pressable tip tip-side"
@@ -100,5 +104,41 @@ export function Rail({
         />
       </div>
     </nav>
+  );
+}
+
+/** Whether the device is in dark mode, kept current as it changes at dusk and dawn. */
+function usePrefersDark(): boolean {
+  const [dark, setDark] = useState(true);
+  useEffect(() => {
+    const query = window.matchMedia("(prefers-color-scheme: dark)");
+    setDark(query.matches);
+    const onChange = (event: MediaQueryListEvent) => setDark(event.matches);
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, []);
+  return dark;
+}
+
+/**
+ * Light or dark in one press, keeping the theme: dark Nord becomes light Nord. The icon
+ * is the mode it will switch to, as a light switch shows where it goes.
+ */
+function ModeToggle() {
+  const prefs = useAppearanceStore((state) => state.prefs);
+  const setPrefs = useAppearanceStore((state) => state.setPrefs);
+  const dark = resolveDark(prefs.mode, usePrefersDark());
+  const label = dark ? "Light mode" : "Dark mode";
+
+  return (
+    <button
+      type="button"
+      className="rail-btn pressable tip tip-side"
+      data-tip={label}
+      aria-label={label}
+      onClick={() => setPrefs({ ...prefs, mode: dark ? "light" : "dark" })}
+    >
+      <MailIcon name={dark ? "sun" : "moon"} />
+    </button>
   );
 }

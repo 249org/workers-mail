@@ -6,7 +6,7 @@ import {
   DEFAULT_APPEARANCE,
   parseAppearance,
   persistAppearanceLocal,
-  sameTheme,
+  sameAppearance,
   serializeAppearance,
   APPEARANCE_COOKIE,
   type Appearance,
@@ -71,8 +71,7 @@ export const useAppearanceStore = create<State>((set, get) => ({
   },
 
   setPrefs: (prefs) => {
-    const current = get().prefs;
-    if (sameTheme(current.theme, prefs.theme) && current.nav === prefs.nav) return;
+    if (sameAppearance(get().prefs, prefs)) return;
     applyAppearance(prefs);
     persistAppearanceLocal(prefs);
     set({ prefs });
